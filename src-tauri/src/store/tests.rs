@@ -225,3 +225,72 @@ async fn 같은_dedupe_key_메일은_폴더가_달라도_한_번만_저장한다
         .unwrap();
     assert_eq!(folder, "a1-inbox");
 }
+
+#[tokio::test]
+async fn 차지한_메일이_사라지면_다른_폴더의_중복_사본을_다시_받을_수_있게_푼다() {
+    let store = seeded().await;
+    let mut m = html_message("본문", None);
+    m.remote_id = "900".into();
+    m.dedupe_key = Some("77".into());
+    store.save_messages("a1", "inbox", &[m.clone()]).unwrap();
+    // 전체보관함 역할의 폴더는 같은 메일을 건너뛰지만, 받았다는 기록은 남는다.
+    let mut copy = m.clone();
+    copy.remote_id = "5".into();
+    store.save_messages("a1", "trash", &[copy]).unwrap();
+    assert!(store.known_uids("a1-trash").unwrap().contains("5"));
+    assert!(store.get_mail("a1-trash-5").unwrap().is_none());
+
+    store
+        .remove_remote("a1", "a1-inbox", &["900".to_string()])
+        .unwrap();
+
+    assert!(!store.known_uids("a1-inbox").unwrap().contains("900"));
+    assert!(!store.known_uids("a1-trash").unwrap().contains("5"));
+}
+
+#[tokio::test]
+async fn 건너뛴_중복_사본을_지워도_차지한_메일은_남는다() {
+    let store = seeded().await;
+    let mut m = html_message("본문", None);
+    m.remote_id = "900".into();
+    m.dedupe_key = Some("77".into());
+    store.save_messages("a1", "inbox", &[m.clone()]).unwrap();
+    let mut copy = m;
+    copy.remote_id = "5".into();
+    store.save_messages("a1", "trash", &[copy]).unwrap();
+
+    store
+        .remove_remote("a1", "a1-trash", &["5".to_string()])
+        .unwrap();
+
+    assert!(store.get_mail("a1-inbox-900").unwrap().is_some());
+    assert!(store.known_uids("a1-inbox").unwrap().contains("900"));
+}
+
+#[test]
+fn 이미_저장된_메일의_uid_기록은_마이그레이션이_채운다() {
+    let dir = std::env::temp_dir().join(format!("mymail-test-uids-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("db.sqlite");
+    {
+        // 0003까지만 적용된 옛 DB를 만든다.
+        let conn = Connection::open(&path).unwrap();
+        for sql in &MIGRATIONS[..3] {
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.pragma_update(None, "user_version", 3).unwrap();
+        conn.execute_batch(
+            "INSERT INTO accounts (id, name, email, provider, color_index, initial)
+               VALUES ('a1', 'n', 'e@x.com', 'gmail', 1, 'n');
+             INSERT INTO folders (id, account_id, name, kind) VALUES ('a1-INBOX', 'a1', 'INBOX', 'inbox');
+             INSERT INTO messages (id, account_id, folder_id, sender, sender_email, subject, received_at)
+               VALUES ('a1-INBOX-42', 'a1', 'a1-INBOX', 's', 's@x.com', '제목', 1);",
+        )
+        .unwrap();
+    }
+
+    let store = Store::open(&path).unwrap();
+    assert!(store.known_uids("a1-INBOX").unwrap().contains("42"));
+    drop(store);
+    std::fs::remove_dir_all(&dir).unwrap();
+}

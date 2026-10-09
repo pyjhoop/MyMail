@@ -12,7 +12,10 @@ use std::time::Duration;
 use async_trait::async_trait;
 use native_tls::{TlsConnector, TlsStream};
 
-use super::{FolderKind, MailProvider, ProviderError, RemoteFolder, RemoteMessage};
+use super::{
+    FolderKind, FolderSnapshot, MailProvider, ProviderError, RemoteFlags, RemoteFolder,
+    RemoteMessage,
+};
 use gmail_ext::GmailAttrs;
 use parse::{parse_message, FetchedMessage};
 
@@ -193,9 +196,20 @@ impl ImapProvider {
             .collect();
         uids.sort_unstable_by(|a, b| b.cmp(a));
         uids.truncate(limit);
+        let messages = self.fetch_uids(&mut session, folder_key, &uids)?;
+        let _ = session.logout();
+        Ok(messages)
+    }
 
-        let mut gmail = if self.config.gmail_extensions {
-            self.fetch_gmail_attrs(folder_key, &uids)?
+    /// 이미 폴더를 연 세션으로 UID 목록의 메일을 받는다. 최신순으로 돌려준다.
+    fn fetch_uids(
+        &self,
+        session: &mut Session,
+        folder_key: &str,
+        uids: &[u32],
+    ) -> Result<Vec<RemoteMessage>, ProviderError> {
+        let mut gmail = if self.config.gmail_extensions && !uids.is_empty() {
+            self.fetch_gmail_attrs(folder_key, uids)?
         } else {
             HashMap::new()
         };
@@ -230,9 +244,129 @@ impl ImapProvider {
             }
         }
         messages.sort_by_key(|m| std::cmp::Reverse(m.received_at));
+        Ok(messages)
+    }
+
+    fn snapshot_blocking(&self, folder_key: &str) -> Result<FolderSnapshot, ProviderError> {
+        let mut session = self.connect()?;
+        let mailbox = session.examine(folder_key).map_err(map_imap_error)?;
+        let mut messages = Vec::new();
+        // 빈 폴더에서 `1:*`는 마지막 UID 하나를 돌려주는 서버가 있어 건너뛴다.
+        if mailbox.exists > 0 {
+            let fetches = session
+                .uid_fetch("1:*", "(UID FLAGS)")
+                .map_err(map_imap_error)?;
+            for f in fetches.iter() {
+                let Some(uid) = f.uid else { continue };
+                let flags = f.flags();
+                messages.push(RemoteFlags {
+                    remote_id: uid.to_string(),
+                    unread: !flags.contains(&imap::types::Flag::Seen),
+                    starred: flags.contains(&imap::types::Flag::Flagged),
+                });
+            }
+        }
+        let _ = session.logout();
+        Ok(FolderSnapshot {
+            uid_validity: mailbox.uid_validity,
+            messages,
+        })
+    }
+
+    fn fetch_by_ids_blocking(
+        &self,
+        folder_key: &str,
+        ids: &[String],
+    ) -> Result<Vec<RemoteMessage>, ProviderError> {
+        let uids = parse_uids(ids)?;
+        let mut session = self.connect()?;
+        session.examine(folder_key).map_err(map_imap_error)?;
+        let messages = self.fetch_uids(&mut session, folder_key, &uids)?;
         let _ = session.logout();
         Ok(messages)
     }
+
+    /// 읽기·쓰기로 폴더를 열고 `work`를 실행한다. 서버가 거절하면 `Rejected`다.
+    fn with_folder<T>(
+        &self,
+        folder_key: &str,
+        work: impl FnOnce(&mut Session) -> Result<T, imap::Error>,
+    ) -> Result<T, ProviderError> {
+        let mut session = self.connect()?;
+        session.select(folder_key).map_err(map_op_error)?;
+        let result = work(&mut session).map_err(map_op_error);
+        let _ = session.logout();
+        result
+    }
+
+    fn set_flag_blocking(
+        &self,
+        folder_key: &str,
+        remote_id: &str,
+        flag: &str,
+        on: bool,
+    ) -> Result<(), ProviderError> {
+        let uid = parse_uid(remote_id)?;
+        let sign = if on { '+' } else { '-' };
+        self.with_folder(folder_key, |s| {
+            s.uid_store(uid.to_string(), format!("{sign}FLAGS.SILENT ({flag})"))
+                .map(|_| ())
+        })
+    }
+
+    fn move_blocking(
+        &self,
+        folder_key: &str,
+        remote_id: &str,
+        dest_key: &str,
+    ) -> Result<(), ProviderError> {
+        let uid = parse_uid(remote_id)?.to_string();
+        self.with_folder(folder_key, |s| {
+            if s.capabilities()?.has_str("MOVE") {
+                return s.uid_mv(&uid, dest_key);
+            }
+            // MOVE가 없으면 복사한 뒤 원본을 지운다.
+            s.uid_copy(&uid, dest_key)?;
+            expunge_uid(s, &uid)
+        })
+    }
+
+    fn delete_blocking(&self, folder_key: &str, remote_id: &str) -> Result<(), ProviderError> {
+        let uid = parse_uid(remote_id)?.to_string();
+        self.with_folder(folder_key, |s| expunge_uid(s, &uid))
+    }
+
+    fn wait_blocking(&self, folder_key: &str, timeout: Duration) -> Result<(), ProviderError> {
+        let mut session = self.connect()?;
+        session.examine(folder_key).map_err(map_imap_error)?;
+        let caps = session.capabilities().map_err(map_imap_error)?;
+        if !caps.has_str("IDLE") {
+            return Err(ProviderError::Unsupported("IDLE".into()));
+        }
+        let outcome = session
+            .idle()
+            .map_err(map_imap_error)?
+            .wait_with_timeout(timeout)
+            .map(|_| ())
+            .map_err(map_imap_error);
+        let _ = session.logout();
+        outcome
+    }
+}
+
+/// 원본에 `\Deleted`를 달아 지운다. UID로 지정해 같은 폴더의 다른 `\Deleted` 메일은 건드리지 않는다.
+fn expunge_uid(session: &mut Session, uid: &str) -> Result<(), imap::Error> {
+    session.uid_store(uid, "+FLAGS.SILENT (\\Deleted)")?;
+    session.uid_expunge(uid).map(|_| ())
+}
+
+fn parse_uid(id: &str) -> Result<u32, ProviderError> {
+    id.parse()
+        .map_err(|_| ProviderError::Rejected(format!("잘못된 메일 번호: {id}")))
+}
+
+fn parse_uids(ids: &[String]) -> Result<Vec<u32>, ProviderError> {
+    ids.iter().map(|id| parse_uid(id)).collect()
 }
 
 #[async_trait]
@@ -260,6 +394,75 @@ impl MailProvider for ImapProvider {
         self.blocking(move |this| this.fetch_blocking(&key, limit))
             .await
     }
+
+    async fn snapshot(&self, folder_key: &str) -> Result<FolderSnapshot, ProviderError> {
+        let key = folder_key.to_string();
+        self.blocking(move |this| this.snapshot_blocking(&key))
+            .await
+    }
+
+    async fn fetch_by_ids(
+        &self,
+        folder_key: &str,
+        ids: &[String],
+    ) -> Result<Vec<RemoteMessage>, ProviderError> {
+        let (key, ids) = (folder_key.to_string(), ids.to_vec());
+        self.blocking(move |this| this.fetch_by_ids_blocking(&key, &ids))
+            .await
+    }
+
+    async fn set_seen(
+        &self,
+        folder_key: &str,
+        remote_id: &str,
+        seen: bool,
+    ) -> Result<(), ProviderError> {
+        let (key, id) = (folder_key.to_string(), remote_id.to_string());
+        self.blocking(move |this| this.set_flag_blocking(&key, &id, "\\Seen", seen))
+            .await
+    }
+
+    async fn set_flagged(
+        &self,
+        folder_key: &str,
+        remote_id: &str,
+        flagged: bool,
+    ) -> Result<(), ProviderError> {
+        let (key, id) = (folder_key.to_string(), remote_id.to_string());
+        self.blocking(move |this| this.set_flag_blocking(&key, &id, "\\Flagged", flagged))
+            .await
+    }
+
+    async fn move_message(
+        &self,
+        folder_key: &str,
+        remote_id: &str,
+        dest_key: &str,
+    ) -> Result<(), ProviderError> {
+        let (key, id, dest) = (
+            folder_key.to_string(),
+            remote_id.to_string(),
+            dest_key.to_string(),
+        );
+        self.blocking(move |this| this.move_blocking(&key, &id, &dest))
+            .await
+    }
+
+    async fn delete_message(&self, folder_key: &str, remote_id: &str) -> Result<(), ProviderError> {
+        let (key, id) = (folder_key.to_string(), remote_id.to_string());
+        self.blocking(move |this| this.delete_blocking(&key, &id))
+            .await
+    }
+
+    async fn wait_for_changes(
+        &self,
+        folder_key: &str,
+        timeout: Duration,
+    ) -> Result<(), ProviderError> {
+        let key = folder_key.to_string();
+        self.blocking(move |this| this.wait_blocking(&key, timeout))
+            .await
+    }
 }
 
 fn network(e: std::io::Error) -> ProviderError {
@@ -269,6 +472,14 @@ fn network(e: std::io::Error) -> ProviderError {
 fn map_imap_error(e: imap::Error) -> ProviderError {
     match e {
         imap::Error::No(m) | imap::Error::Bad(m) => ProviderError::Network(m),
+        other => ProviderError::Network(other.to_string()),
+    }
+}
+
+/// 서버가 명령을 거절하면 `Rejected`, 연결 문제면 `Network`. 사용자 조작을 서버에 보낼 때 쓴다.
+fn map_op_error(e: imap::Error) -> ProviderError {
+    match e {
+        imap::Error::No(m) | imap::Error::Bad(m) => ProviderError::Rejected(m),
         other => ProviderError::Network(other.to_string()),
     }
 }

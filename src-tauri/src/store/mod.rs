@@ -1,6 +1,7 @@
 //! SQLite 저장소와 마이그레이션.
 
 mod models;
+mod sync_state;
 
 use std::path::Path;
 use std::sync::{Mutex, MutexGuard};
@@ -13,6 +14,7 @@ use crate::providers::{RemoteFolder, RemoteMessage};
 pub use models::{
     Account, Attachment, EarlierMail, Folder, LabelTag, MailDetail, MailSummary, NewAccount,
 };
+pub use sync_state::{folder_key, OpKind};
 
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
@@ -27,6 +29,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/0001_init.sql"),
     include_str!("migrations/0002_html_body.sql"),
     include_str!("migrations/0003_dedupe_key.sql"),
+    include_str!("migrations/0004_sync.sql"),
 ];
 
 const PREVIEW_CHARS: usize = 80;
@@ -128,6 +131,18 @@ impl Store {
                 ],
             )?;
         }
+        // 서버에서 사라진 폴더는 딸린 메일과 함께 지운다.
+        let keep: std::collections::HashSet<String> = folders
+            .iter()
+            .map(|f| folder_id(account_id, &f.key))
+            .collect();
+        let existing: Vec<String> = tx
+            .prepare("SELECT id FROM folders WHERE account_id = ?1")?
+            .query_map([account_id], |r| r.get(0))?
+            .collect::<Result<_, _>>()?;
+        for id in existing.iter().filter(|id| !keep.contains(*id)) {
+            tx.execute("DELETE FROM folders WHERE id = ?1", [id])?;
+        }
         tx.commit()?;
         Ok(())
     }
@@ -166,8 +181,13 @@ impl Store {
             let mut stored_elsewhere = tx.prepare_cached(
                 "SELECT 1 FROM messages WHERE account_id = ?1 AND dedupe_key = ?2 AND id != ?3",
             )?;
+            let mut record_uid = tx.prepare_cached(
+                "INSERT OR REPLACE INTO folder_uids (folder_id, remote_id, dedupe_key)
+                 VALUES (?1, ?2, ?3)",
+            )?;
             for m in messages {
                 let id = format!("{folder}-{}", m.remote_id);
+                record_uid.execute(params![folder, m.remote_id, m.dedupe_key])?;
                 // 다른 폴더에 이미 저장된 같은 메일이면 건너뛴다(먼저 저장된 폴더가 차지한다).
                 if let Some(key) = &m.dedupe_key {
                     if stored_elsewhere.exists(params![account_id, key, id])? {

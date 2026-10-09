@@ -155,13 +155,32 @@ export async function getMail(id: string): Promise<MailDetail | null> {
   };
 }
 
+/** 읽음 표시를 바꾼다. 로컬에 바로 반영되고 서버에는 백그라운드로 보낸다(오프라인이면 연결 뒤에). */
+export function setRead(id: string, read: boolean): Promise<void> {
+  return call("set_read", { id, read });
+}
+
+export function setStarred(id: string, starred: boolean): Promise<void> {
+  return call("set_starred", { id, starred });
+}
+
+/** 휴지통 밖의 메일은 휴지통으로, 휴지통 안의 메일은 완전히 지운다. */
+export function deleteMail(id: string): Promise<void> {
+  return call("delete_mail", { id });
+}
+
+/** 같은 계정의 다른 폴더로 옮긴다. 옮긴 메일은 서버 반영 뒤 대상 폴더에 다시 나타난다. */
+export function moveMail(id: string, folderId: string): Promise<void> {
+  return call("move_mail", { id, folderId });
+}
+
 /** 링크를 기본 브라우저(메일 주소는 기본 메일 앱)로 연다. 앱 창 안에서는 이동하지 않는다. */
 export async function openExternal(url: string): Promise<void> {
   if (!isOpenableLink(url)) return;
   await openUrl(url.trim());
 }
 
-/** 백그라운드 동기화 진행 상황 (폴더 단위) */
+/** 백그라운드 동기화 진행 상황 (받을 메일 수 단위. 받을 게 없으면 done === total === 0) */
 export interface SyncProgress {
   accountId: string;
   done: number;

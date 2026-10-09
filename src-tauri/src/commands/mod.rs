@@ -1,14 +1,15 @@
 //! Tauri command. 입력 검증과 서비스 호출만 한다.
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Manager, State};
 
 use std::sync::Arc;
 
 use crate::auth::CredentialStore;
 use crate::providers::{self, MailProvider, ProviderError};
 use crate::store::{Account, Folder, MailDetail, MailSummary, NewAccount, Store, StoreError};
-use crate::sync::{self, SyncError};
+use crate::sync::manager::SyncManager;
+use crate::sync::{self, actions, SyncError};
 
 /// UI의 `LoadError`와 같은 모양.
 #[derive(Debug, Serialize)]
@@ -105,7 +106,7 @@ pub async fn add_account(
         color_index: (store.account_count()? % 8) as u8 + 1,
     };
     let id = account.id.clone();
-    let folders = sync::add_account(
+    sync::add_account(
         &store,
         credentials.inner().as_ref(),
         &*remote,
@@ -115,19 +116,66 @@ pub async fn add_account(
     .await?;
 
     // 나머지 폴더는 화면을 막지 않고 백그라운드로 받으면서 진행 상황을 UI에 알린다.
-    let account_id = id.clone();
-    tauri::async_runtime::spawn(async move {
-        let store = app.state::<Store>();
-        sync::backfill(&store, &account_id, &*remote, &folders, |p| {
-            let _ = app.emit("sync-progress", p);
-        })
-        .await;
-    });
+    app.state::<SyncManager>().start(&app, &id, remote);
     store
         .list_accounts()?
         .into_iter()
         .find(|a| a.id == id)
         .ok_or_else(|| invalid("추가한 계정을 찾을 수 없어요."))
+}
+
+/// 읽음 표시를 바꾼다. 화면은 바로 바뀌고, 서버에는 백그라운드로 반영한다.
+#[tauri::command]
+pub async fn set_read(
+    app: AppHandle,
+    store: State<'_, Store>,
+    manager: State<'_, SyncManager>,
+    id: String,
+    read: bool,
+) -> CommandResult<()> {
+    let account_id = actions::set_read(&store, &id, read)?;
+    manager.kick(&app, &account_id);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_starred(
+    app: AppHandle,
+    store: State<'_, Store>,
+    manager: State<'_, SyncManager>,
+    id: String,
+    starred: bool,
+) -> CommandResult<()> {
+    let account_id = actions::set_starred(&store, &id, starred)?;
+    manager.kick(&app, &account_id);
+    Ok(())
+}
+
+/// 휴지통 밖의 메일은 휴지통으로, 휴지통 안의 메일은 완전히 지운다.
+#[tauri::command]
+pub async fn delete_mail(
+    app: AppHandle,
+    store: State<'_, Store>,
+    manager: State<'_, SyncManager>,
+    id: String,
+) -> CommandResult<()> {
+    let account_id = actions::delete_mail(&store, &id)?;
+    manager.kick(&app, &account_id);
+    Ok(())
+}
+
+/// 같은 계정의 다른 폴더로 옮긴다.
+#[tauri::command]
+pub async fn move_mail(
+    app: AppHandle,
+    store: State<'_, Store>,
+    manager: State<'_, SyncManager>,
+    id: String,
+    folder_id: String,
+) -> CommandResult<()> {
+    let account_id = actions::move_mail(&store, &id, &folder_id)?;
+    manager.kick(&app, &account_id);
+    Ok(())
 }
 
 fn invalid(message: &str) -> CommandError {

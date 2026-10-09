@@ -7,6 +7,8 @@ pub mod gmail;
 pub mod imap;
 pub mod naver;
 
+use std::time::Duration;
+
 use async_trait::async_trait;
 
 #[allow(dead_code)] // NotFound는 테스트용 FakeProvider만 사용
@@ -20,6 +22,9 @@ pub enum ProviderError {
     NotFound(String),
     #[error("지원하지 않는 서비스: {0}")]
     Unsupported(String),
+    /// 서버가 요청을 거절했다(없는 메일·폴더 등). 같은 요청을 다시 보내도 소용없다.
+    #[error("서버가 거절했어요: {0}")]
+    Rejected(String),
 }
 
 #[allow(dead_code)] // Label은 아직 만드는 곳이 없음
@@ -102,6 +107,26 @@ pub struct RemoteMessage {
     pub inline_images: Vec<RemoteInlineImage>,
 }
 
+/// 서버에 있는 메일 한 통의 상태. 본문 없이 UID와 플래그만 담아 가볍게 대조하는 데 쓴다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoteFlags {
+    pub remote_id: String,
+    pub unread: bool,
+    pub starred: bool,
+}
+
+/// 폴더 전체의 UID·플래그 목록과 UID가 유효한지 판단하는 값.
+#[derive(Debug, Clone, Default)]
+pub struct FolderSnapshot {
+    /// IMAP UIDVALIDITY. 이전과 다르면 저장해 둔 UID는 모두 무효다. 모르면 `None`.
+    pub uid_validity: Option<u32>,
+    pub messages: Vec<RemoteFlags>,
+}
+
+fn unsupported<T>(what: &str) -> Result<T, ProviderError> {
+    Err(ProviderError::Unsupported(what.into()))
+}
+
 #[async_trait]
 pub trait MailProvider: Send + Sync {
     /// 접속과 로그인이 되는지만 확인한다. 계정 추가 전에 자격 증명을 검증할 때 쓴다.
@@ -115,6 +140,66 @@ pub trait MailProvider: Send + Sync {
         folder_key: &str,
         limit: usize,
     ) -> Result<Vec<RemoteMessage>, ProviderError>;
+
+    /// 폴더에 있는 모든 메일의 UID와 플래그. 본문은 받지 않는다.
+    async fn snapshot(&self, _folder_key: &str) -> Result<FolderSnapshot, ProviderError> {
+        unsupported("폴더 상태 조회")
+    }
+
+    /// 지정한 서버 식별자의 메일을 받는다. 서버에서 사라진 것은 결과에서 빠진다.
+    async fn fetch_by_ids(
+        &self,
+        _folder_key: &str,
+        _ids: &[String],
+    ) -> Result<Vec<RemoteMessage>, ProviderError> {
+        unsupported("메일 받기")
+    }
+
+    async fn set_seen(
+        &self,
+        _folder_key: &str,
+        _remote_id: &str,
+        _seen: bool,
+    ) -> Result<(), ProviderError> {
+        unsupported("읽음 표시")
+    }
+
+    async fn set_flagged(
+        &self,
+        _folder_key: &str,
+        _remote_id: &str,
+        _flagged: bool,
+    ) -> Result<(), ProviderError> {
+        unsupported("별표")
+    }
+
+    async fn move_message(
+        &self,
+        _folder_key: &str,
+        _remote_id: &str,
+        _dest_key: &str,
+    ) -> Result<(), ProviderError> {
+        unsupported("메일 이동")
+    }
+
+    /// 서버에서 메일을 완전히 지운다. 휴지통으로 보내려면 `move_message`를 쓴다.
+    async fn delete_message(
+        &self,
+        _folder_key: &str,
+        _remote_id: &str,
+    ) -> Result<(), ProviderError> {
+        unsupported("메일 삭제")
+    }
+
+    /// 폴더에 변화가 생기거나 `timeout`이 지날 때까지 기다린다(IMAP IDLE).
+    /// 서버가 푸시를 지원하지 않으면 `Unsupported`를 돌려주고, 호출한 쪽이 주기적으로 조회한다.
+    async fn wait_for_changes(
+        &self,
+        _folder_key: &str,
+        _timeout: Duration,
+    ) -> Result<(), ProviderError> {
+        unsupported("새 메일 알림")
+    }
 }
 
 /// 서비스 이름으로 구현체를 고른다. 서비스별 분기는 여기까지만 허용한다.
