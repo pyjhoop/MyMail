@@ -78,6 +78,66 @@
   height: var(--control-height);
 }
 
+.spin {
+  animation: mm-list-spin 1s linear infinite;
+}
+
+@keyframes mm-list-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.sortWrap {
+  position: relative;
+}
+
+.sortMenu {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  padding: var(--space-1);
+  border-radius: var(--radius-card);
+  background: var(--color-bg);
+  box-shadow: var(--shadow-popup);
+}
+
+.sortItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-height-lg);
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.sortItem:hover {
+  background: var(--color-bg-hover);
+}
+
+.sortItemActive {
+  font-weight: var(--font-weight-semibold);
+}
+
+.sortCheck {
+  flex: none;
+  visibility: hidden;
+}
+
+.sortItemActive .sortCheck {
+  visibility: visible;
+}
+
 .tabs {
   flex: none;
   display: flex;

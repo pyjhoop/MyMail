@@ -10,6 +10,8 @@ import { Settings } from "./features/settings/Settings";
 import { FolderPane } from "./features/folders/FolderPane";
 import { MailList, type ListStatus } from "./features/mail/MailList";
 import { Reader } from "./features/mail/Reader";
+import { useMailSort } from "./features/mail/sort";
+import { useRefresh } from "./features/mail/useRefresh";
 import { FOLDER, RAIL, usePanelWidths } from "./features/shell/usePanelWidths";
 import { useShortcuts } from "./features/shell/shortcuts";
 import {
@@ -61,6 +63,7 @@ function App() {
   const [adding, setAdding] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [sort, setSort] = useMailSort();
   const [foldersReloadKey, setFoldersReloadKey] = useState(0);
   const [mailId, setMailId] = useState<string | null>(null);
   const [syncs, setSyncs] = useState<Record<string, SyncProgress>>({});
@@ -139,7 +142,7 @@ function App() {
     if (folderPending && !term) return;
     let cancelled = false;
     const accountArg = selection === "all" ? null : selection;
-    (term ? searchMails(accountArg, term) : listMails(accountArg, folderId))
+    (term ? searchMails(accountArg, term, sort) : listMails(accountArg, folderId, sort))
       .then((result) => {
         if (!cancelled) setMailsResult({ scope: mailsScope, mails: result });
       })
@@ -154,7 +157,23 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [selection, folderId, folderPending, term, mailsScope, reloadKey]);
+  }, [selection, folderId, folderPending, term, mailsScope, reloadKey, sort]);
+
+  // 새로고침 = 서버와 바로 동기화. 끝나면 목록·안 읽은 수를 다시 읽는다.
+  const {
+    refreshing,
+    error: syncError,
+    lastSyncedAt,
+    refresh,
+  } = useRefresh({
+    accountId: selection === "all" ? null : selection,
+    folderId: folderId || undefined,
+    onDone: () => {
+      setReloadKey((k) => k + 1);
+      setFoldersReloadKey((k) => k + 1);
+      listAccounts().then(setAccounts);
+    },
+  });
 
   useEffect(() => {
     if (!mailId) return;
@@ -338,6 +357,7 @@ function App() {
       search: () => searchInputRef.current?.focus(),
       next: () => !composing && move(1),
       prev: () => !composing && move(-1),
+      refresh,
       switchAccount: (n) => {
         if (n === 1) selectAccount("all");
         else if (accounts[n - 2]) selectAccount(accounts[n - 2].id);
@@ -438,7 +458,12 @@ function App() {
               deleting={deleting}
               notice={notice}
               searching={term !== ""}
-              onRefresh={() => setReloadKey((k) => k + 1)}
+              onRefresh={refresh}
+              refreshing={refreshing}
+              syncError={syncError}
+              lastSyncedAt={lastSyncedAt}
+              sort={sort}
+              onSortChange={setSort}
             />
           </div>
           <ResizeHandle

@@ -92,6 +92,7 @@ export async function fakeInvoke(command: string, args: Record<string, unknown> 
       return FAKE_DETAIL(args.id as string);
     case "get_autostart":
       return false;
+    case "sync_now":
     case "set_autostart":
     case "set_signature":
       return undefined;
