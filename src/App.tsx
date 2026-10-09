@@ -6,11 +6,18 @@ import { AccountRail, type AccountSelection } from "./features/accounts/AccountR
 import { AddAccountDialog } from "./features/accounts/AddAccountDialog";
 import { Composer, type ComposeInit, type ComposeResult } from "./features/compose/Composer";
 import { startDraft, type ComposeMode } from "./features/compose/compose";
+import { Settings } from "./features/settings/Settings";
 import { FolderPane } from "./features/folders/FolderPane";
 import { MailList, type ListStatus } from "./features/mail/MailList";
 import { Reader } from "./features/mail/Reader";
 import { FOLDER, RAIL, usePanelWidths } from "./features/shell/usePanelWidths";
-import { useSystemTheme } from "./features/shell/useSystemTheme";
+import { useShortcuts } from "./features/shell/shortcuts";
+import {
+  loadTheme,
+  saveTheme,
+  useTheme,
+  type ThemePreference,
+} from "./features/shell/useSystemTheme";
 import {
   deleteMail,
   getDraft,
@@ -42,19 +49,23 @@ const READ_DELAY_MS = 1000;
 const SEARCH_DELAY_MS = 300;
 
 function App() {
-  useSystemTheme();
+  const [theme, setTheme] = useState<ThemePreference>(loadTheme);
+  useTheme(theme);
   const { widths, dragFolder, dragList, endDrag, resetFolder, resetList } = usePanelWidths();
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selection, setSelection] = useState<AccountSelection>("all");
   const [selectedFolderId, setFolderId] = useState("");
   const [adding, setAdding] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [foldersReloadKey, setFoldersReloadKey] = useState(0);
   const [mailId, setMailId] = useState<string | null>(null);
   const [syncs, setSyncs] = useState<Record<string, SyncProgress>>({});
   const [checkedIds, setCheckedIds] = useState<ReadonlySet<string>>(EMPTY_IDS);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  // 확인 창이 지울 메일. 목록에서 체크한 메일이거나 단축키로 지우려는 열린 메일이다.
+  const [pendingIds, setPendingIds] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
   const [notice, setNotice] = useState<string>();
   const [compose, setCompose] = useState<ComposeInit | null>(null);
@@ -79,6 +90,7 @@ function App() {
 
   const folderPaneRef = useRef<HTMLDivElement>(null);
   const listPaneRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const account = selection === "all" ? null : (accounts.find((a) => a.id === selection) ?? null);
 
@@ -222,9 +234,8 @@ function App() {
   // 휴지통 안의 메일은 지우면 되돌릴 수 없어 확인을 받는다. 통합 보기는 받은편지함뿐이라 해당 없음.
   const inTrash = selection !== "all" && folders.find((f) => f.id === folderId)?.kind === "trash";
 
-  const deleteChecked = async () => {
+  const deleteIds = async (ids: string[]) => {
     setConfirmingDelete(false);
-    const ids = [...checked];
     if (ids.length === 0) return;
     setDeleting(true);
     setNotice(undefined);
@@ -244,6 +255,14 @@ function App() {
     setReloadKey((k) => k + 1);
     setFoldersReloadKey((k) => k + 1);
     listAccounts().then(setAccounts);
+  };
+
+  // 휴지통 안이거나 검색 결과면(휴지통 여부를 모른다) 확인을 받고, 아니면 바로 지운다.
+  const requestDelete = (ids: string[]) => {
+    if (ids.length === 0) return;
+    setPendingIds(ids);
+    if (inTrash || term) setConfirmingDelete(true);
+    else void deleteIds(ids);
   };
 
   // 새 메일·답장·전달. 답장·전달은 열려 있는 메일이 속한 계정으로 보낸다.
@@ -296,6 +315,26 @@ function App() {
     if (next) setMailId(next.id);
   };
 
+  // 작성기가 열려 있으면 메일 조작 단축키는 쉬고(작성 내용을 덮어쓰지 않게) 계정 전환만 쓴다.
+  const composing = compose !== null;
+  useShortcuts(
+    {
+      compose: () => !composing && startCompose("new"),
+      reply: () => !composing && detail && startCompose("reply"),
+      replyAll: () => !composing && detail && startCompose("replyAll"),
+      forward: () => !composing && detail && startCompose("forward"),
+      remove: () => !composing && mailId && requestDelete([mailId]),
+      search: () => searchInputRef.current?.focus(),
+      next: () => !composing && move(1),
+      prev: () => !composing && move(-1),
+      switchAccount: (n) => {
+        if (n === 1) selectAccount("all");
+        else if (accounts[n - 2]) selectAccount(accounts[n - 2].id);
+      },
+    },
+    !settingsOpen && !confirmingDelete && !adding,
+  );
+
   const title = useMemo(() => {
     if (term) return `검색: ${term}`;
     if (selection === "all") return "통합 받은편지함";
@@ -326,93 +365,113 @@ function App() {
         syncProgress={running.length > 0 ? syncDone / syncTotal : undefined}
         search={search}
         onSearchChange={setSearch}
-        onOpenSettings={() => undefined}
+        searchInputRef={searchInputRef}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
-      <div className={styles.body}>
-        <AccountRail
-          accounts={accounts}
-          selected={selection}
-          onSelect={selectAccount}
-          onAddAccount={() => setAdding(true)}
-          onOpenSettings={() => undefined}
-        />
-        <div ref={folderPaneRef} className={styles.pane}>
-          <FolderPane
-            account={account}
+      {settingsOpen ? (
+        <div className={styles.body}>
+          <Settings
             accounts={accounts}
-            folders={folders}
-            selectedId={folderId}
-            collapsed={widths.folderCollapsed}
-            onSelect={selectFolder}
-            onCompose={() => startCompose("new")}
-          />
-        </div>
-        <ResizeHandle
-          label="폴더 패널 너비 조절"
-          value={folderWidth}
-          getOrigin={() => folderPaneRef.current?.getBoundingClientRect().left ?? RAIL}
-          onDrag={(w) => dragFolder(w, window.innerWidth)}
-          onEnd={endDrag}
-          onReset={resetFolder}
-        />
-        <div ref={listPaneRef} className={styles.pane}>
-          <MailList
-            title={title}
-            status={status}
-            error={error}
-            mails={mails}
-            accounts={accounts}
-            showAccount={selection === "all"}
-            selectedId={compose ? compose.draft.id : mailId}
-            onSelect={selectMail}
-            checkedIds={checked}
-            onCheckedChange={setCheckedIds}
-            onDelete={() => (inTrash || term ? setConfirmingDelete(true) : void deleteChecked())}
-            deleting={deleting}
-            notice={notice}
-            searching={term !== ""}
-            onRefresh={() => setReloadKey((k) => k + 1)}
-          />
-        </div>
-        <ResizeHandle
-          label="메일 목록 너비 조절"
-          value={widths.list}
-          getOrigin={() => listPaneRef.current?.getBoundingClientRect().left ?? 0}
-          onDrag={(w) => dragList(w, window.innerWidth)}
-          onEnd={endDrag}
-          onReset={resetList}
-        />
-        {compose ? (
-          <Composer
-            key={compose.draft.id}
-            accounts={accounts}
-            init={compose}
-            onClose={finishCompose}
+            theme={theme}
+            onThemeChange={(next) => {
+              setTheme(next);
+              saveTheme(next);
+            }}
             onSignatureSaved={(accountId, signature) =>
               setAccounts((prev) => prev.map((a) => (a.id === accountId ? { ...a, signature } : a)))
             }
+            onClose={() => setSettingsOpen(false)}
           />
-        ) : (
-          <Reader
-            mail={detail}
-            loading={detailLoading}
-            position={index >= 0 ? `${index + 1} / ${mails.length}` : undefined}
-            onPrev={() => move(-1)}
-            onNext={() => move(1)}
-            onCompose={startCompose}
+        </div>
+      ) : (
+        <div className={styles.body}>
+          <AccountRail
+            accounts={accounts}
+            selected={selection}
+            onSelect={selectAccount}
+            onAddAccount={() => setAdding(true)}
+            onOpenSettings={() => setSettingsOpen(true)}
           />
-        )}
-      </div>
+          <div ref={folderPaneRef} className={styles.pane}>
+            <FolderPane
+              account={account}
+              accounts={accounts}
+              folders={folders}
+              selectedId={folderId}
+              collapsed={widths.folderCollapsed}
+              onSelect={selectFolder}
+              onCompose={() => startCompose("new")}
+            />
+          </div>
+          <ResizeHandle
+            label="폴더 패널 너비 조절"
+            value={folderWidth}
+            getOrigin={() => folderPaneRef.current?.getBoundingClientRect().left ?? RAIL}
+            onDrag={(w) => dragFolder(w, window.innerWidth)}
+            onEnd={endDrag}
+            onReset={resetFolder}
+          />
+          <div ref={listPaneRef} className={styles.pane}>
+            <MailList
+              title={title}
+              status={status}
+              error={error}
+              mails={mails}
+              accounts={accounts}
+              showAccount={selection === "all"}
+              selectedId={compose ? compose.draft.id : mailId}
+              onSelect={selectMail}
+              checkedIds={checked}
+              onCheckedChange={setCheckedIds}
+              onDelete={() => requestDelete([...checked])}
+              deleting={deleting}
+              notice={notice}
+              searching={term !== ""}
+              onRefresh={() => setReloadKey((k) => k + 1)}
+            />
+          </div>
+          <ResizeHandle
+            label="메일 목록 너비 조절"
+            value={widths.list}
+            getOrigin={() => listPaneRef.current?.getBoundingClientRect().left ?? 0}
+            onDrag={(w) => dragList(w, window.innerWidth)}
+            onEnd={endDrag}
+            onReset={resetList}
+          />
+          {compose ? (
+            <Composer
+              key={compose.draft.id}
+              accounts={accounts}
+              init={compose}
+              onClose={finishCompose}
+              onSignatureSaved={(accountId, signature) =>
+                setAccounts((prev) =>
+                  prev.map((a) => (a.id === accountId ? { ...a, signature } : a)),
+                )
+              }
+            />
+          ) : (
+            <Reader
+              mail={detail}
+              loading={detailLoading}
+              position={index >= 0 ? `${index + 1} / ${mails.length}` : undefined}
+              onPrev={() => move(-1)}
+              onNext={() => move(1)}
+              onCompose={startCompose}
+            />
+          )}
+        </div>
+      )}
       {confirmingDelete && (
         <ConfirmDialog
           title={term ? "메일을 삭제할까요?" : "메일을 완전히 삭제할까요?"}
           message={
             term
-              ? `선택한 메일 ${checked.size}통을 삭제해요. 휴지통에 있던 메일은 완전히 지워지고 되돌릴 수 없어요.`
-              : `선택한 메일 ${checked.size}통이 휴지통에서 완전히 지워져요. 되돌릴 수 없어요.`
+              ? `선택한 메일 ${pendingIds.length}통을 삭제해요. 휴지통에 있던 메일은 완전히 지워지고 되돌릴 수 없어요.`
+              : `선택한 메일 ${pendingIds.length}통이 휴지통에서 완전히 지워져요. 되돌릴 수 없어요.`
           }
           confirmLabel={term ? "삭제" : "완전히 삭제"}
-          onConfirm={() => void deleteChecked()}
+          onConfirm={() => void deleteIds(pendingIds)}
           onCancel={() => setConfirmingDelete(false)}
         />
       )}

@@ -90,6 +90,11 @@ export async function fakeInvoke(command: string, args: Record<string, unknown> 
       );
     case "get_mail":
       return FAKE_DETAIL(args.id as string);
+    case "get_autostart":
+      return false;
+    case "set_autostart":
+    case "set_signature":
+      return undefined;
     default:
       throw new Error(`알 수 없는 command: ${command}`);
   }

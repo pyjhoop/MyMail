@@ -310,3 +310,12 @@ export function suggestAddresses(query: string): Promise<Recipient[]> {
 export function setSignature(accountId: string, signature: string): Promise<void> {
   return call("set_signature", { accountId, signature });
 }
+
+/** Windows 시작 시 실행 여부 */
+export function getAutostart(): Promise<boolean> {
+  return call("get_autostart");
+}
+
+export function setAutostart(enabled: boolean): Promise<void> {
+  return call("set_autostart", { enabled });
+}

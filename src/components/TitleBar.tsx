@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import { Mail, Minus, Search, Settings, Square, X, CloudCheck } from "lucide-react";
 import { closeWindow, minimizeWindow, toggleMaximizeWindow } from "../lib/window";
 import styles from "./TitleBar.module.css";
@@ -10,6 +11,8 @@ interface Props {
   /** 검색창 입력값 (제어 컴포넌트). Esc로 지운다. */
   search: string;
   onSearchChange: (value: string) => void;
+  /** 단축키(/)로 검색창에 포커스를 줄 때 쓴다 */
+  searchInputRef?: Ref<HTMLInputElement>;
 }
 
 export function TitleBar({
@@ -18,6 +21,7 @@ export function TitleBar({
   onOpenSettings,
   search,
   onSearchChange,
+  searchInputRef,
 }: Props) {
   return (
     <header className={styles.bar} data-tauri-drag-region>
@@ -30,6 +34,7 @@ export function TitleBar({
       <label className={styles.search}>
         <Search size={16} strokeWidth={2} aria-hidden />
         <input
+          ref={searchInputRef}
           type="search"
           placeholder="메일 검색"
           aria-label="메일 검색"

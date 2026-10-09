@@ -2,6 +2,7 @@
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
+use tauri_plugin_autostart::ManagerExt;
 
 use std::sync::Arc;
 
@@ -303,5 +304,29 @@ fn invalid(message: &str) -> CommandError {
     CommandError {
         kind: "unknown",
         message: message.into(),
+    }
+}
+
+/// Windows 시작 시 실행 여부.
+#[tauri::command]
+pub async fn get_autostart(app: AppHandle) -> CommandResult<bool> {
+    app.autolaunch().is_enabled().map_err(autostart_error)
+}
+
+#[tauri::command]
+pub async fn set_autostart(app: AppHandle, enabled: bool) -> CommandResult<()> {
+    let launch = app.autolaunch();
+    if enabled {
+        launch.enable()
+    } else {
+        launch.disable()
+    }
+    .map_err(autostart_error)
+}
+
+fn autostart_error(e: tauri_plugin_autostart::Error) -> CommandError {
+    CommandError {
+        kind: "unknown",
+        message: format!("시작 프로그램 설정을 바꾸지 못했어요: {e}"),
     }
 }
