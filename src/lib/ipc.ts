@@ -118,7 +118,10 @@ export function addAccount(input: {
   provider: Provider;
   email: string;
   password: string;
+  /** 표시 이름. 비우면 메일 주소 */
   name?: string;
+  /** 계정 색 1~8. 비우면 계정 수에 따라 자동 */
+  colorIndex?: number;
 }): Promise<Account> {
   return call("add_account", input);
 }

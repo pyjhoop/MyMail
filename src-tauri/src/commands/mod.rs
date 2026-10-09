@@ -105,6 +105,7 @@ pub async fn get_mail(store: State<'_, Store>, id: String) -> CommandResult<Opti
 
 /// 접속을 확인하고 계정을 추가한다. 성공하면 추가된 계정을 돌려준다.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)] // command 인자는 UI가 넘기는 값과 1:1이다
 pub async fn add_account(
     app: AppHandle,
     store: State<'_, Store>,
@@ -113,6 +114,7 @@ pub async fn add_account(
     email: String,
     password: String,
     name: Option<String>,
+    color_index: Option<u8>,
 ) -> CommandResult<Account> {
     let email = email.trim().to_string();
     let password = password.trim().to_string();
@@ -134,7 +136,10 @@ pub async fn add_account(
             .unwrap_or_else(|| email.clone()),
         email,
         provider,
-        color_index: (store.account_count()? % 8) as u8 + 1,
+        color_index: match color_index {
+            Some(c) if (1..=8).contains(&c) => c,
+            _ => (store.account_count()? % 8) as u8 + 1,
+        },
     };
     let id = account.id.clone();
     sync::add_account(

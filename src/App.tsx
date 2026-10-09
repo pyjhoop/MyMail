@@ -477,9 +477,9 @@ function App() {
       )}
       {adding && (
         <AddAccountDialog
+          accounts={accounts}
           onClose={() => setAdding(false)}
           onAdded={(added) => {
-            setAdding(false);
             setAccounts((prev) => [...prev, added]);
             selectAccount(added.id);
           }}
