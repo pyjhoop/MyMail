@@ -25,6 +25,8 @@ fn input(id: &str) -> ComposeInput {
         bcc: vec![],
         subject: "안녕".into(),
         body: "본문".into(),
+        quote_header: String::new(),
+        quote_text: String::new(),
     }
 }
 
@@ -188,4 +190,35 @@ fn 서명은_계정에_저장된다() {
     let store = store_with_account("gmail");
     store.set_signature("a1", "박준호 드림").unwrap();
     assert_eq!(store.list_accounts().unwrap()[0].signature, "박준호 드림");
+}
+
+#[test]
+fn 인용은_보낼_때에만_머리말과_함께_붙는다() {
+    let body = outgoing_body(
+        "알겠어요\n\n-- \n서명",
+        "2026년 10월 9일 오후 3:20, 김도윤 <d@g.com>님이 작성:",
+        "안녕\n\n> 이전 글",
+    );
+    assert_eq!(
+        body,
+        "알겠어요\n\n-- \n서명\n\n2026년 10월 9일 오후 3:20, 김도윤 <d@g.com>님이 작성:\n> 안녕\n>\n> > 이전 글"
+    );
+    assert_eq!(outgoing_body("본문", "머리말", ""), "본문");
+}
+
+#[tokio::test]
+async fn 임시저장한_인용은_분리되어_복원되고_발송_본문에만_붙는다() {
+    let store = store_with_account("gmail");
+    let mut mail = input("draft:q");
+    mail.quote_header = "머리말:".into();
+    mail.quote_text = "원문".into();
+    store.save_compose(&mail).unwrap();
+
+    let saved = store.get_compose("draft:q").unwrap().unwrap();
+    assert_eq!(saved.body, "본문");
+    assert_eq!(saved.quote_text, "원문");
+
+    let provider = FakeProvider::new(1_760_000_000, 3, 0);
+    send(&store, &provider, "draft:q").await.unwrap();
+    assert_eq!(provider.sent_mails()[0].body, "본문\n\n머리말:\n> 원문");
 }

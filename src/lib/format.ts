@@ -34,6 +34,12 @@ export function formatFullTime(epochSec: number, now: Date = new Date()): string
   return `${day} ${clock(d)}`;
 }
 
+/** 답장 인용 머리말용: 항상 연도까지 쓴 날짜와 시각. 예) 2026년 10월 9일 오후 3:20 */
+export function formatQuoteTime(epochSec: number): string {
+  const d = new Date(epochSec * 1000);
+  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 ${clock(d)}`;
+}
+
 export function formatSize(bytes: number): string {
   if (bytes < 1000) return `${bytes} B`;
   if (bytes < 1_000_000) return `${Math.round(bytes / 1000)} KB`;

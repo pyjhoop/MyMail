@@ -57,7 +57,8 @@ describe("작성 연결", () => {
     expect(screen.getByRole("combobox", { name: "보내는 계정" })).toHaveValue("a2");
     expect(screen.getByRole("button", { name: "김도윤 삭제" })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "제목" })).toHaveValue("Re: 제주 여행 일정 1");
-    expect(composerBody().value).toContain("> 준호야,");
+    expect(composerBody().value).not.toContain(">");
+    expect(screen.getByRole("button", { name: "인용 펼치기" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "보내기" }));
     await waitFor(() => expect(sendDraft).toHaveBeenCalledTimes(1));
@@ -95,6 +96,8 @@ describe("작성 연결", () => {
       bcc: [],
       subject: "저장해 둔 제목",
       body: "쓰던 내용",
+      quoteHeader: "",
+      quoteText: "",
       status: "failed",
       error: "연결 끊김",
       attachments: [{ id: 1, name: "견적.pdf", size: 2000 }],

@@ -71,6 +71,8 @@ export interface MailDetail extends MailSummary {
   /** 본문 위에 접어 두는 이전 메일 */
   earlier: { sender: string; initial: string; preview: string; date: string }[];
   fullTime: string;
+  /** 받은 시각(유닉스 초). 답장 인용 머리말에 쓴다 */
+  receivedAt?: number;
 }
 
 export type LoadError = { kind: "network" | "auth" | "unknown"; message: string };
@@ -153,6 +155,7 @@ export async function getMail(id: string): Promise<MailDetail | null> {
     body: raw.body,
     html: raw.html ?? undefined,
     fullTime: formatFullTime(raw.receivedAt),
+    receivedAt: raw.receivedAt,
     attachments: raw.attachments.map((a) => ({ ...a, size: formatSize(a.size) })),
     earlier: raw.earlier.map((e) => ({
       sender: e.sender,
@@ -247,6 +250,10 @@ export interface Draft {
   bcc: string[];
   subject: string;
   body: string;
+  /** 답장 인용 머리말 한 줄. 인용이 없으면 빈 문자열 */
+  quoteHeader: string;
+  /** 답장 인용 원문. `>` 없이 그대로 두고, 보낼 때 백엔드가 `> `를 붙인다 */
+  quoteText: string;
   /** failed: 보내기에 실패해 임시보관함에 남은 메일 */
   status: "draft" | "failed";
   error: string | null;
