@@ -1,0 +1,55 @@
+name: 릴리즈
+
+# `v0.2.0` 같은 태그를 푸시하면 설치 파일과 업데이트 정보(latest.json)를 GitHub 릴리즈로 올린다.
+# 설치된 앱은 이 릴리즈의 latest.json을 보고 자동으로 업데이트한다.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 태그와 앱 버전 일치 확인
+        shell: bash
+        run: |
+          conf=$(grep -m1 '"version"' src-tauri/tauri.conf.json | sed -E 's/.*"([0-9][^"]*)".*/\1/')
+          if [ "v$conf" != "${GITHUB_REF_NAME}" ]; then
+            echo "태그(${GITHUB_REF_NAME})와 tauri.conf.json 버전(v$conf)이 달라요."
+            exit 1
+          fi
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: MyMail ${{ github.ref_name }}
+          releaseBody: 변경 내용은 커밋 기록을 참고하세요.
+          releaseDraft: false
+          prerelease: false
+          uploadUpdaterJson: true

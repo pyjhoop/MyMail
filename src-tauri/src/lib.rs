@@ -6,6 +6,7 @@ mod providers;
 mod store;
 mod sync;
 mod tray;
+mod updater;
 
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -30,6 +31,7 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec![STARTUP_FLAG]),
         ))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
@@ -41,6 +43,7 @@ pub fn run() {
             app.state::<sync::manager::SyncManager>()
                 .start_all(app.handle());
             tray::setup(app.handle())?;
+            updater::spawn_auto_update(app.handle());
             // 로그인할 때 자동으로 켜진 경우에는 창 없이 트레이에서 시작한다.
             if std::env::args().any(|a| a == STARTUP_FLAG) {
                 if let Some(w) = app.get_webview_window("main") {
@@ -77,6 +80,9 @@ pub fn run() {
             commands::set_signature,
             commands::get_autostart,
             commands::set_autostart,
+            commands::app_version,
+            commands::check_update,
+            commands::install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

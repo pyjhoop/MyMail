@@ -11,6 +11,10 @@ vi.mock("../../lib/ipc", async (importOriginal) => {
     getAutostart: vi.fn(() => Promise.resolve(false)),
     setAutostart: vi.fn(() => Promise.resolve()),
     setSignature: vi.fn(() => Promise.resolve()),
+    appVersion: vi.fn(() => Promise.resolve("0.1.0")),
+    checkUpdate: vi.fn(() => Promise.resolve(null)),
+    installUpdate: vi.fn(() => Promise.resolve()),
+    onUpdateProgress: vi.fn(() => () => {}),
   };
 });
 
@@ -65,5 +69,22 @@ describe("설정", () => {
     expect(screen.getByText("새 메일")).toBeInTheDocument();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe("업데이트", () => {
+  it("업데이트 확인 후 새 버전이 있으면 설치할 수 있다", async () => {
+    vi.mocked(ipc.checkUpdate).mockResolvedValueOnce({ version: "0.2.0", notes: null });
+    setup();
+    fireEvent.click(await screen.findByRole("button", { name: "업데이트 확인" }));
+    expect(await screen.findByText(/새 버전 0\.2\.0/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "지금 업데이트" }));
+    await waitFor(() => expect(ipc.installUpdate).toHaveBeenCalledTimes(1));
+  });
+
+  it("최신이면 안내한다", async () => {
+    setup();
+    fireEvent.click(await screen.findByRole("button", { name: "업데이트 확인" }));
+    expect(await screen.findByText("최신 버전이에요.")).toBeInTheDocument();
   });
 });

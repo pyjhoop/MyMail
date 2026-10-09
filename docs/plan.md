@@ -102,4 +102,10 @@
   - 단축키(`features/shell/shortcuts.ts`): c 새 메일, r 답장, a 전체 답장, f 전달, # 삭제(열린 메일), / 검색창 포커스, j·k 다음·이전 메일, Ctrl+1~9 계정 전환(1=통합), Ctrl+Enter 보내기(작성기). 입력칸에 글자를 쓰는 중엔 동작하지 않고, 작성기가 열려 있으면 메일 조작 키는 쉰다
   - 설정 화면(제목 표시줄·레일의 설정 버튼, Esc로 닫기): 일반(Windows 시작 시 실행, `get_autostart`/`set_autostart`), 계정(계정별 서명 편집), 모양(라이트·다크·시스템, localStorage 저장), 단축키(목록)
   - 남은 것: e 보관(보관 동작 자체가 아직 없음), 계정 표시 이름·색·순서·알림 켜기/끄기·동기화 주기·계정 제거, 밀도 설정, 본문 영역 단축키 힌트. 트레이 메뉴의 "시작 시 실행" 체크는 설정에서 바꿔도 앱을 다시 켜기 전까지 갱신되지 않는다. 실제 창에서 눈으로 확인하지 않았다
-- [ ] 설치 파일 빌드(NSIS), 자동 업데이트
+- [x] 설치 파일 빌드(NSIS), 자동 업데이트
+  - `.github/workflows/build.yml`: main에 푸시할 때마다 검사(프론트·Rust) 후 `pnpm tauri build`로 NSIS 설치 파일을 만들어 아티팩트로 올린다
+  - `.github/workflows/release.yml`: `v0.2.0` 같은 태그를 푸시하면 설치 파일·서명·`latest.json`을 GitHub 릴리즈로 올린다. 태그와 `tauri.conf.json` 버전이 다르면 실패한다
+  - 앱(`src-tauri/src/updater.rs`): 시작 30초 뒤와 6시간마다 `releases/latest/download/latest.json`을 확인해 새 버전이면 받아서 설치한다(passive 설치, 설치 뒤 앱 재시작). `tauri dev`(debug)에서는 자동 확인을 하지 않는다
+  - 설정 > 일반 > 업데이트: 현재 버전, "업데이트 확인", "지금 업데이트"(진행률 표시)
+  - **사용자 준비**: 서명 개인키는 `~/.tauri/mymail.key`에 만들었다(저장소 밖, 비밀번호 없음). GitHub 저장소 Secrets에 `TAURI_SIGNING_PRIVATE_KEY`(키 파일 내용)를 등록해야 빌드·릴리즈가 서명된다. 공개키는 `tauri.conf.json`에 들어 있다
+  - 남은 것: 실제 릴리즈로 업데이트 흐름을 눈으로 확인하지 않았다(첫 릴리즈는 `v0.1.0`, 그다음 `v0.1.1`을 올려 0.1.0 앱이 업데이트되는지 확인). 코드 서명이 없어 설치 때 Windows SmartScreen 경고가 뜰 수 있다

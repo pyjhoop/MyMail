@@ -319,3 +319,35 @@ export function getAutostart(): Promise<boolean> {
 export function setAutostart(enabled: boolean): Promise<void> {
   return call("set_autostart", { enabled });
 }
+
+/** 설치된 앱 버전 */
+export function appVersion(): Promise<string> {
+  return call("app_version");
+}
+
+export interface UpdateInfo {
+  version: string;
+  notes: string | null;
+}
+
+/** 새 버전이 있으면 정보를, 없으면 null을 돌려준다. */
+export function checkUpdate(): Promise<UpdateInfo | null> {
+  return call("check_update");
+}
+
+/** 새 버전을 받아 설치한다. 설치가 시작되면 앱이 닫혔다가 다시 열린다. */
+export function installUpdate(): Promise<void> {
+  return call("install_update");
+}
+
+export interface UpdateProgress {
+  downloaded: number;
+  total: number | null;
+}
+
+export function onUpdateProgress(callback: (p: UpdateProgress) => void): () => void {
+  const unlisten = listen<UpdateProgress>("update-progress", (e) => callback(e.payload));
+  return () => {
+    void unlisten.then((fn) => fn());
+  };
+}

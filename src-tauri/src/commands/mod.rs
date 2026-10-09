@@ -15,6 +15,7 @@ use crate::store::{
 };
 use crate::sync::manager::SyncManager;
 use crate::sync::{self, actions, SyncError};
+use crate::updater;
 
 /// UI의 `LoadError`와 같은 모양.
 #[derive(Debug, Serialize)]
@@ -328,5 +329,36 @@ fn autostart_error(e: tauri_plugin_autostart::Error) -> CommandError {
     CommandError {
         kind: "unknown",
         message: format!("시작 프로그램 설정을 바꾸지 못했어요: {e}"),
+    }
+}
+
+/// 설치된 앱 버전.
+#[tauri::command]
+pub fn app_version(app: AppHandle) -> String {
+    app.package_info().version.to_string()
+}
+
+/// 새 버전이 있는지 확인한다. 없으면 `None`.
+#[tauri::command]
+pub async fn check_update(app: AppHandle) -> CommandResult<Option<updater::UpdateInfo>> {
+    let update = updater::check(&app).await.map_err(update_error)?;
+    Ok(update.as_ref().map(updater::info))
+}
+
+/// 새 버전을 받아 설치한다. 설치가 시작되면 앱이 닫혔다가 새 버전으로 다시 열린다.
+#[tauri::command]
+pub async fn install_update(app: AppHandle) -> CommandResult<()> {
+    let Some(update) = updater::check(&app).await.map_err(update_error)? else {
+        return Ok(());
+    };
+    updater::install(&app, &update).await.map_err(update_error)
+}
+
+fn update_error(e: tauri_plugin_updater::Error) -> CommandError {
+    CommandError {
+        kind: "network",
+        message: format!(
+            "업데이트를 확인하거나 설치하지 못했어요. 잠시 뒤 다시 시도해 주세요. ({e})"
+        ),
     }
 }

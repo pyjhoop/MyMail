@@ -26,13 +26,27 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "languages": ["Korean"],
+        "installMode": "currentUser"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI3MTk0MDU4NjQ5NEIxMDgKUldRSXNaUmtXRUFaSjd0Z0pDOVQ2MFBuZWlRd1hSZUx6MERUbTFtcndzenBVdGRJckQwSFpkZUIK",
+      "endpoints": ["https://github.com/pyjhoop/MyMail/releases/latest/download/latest.json"],
+      "windows": { "installMode": "passive" }
+    }
   }
 }

@@ -1,6 +1,17 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import { getAutostart, setAutostart, setSignature, toLoadError, type Account } from "../../lib/ipc";
+import {
+  appVersion,
+  checkUpdate,
+  getAutostart,
+  installUpdate,
+  onUpdateProgress,
+  setAutostart,
+  setSignature,
+  toLoadError,
+  type Account,
+  type UpdateInfo,
+} from "../../lib/ipc";
 import { SHORTCUTS } from "../shell/shortcuts";
 import type { ThemePreference } from "../shell/useSystemTheme";
 import styles from "./Settings.module.css";
@@ -58,7 +69,12 @@ export function Settings({ accounts, theme, onThemeChange, onSignatureSaved, onC
         </div>
       </nav>
       <section className={styles.panel} role="tabpanel" aria-label={tab}>
-        {tab === "일반" && <General />}
+        {tab === "일반" && (
+          <>
+            <General />
+            <Updates />
+          </>
+        )}
         {tab === "계정" && <Accounts accounts={accounts} onSignatureSaved={onSignatureSaved} />}
         {tab === "모양" && <Appearance theme={theme} onThemeChange={onThemeChange} />}
         {tab === "단축키" && <Shortcuts />}
@@ -111,6 +127,99 @@ function General() {
         </span>
       </label>
       <p className={styles.hint}>창을 닫으면 앱은 종료되지 않고 트레이에 남아요.</p>
+      {error && (
+        <p role="alert" className={styles.error}>
+          {error}
+        </p>
+      )}
+    </>
+  );
+}
+
+function Updates() {
+  const [version, setVersion] = useState("");
+  const [state, setState] = useState<"idle" | "checking" | "latest" | "found" | "installing">(
+    "idle",
+  );
+  const [info, setInfo] = useState<UpdateInfo>();
+  const [percent, setPercent] = useState<number>();
+  const [error, setError] = useState<string>();
+
+  useEffect(() => {
+    let cancelled = false;
+    appVersion()
+      .then((v) => {
+        if (!cancelled) setVersion(v);
+      })
+      .catch(() => {});
+    const off = onUpdateProgress((p) => {
+      if (p.total) setPercent(Math.min(100, Math.round((p.downloaded / p.total) * 100)));
+    });
+    return () => {
+      cancelled = true;
+      off();
+    };
+  }, []);
+
+  const check = async () => {
+    setError(undefined);
+    setState("checking");
+    try {
+      const found = await checkUpdate();
+      setInfo(found ?? undefined);
+      setState(found ? "found" : "latest");
+    } catch (e) {
+      setError(toLoadError(e).message);
+      setState("idle");
+    }
+  };
+
+  const install = async () => {
+    setError(undefined);
+    setPercent(undefined);
+    setState("installing");
+    try {
+      await installUpdate();
+    } catch (e) {
+      setError(toLoadError(e).message);
+      setState("found");
+    }
+  };
+
+  return (
+    <>
+      <h2 className={styles.title}>업데이트</h2>
+      <p className={styles.hint}>
+        현재 버전 {version || "…"} · 새 버전은 자동으로 확인해 설치해요(시작 직후와 6시간마다).
+      </p>
+      <div className={styles.actions}>
+        <button
+          type="button"
+          className={styles.primary}
+          disabled={state === "checking" || state === "installing"}
+          onClick={() => void check()}
+        >
+          {state === "checking" ? "확인 중…" : "업데이트 확인"}
+        </button>
+        {state === "latest" && <span className={styles.hint}>최신 버전이에요.</span>}
+      </div>
+      {state === "found" && info && (
+        <div className={styles.card}>
+          <span className={styles.name}>새 버전 {info.version}이 있어요.</span>
+          {info.notes && <p className={styles.hint}>{info.notes}</p>}
+          <div className={styles.actions}>
+            <button type="button" className={styles.primary} onClick={() => void install()}>
+              지금 업데이트
+            </button>
+          </div>
+        </div>
+      )}
+      {state === "installing" && (
+        <p role="status" className={styles.hint}>
+          {percent === undefined ? "받는 중…" : `받는 중… ${percent}%`} 설치가 시작되면 앱이 잠시
+          닫혔다가 다시 열려요.
+        </p>
+      )}
       {error && (
         <p role="alert" className={styles.error}>
           {error}
