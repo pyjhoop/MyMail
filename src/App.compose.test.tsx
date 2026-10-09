@@ -117,4 +117,86 @@ describe("작성 연결", () => {
     expect(within(sheet).getByText("견적.pdf")).toBeInTheDocument();
     expect(within(sheet).getByRole("alert")).toHaveTextContent("연결 끊김");
   });
+
+  it("작성 팝업이 열려도 읽던 메일이 그대로 남고, 다른 메일을 골라도 작성 내용이 유지된다", async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByText("제주 여행 일정 1"));
+    await screen.findAllByText("항공권 예매 끝났어!");
+    fireEvent.click(screen.getByRole("button", { name: "답장" }));
+    const sheet = await screen.findByRole("region", { name: "메일 작성" });
+    fireEvent.change(within(sheet).getByRole("textbox", { name: "제목" }), {
+      target: { value: "Re: 직접 고친 제목" },
+    });
+
+    // 읽던 메일은 그대로
+    expect(screen.getAllByText("항공권 예매 끝났어!").length).toBeGreaterThan(0);
+    // 다른 메일을 골라도 팝업은 유지
+    fireEvent.click(screen.getByText("제주 여행 일정 0"));
+    expect(await screen.findByRole("region", { name: "메일 작성" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "제목" })).toHaveValue("Re: 직접 고친 제목");
+  });
+
+  it("최소화하면 헤더만 남고 누르면 다시 펼쳐지며, 닫으면 사라진다", async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: /^개인 Gmail/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /새 메일/ }));
+    await screen.findByRole("region", { name: "메일 작성" });
+
+    fireEvent.click(screen.getByRole("button", { name: "작성 최소화" }));
+    expect(screen.queryByRole("textbox", { name: "본문" })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "메일 작성" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "작성 펼치기" }));
+    expect(await screen.findByRole("textbox", { name: "본문" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "작성 닫기" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("region", { name: "메일 작성" })).not.toBeInTheDocument(),
+    );
+  });
+
+  it("작성 중에 또 열면 확인을 받고, 확인하면 새 메일로 바뀐다", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    fireEvent.click(await screen.findByText("제주 여행 일정 1"));
+    await screen.findAllByText("항공권 예매 끝났어!");
+    fireEvent.click(screen.getByRole("button", { name: "답장" }));
+    await screen.findByRole("region", { name: "메일 작성" });
+    fireEvent.change(screen.getByRole("textbox", { name: "제목" }), {
+      target: { value: "쓰던 메일" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "전달" }));
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+    // 취소하면 쓰던 메일 그대로
+    await user.click(screen.getByRole("button", { name: "취소" }));
+    expect(screen.getByRole("textbox", { name: "제목" })).toHaveValue("쓰던 메일");
+
+    fireEvent.click(screen.getByRole("button", { name: "전달" }));
+    await user.click(await screen.findByRole("button", { name: "저장하고 바꾸기" }));
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: "제목" })).toHaveValue("Fwd: 제주 여행 일정 1"),
+    );
+    // 쓰던 메일은 임시저장됐다
+    expect(saveDraft).toHaveBeenCalledWith(expect.objectContaining({ subject: "쓰던 메일" }));
+  });
+
+  it("최소화한 동안에는 다시 j·k로 메일을 넘길 수 있다", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    fireEvent.click(await screen.findByText("제주 여행 일정 1"));
+    await screen.findAllByText("항공권 예매 끝났어!");
+    fireEvent.click(screen.getByRole("button", { name: "답장" }));
+    await screen.findByRole("region", { name: "메일 작성" });
+
+    const position = () => screen.getByText(/^\d+ \/ \d+$/).textContent;
+    const before = position();
+    (document.activeElement as HTMLElement | null)?.blur();
+    await user.keyboard("j");
+    expect(position()).toBe(before); // 펼친 동안은 이동하지 않는다
+
+    fireEvent.click(screen.getByRole("button", { name: "작성 최소화" }));
+    await user.keyboard("j");
+    expect(position()).not.toBe(before);
+  });
 });

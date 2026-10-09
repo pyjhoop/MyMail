@@ -1,4 +1,4 @@
-import { Paperclip, PenLine, Send, Trash2, X } from "lucide-react";
+import { Maximize2, Minimize2, Minus, Paperclip, PenLine, Send, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { formatListTime, formatSize } from "../../lib/format";
 import {
@@ -36,6 +36,12 @@ interface Props {
   accounts: Account[];
   init: ComposeInit;
   onClose: (result: ComposeResult) => void;
+  /** 헤더만 남기고 접은 상태. 접어도 이 컴포넌트는 그대로 두어 임시저장이 이어진다. */
+  minimized?: boolean;
+  /** 큰 팝업 */
+  expanded?: boolean;
+  onMinimizedChange?: (minimized: boolean) => void;
+  onExpandedChange?: (expanded: boolean) => void;
   /** 서명을 저장했을 때 (계정 목록의 서명을 맞추기 위해) */
   onSignatureSaved: (accountId: string, signature: string) => void;
 }
@@ -46,7 +52,16 @@ type SaveState =
 const extOf = (name: string) =>
   (name.includes(".") ? (name.split(".").pop() ?? "") : "").slice(0, 4);
 
-export function Composer({ accounts, init, onClose, onSignatureSaved }: Props) {
+export function Composer({
+  accounts,
+  init,
+  onClose,
+  minimized = false,
+  expanded = false,
+  onMinimizedChange,
+  onExpandedChange,
+  onSignatureSaved,
+}: Props) {
   const { draft: initial, seed, notice } = init;
   const [fields, setFields] = useState<DraftFields>({
     id: initial.id,
@@ -228,8 +243,56 @@ export function Composer({ accounts, init, onClose, onSignatureSaved }: Props) {
   const retry = initial.status === "failed" || (error?.startsWith("메일을 보내지") ?? false);
 
   return (
-    <main className={styles.composer} onKeyDown={onKeyDown}>
-      <section className={styles.sheet} aria-label="메일 작성">
+    <section
+      className={`${styles.popup} ${expanded ? styles.expanded : ""} ${minimized ? styles.minimized : ""}`}
+      aria-label="메일 작성"
+      onKeyDown={onKeyDown}
+    >
+      <div className={styles.titleBar}>
+        <button
+          type="button"
+          className={styles.title}
+
+          onClick={() => onMinimizedChange?.(!minimized)}
+        >
+          {fields.subject.trim() || "새 메일"}
+        </button>
+        <button
+          type="button"
+          className={`ib ${styles.iconButton}`}
+          aria-label={minimized ? "작성 펼치기" : "작성 최소화"}
+          title={minimized ? "펼치기" : "최소화"}
+          onClick={() => onMinimizedChange?.(!minimized)}
+        >
+          <Minus size={16} strokeWidth={1.75} aria-hidden />
+        </button>
+        <button
+          type="button"
+          className={`ib ${styles.iconButton}`}
+          aria-label={expanded ? "원래 크기로" : "크게 보기"}
+          title={expanded ? "원래 크기로" : "크게 보기"}
+          onClick={() => {
+            onExpandedChange?.(!expanded);
+            if (minimized) onMinimizedChange?.(false);
+          }}
+        >
+          {expanded ? (
+            <Minimize2 size={16} strokeWidth={1.75} aria-hidden />
+          ) : (
+            <Maximize2 size={16} strokeWidth={1.75} aria-hidden />
+          )}
+        </button>
+        <button
+          type="button"
+          className={`ib ${styles.iconButton}`}
+          aria-label="작성 닫기"
+          title="닫기 (임시저장됨)"
+          onClick={() => void close()}
+        >
+          <X size={16} strokeWidth={1.75} aria-hidden />
+        </button>
+      </div>
+      <div className={styles.content} hidden={minimized}>
         <div className={styles.header}>
           {account && (
             <label className={styles.account}>
@@ -273,15 +336,6 @@ export function Composer({ accounts, init, onClose, onSignatureSaved }: Props) {
             onClick={() => void discard()}
           >
             <Trash2 size={16} strokeWidth={1.75} aria-hidden />
-          </button>
-          <button
-            type="button"
-            className={`ib ${styles.iconButton}`}
-            aria-label="작성 닫기"
-            title="닫기 (임시저장됨)"
-            onClick={() => void close()}
-          >
-            <X size={16} strokeWidth={1.75} aria-hidden />
           </button>
         </div>
 
@@ -446,7 +500,7 @@ export function Composer({ accounts, init, onClose, onSignatureSaved }: Props) {
             {sending ? "보내는 중…" : retry ? "다시 보내기" : "보내기"}
           </button>
         </div>
-      </section>
-    </main>
+      </div>
+    </section>
   );
 }

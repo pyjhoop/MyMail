@@ -148,6 +148,58 @@ describe("작성기", () => {
     expect(screen.getByRole("status")).toHaveTextContent("임시저장됨");
   });
 
+  it("최소화해도 내용은 남고 임시저장이 이어진다", async () => {
+    vi.useFakeTimers();
+    const onMinimizedChange = vi.fn();
+    const { rerender } = render(
+      <Composer
+        accounts={accounts}
+        init={{ draft: draft(), seed: { subject: "", body: "" } }}
+        onClose={vi.fn()}
+        onSignatureSaved={vi.fn()}
+        onMinimizedChange={onMinimizedChange}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "새 메일" })).toHaveTextContent("새 메일");
+    fireEvent.change(screen.getByRole("textbox", { name: "제목" }), { target: { value: "제주" } });
+    fireEvent.click(screen.getByRole("button", { name: "작성 최소화" }));
+    expect(onMinimizedChange).toHaveBeenCalledWith(true);
+
+    rerender(
+      <Composer
+        accounts={accounts}
+        init={{ draft: draft(), seed: { subject: "", body: "" } }}
+        onClose={vi.fn()}
+        onSignatureSaved={vi.fn()}
+        minimized
+        onMinimizedChange={onMinimizedChange}
+      />,
+    );
+    // 접으면 헤더만 보이고, 제목이 헤더에 나온다
+    expect(screen.queryByRole("textbox", { name: "제목" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "제주" })).toHaveTextContent("제주");
+    await act(() => vi.advanceTimersByTimeAsync(1600));
+    expect(saveDraft).toHaveBeenCalledWith(expect.objectContaining({ subject: "제주" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "작성 펼치기" }));
+    expect(onMinimizedChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("크게 보기 버튼은 큰 팝업과 원래 크기를 오간다", () => {
+    const onExpandedChange = vi.fn();
+    render(
+      <Composer
+        accounts={accounts}
+        init={{ draft: draft(), seed: { subject: "", body: "" } }}
+        onClose={vi.fn()}
+        onSignatureSaved={vi.fn()}
+        onExpandedChange={onExpandedChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "크게 보기" }));
+    expect(onExpandedChange).toHaveBeenCalledWith(true);
+  });
+
   it("처음 채워 준 내용 그대로 닫으면 저장하지 않고 버린다", async () => {
     const user = userEvent.setup();
     const { onClose } = setup({

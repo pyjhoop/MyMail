@@ -69,6 +69,10 @@ function App() {
   const [deleting, setDeleting] = useState(false);
   const [notice, setNotice] = useState<string>();
   const [compose, setCompose] = useState<ComposeInit | null>(null);
+  // 작성 팝업은 한 번에 한 통만 연다. 열려 있는데 또 열려 하면 확인을 받을 때까지 여기에 둔다.
+  const [replacement, setReplacement] = useState<ComposeInit | null>(null);
+  const [composeMinimized, setComposeMinimized] = useState(false);
+  const [composeExpanded, setComposeExpanded] = useState(false);
   const [search, setSearch] = useState("");
   // 입력이 잠깐 멈추면 검색한다. 비어 있으면 평소 목록으로 돌아간다.
   const [term, setTerm] = useState("");
@@ -265,13 +269,25 @@ function App() {
     else void deleteIds(ids);
   };
 
+  // 작성 팝업을 연다. 이미 다른 메일을 쓰는 중이면 임시저장하고 바꿀지 확인한다.
+  const requestCompose = (next: ComposeInit) => {
+    if (compose === null) {
+      setCompose(next);
+      setComposeMinimized(false);
+    } else if (compose.draft.id === next.draft.id) {
+      setComposeMinimized(false);
+    } else {
+      setReplacement(next);
+    }
+  };
+
   // 새 메일·답장·전달. 답장·전달은 열려 있는 메일이 속한 계정으로 보낸다.
   const startCompose = (mode: ComposeMode) => {
     const sender =
       mode === "new" ? (account ?? accounts[0]) : accounts.find((a) => a.id === detail?.accountId);
     if (!sender) return;
     const fields = startDraft({ mode, account: sender, mail: detail ?? undefined });
-    setCompose({
+    requestCompose({
       draft: { ...fields, status: "draft", error: null, attachments: [] },
       seed: { subject: fields.subject, body: fields.body },
       notice:
@@ -288,9 +304,9 @@ function App() {
   useEffect(() => onTrayCompose(() => startComposeRef.current("new")), []);
 
   const openDraft = async (id: string) => {
-    if (compose?.draft.id === id) return;
+    if (compose?.draft.id === id) return setComposeMinimized(false);
     const draft = await getDraft(id).catch(() => null);
-    if (draft) setCompose({ draft, seed: { subject: "", body: "" } });
+    if (draft) requestCompose({ draft, seed: { subject: "", body: "" } });
   };
 
   const selectMail = (id: string) => {
@@ -298,12 +314,20 @@ function App() {
       void openDraft(id);
       return;
     }
-    setCompose(null);
     setMailId(id);
+  };
+
+  // 쓰던 메일은 Composer가 사라지면서 임시저장하므로 바로 바꿔 끼우면 된다.
+  const confirmReplace = () => {
+    setCompose(replacement);
+    setComposeMinimized(false);
+    setReplacement(null);
   };
 
   const finishCompose = (result: ComposeResult) => {
     setCompose(null);
+    setComposeMinimized(false);
+    setComposeExpanded(false);
     if (result === "sent") setNotice("메일을 보냈어요.");
     setReloadKey((k) => k + 1);
     setFoldersReloadKey((k) => k + 1);
@@ -315,14 +339,15 @@ function App() {
     if (next) setMailId(next.id);
   };
 
-  // 작성기가 열려 있으면 메일 조작 단축키는 쉬고(작성 내용을 덮어쓰지 않게) 계정 전환만 쓴다.
-  const composing = compose !== null;
+  // 작성 팝업이 펼쳐져 있으면 메일 조작 키(삭제·이동)는 쉰다. 최소화하면 다시 쓴다.
+  // 새 메일·답장·전달 키는 팝업이 열려 있어도 쓰고, 그때는 바꿀지 확인한다.
+  const composing = compose !== null && !composeMinimized;
   useShortcuts(
     {
-      compose: () => !composing && startCompose("new"),
-      reply: () => !composing && detail && startCompose("reply"),
-      replyAll: () => !composing && detail && startCompose("replyAll"),
-      forward: () => !composing && detail && startCompose("forward"),
+      compose: () => startCompose("new"),
+      reply: () => detail && startCompose("reply"),
+      replyAll: () => detail && startCompose("replyAll"),
+      forward: () => detail && startCompose("forward"),
       remove: () => !composing && mailId && requestDelete([mailId]),
       search: () => searchInputRef.current?.focus(),
       next: () => !composing && move(1),
@@ -332,7 +357,7 @@ function App() {
         else if (accounts[n - 2]) selectAccount(accounts[n - 2].id);
       },
     },
-    !settingsOpen && !confirmingDelete && !adding,
+    !settingsOpen && !confirmingDelete && !adding && !replacement,
   );
 
   const title = useMemo(() => {
@@ -419,7 +444,7 @@ function App() {
               mails={mails}
               accounts={accounts}
               showAccount={selection === "all"}
-              selectedId={compose ? compose.draft.id : mailId}
+              selectedId={mailId}
               onSelect={selectMail}
               checkedIds={checked}
               onCheckedChange={setCheckedIds}
@@ -438,29 +463,39 @@ function App() {
             onEnd={endDrag}
             onReset={resetList}
           />
-          {compose ? (
-            <Composer
-              key={compose.draft.id}
-              accounts={accounts}
-              init={compose}
-              onClose={finishCompose}
-              onSignatureSaved={(accountId, signature) =>
-                setAccounts((prev) =>
-                  prev.map((a) => (a.id === accountId ? { ...a, signature } : a)),
-                )
-              }
-            />
-          ) : (
-            <Reader
-              mail={detail}
-              loading={detailLoading}
-              position={index >= 0 ? `${index + 1} / ${mails.length}` : undefined}
-              onPrev={() => move(-1)}
-              onNext={() => move(1)}
-              onCompose={startCompose}
-            />
-          )}
+          <Reader
+            mail={detail}
+            loading={detailLoading}
+            position={index >= 0 ? `${index + 1} / ${mails.length}` : undefined}
+            onPrev={() => move(-1)}
+            onNext={() => move(1)}
+            onCompose={startCompose}
+          />
         </div>
+      )}
+      {compose && (
+        <Composer
+          key={compose.draft.id}
+          accounts={accounts}
+          init={compose}
+          onClose={finishCompose}
+          minimized={composeMinimized}
+          expanded={composeExpanded}
+          onMinimizedChange={setComposeMinimized}
+          onExpandedChange={setComposeExpanded}
+          onSignatureSaved={(accountId, signature) =>
+            setAccounts((prev) => prev.map((a) => (a.id === accountId ? { ...a, signature } : a)))
+          }
+        />
+      )}
+      {replacement && (
+        <ConfirmDialog
+          title="새 메일을 쓸까요?"
+          message="지금 쓰는 메일은 임시보관함에 저장하고, 새 작성 창으로 바꿔요."
+          confirmLabel="저장하고 바꾸기"
+          onConfirm={confirmReplace}
+          onCancel={() => setReplacement(null)}
+        />
       )}
       {confirmingDelete && (
         <ConfirmDialog

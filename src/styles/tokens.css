@@ -99,6 +99,11 @@
   --control-height: 28px;
   --control-height-lg: 32px;
   --search-width: 480px;
+  --compose-width: 540px;
+  --compose-width-expanded: 860px;
+  --compose-height: 560px;
+  --compose-height-expanded: 760px;
+  --compose-body-min-height: 120px;
 
   --shadow-popup: 0 8px 24px rgba(24, 24, 27, 0.1), 0 0 0 1px rgba(24, 24, 27, 0.06);
   --shadow-modal: 0 24px 64px rgba(24, 24, 27, 0.18);
