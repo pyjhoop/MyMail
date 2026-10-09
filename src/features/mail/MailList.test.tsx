@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { FAKE_ACCOUNTS } from "../../lib/fakeData";
+import { FAKE_ACCOUNTS } from "../../test/fixtures";
 import { MailList, type ListStatus } from "./MailList";
 import type { LoadError } from "../../lib/ipc";
 

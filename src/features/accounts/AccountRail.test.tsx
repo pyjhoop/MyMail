@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { FAKE_ACCOUNTS } from "../../lib/fakeData";
+import { FAKE_ACCOUNTS } from "../../test/fixtures";
 import { AccountRail } from "./AccountRail";
 
 const setup = (selected = "all") => {

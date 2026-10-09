@@ -1,5 +1,6 @@
-// 백엔드 호출 경계. M1에서는 가짜 데이터를 돌려주고, M2에서 Tauri command(invoke)로 교체한다.
-import { FAKE_ACCOUNTS, FAKE_FOLDERS, FAKE_MAILS } from "./fakeData";
+// 백엔드 호출 경계. 컴포넌트는 invoke를 직접 부르지 않고 이 파일의 함수만 쓴다.
+import { invoke } from "@tauri-apps/api/core";
+import { formatFullTime, formatListTime, formatSize } from "./format";
 
 export type Provider = "gmail" | "naver";
 
@@ -67,14 +68,47 @@ export interface MailDetail extends MailSummary {
 
 export type LoadError = { kind: "network" | "auth" | "unknown"; message: string };
 
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+/** 백엔드가 주는 메일 요약. 시간은 유닉스 초, 표시용 문구는 여기서 만든다. */
+export type RawMailSummary = Omit<MailSummary, "time"> & { receivedAt: number };
 
-export async function listAccounts(): Promise<Account[]> {
-  return FAKE_ACCOUNTS;
+export interface RawMailDetail extends RawMailSummary {
+  to: string;
+  body: string[];
+  attachments: { name: string; size: number; ext: string }[];
+  earlier: { sender: string; initial: string; preview: string; receivedAt: number }[];
 }
 
-export async function listFolders(accountId: string): Promise<Folder[]> {
-  return FAKE_FOLDERS.filter((f) => f.accountId === accountId);
+const toSummary = ({ receivedAt, ...rest }: RawMailSummary): MailSummary => ({
+  ...rest,
+  time: formatListTime(receivedAt),
+});
+
+/** Tauri command의 오류({ kind, message })를 LoadError로 맞춘다 */
+export function toLoadError(e: unknown): LoadError {
+  if (typeof e === "object" && e !== null && "message" in e) {
+    const { kind, message } = e as { kind?: string; message: unknown };
+    return {
+      kind: kind === "network" || kind === "auth" ? kind : "unknown",
+      message: String(message),
+    };
+  }
+  return { kind: "unknown", message: String(e) };
+}
+
+async function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+  try {
+    return await invoke<T>(command, args);
+  } catch (e) {
+    throw toLoadError(e);
+  }
+}
+
+export function listAccounts(): Promise<Account[]> {
+  return call("list_accounts");
+}
+
+export function listFolders(accountId: string): Promise<Folder[]> {
+  return call("list_folders", { accountId });
 }
 
 /** accountId가 null이면 통합 받은편지함 */
@@ -82,45 +116,24 @@ export async function listMails(
   accountId: string | null,
   folderId: string,
 ): Promise<MailSummary[]> {
-  await delay(150);
-  return FAKE_MAILS.filter((m) =>
-    accountId === null
-      ? FAKE_FOLDERS.find((f) => f.id === m.folderId)?.kind === "inbox"
-      : m.folderId === folderId,
-  );
+  const mails = await call<RawMailSummary[]>("list_mails", { accountId, folderId });
+  return mails.map(toSummary);
 }
 
 export async function getMail(id: string): Promise<MailDetail | null> {
-  const summary = FAKE_MAILS.find((m) => m.id === id);
-  if (!summary) return null;
+  const raw = await call<RawMailDetail | null>("get_mail", { id });
+  if (!raw) return null;
   return {
-    ...summary,
-    to: "나, 김하은 외 1명",
-    fullTime: "오늘 오전 9:12 (1시간 전)",
-    body: [
-      "준호야,",
-      "항공권 예매 끝났어! 10월 23일(금) 김포 → 제주 19:20 출발이고, 돌아오는 건 26일(월) 오후 2시 비행기야. 일정표 정리해서 첨부했으니까 보고 가고 싶은 곳 있으면 표에 바로 추가해 줘.",
-      "숙소는 애월 쪽 독채로 잡았고 체크인은 오후 4시부터래.",
-      "렌터카 예약되면 확인 메일 전달해 줘!\n도윤",
-    ],
-    attachments: [
-      { name: "제주여행_일정표.pdf", size: "1.2 MB", ext: "PDF" },
-      { name: "항공권_전자티켓.pdf", size: "384 KB", ext: "PDF" },
-      { name: "숙소_외관.jpg", size: "2.4 MB", ext: "JPG" },
-    ],
-    earlier: [
-      {
-        sender: "나",
-        initial: "나",
-        preview: "도윤아, 항공편 시간 정해지면 알려줘. 렌터카는 내가 알아볼게.",
-        date: "10월 6일",
-      },
-      {
-        sender: "김도윤",
-        initial: "도",
-        preview: "응 금요일 저녁 비행기로 잡으려고. 내일 확정해서 보낼게!",
-        date: "10월 7일",
-      },
-    ],
+    ...toSummary(raw),
+    to: raw.to,
+    body: raw.body,
+    fullTime: formatFullTime(raw.receivedAt),
+    attachments: raw.attachments.map((a) => ({ ...a, size: formatSize(a.size) })),
+    earlier: raw.earlier.map((e) => ({
+      sender: e.sender,
+      initial: e.initial,
+      preview: e.preview,
+      date: formatListTime(e.receivedAt),
+    })),
   };
 }

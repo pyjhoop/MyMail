@@ -1,6 +1,6 @@
 # MyMail 개발 계획
 
-현재 단계: **M2. 데이터 계층**
+현재 단계: **M3. 네이버 (IMAP/SMTP)**
 
 규칙: 한 세션에 작업 하나. 끝나면 체크하고, 커밋하고, `/clear`.
 
@@ -30,9 +30,9 @@
 
 ## M2. 데이터 계층
 
-- [ ] SQLite 스키마(계정·폴더·메일·첨부 메타) + 마이그레이션 + FTS5
-- [ ] `MailProvider` trait + `FakeProvider`
-- [ ] Tauri command와 `lib/ipc.ts` 연결, UI가 Fake 데이터를 DB에서 읽기
+- [x] SQLite 스키마(계정·폴더·메일·첨부 메타) + 마이그레이션 + FTS5
+- [x] `MailProvider` trait + `FakeProvider`
+- [x] Tauri command와 `lib/ipc.ts` 연결, UI가 Fake 데이터를 DB에서 읽기
 
 ## M3. 네이버 (IMAP/SMTP)
 

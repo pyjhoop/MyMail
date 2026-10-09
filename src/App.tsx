@@ -12,6 +12,7 @@ import {
   listAccounts,
   listFolders,
   listMails,
+  toLoadError,
   type Account,
   type Folder,
   type LoadError,
@@ -90,7 +91,7 @@ function App() {
         setMailsResult({
           key: mailsKey,
           mails: [],
-          error: { kind: "unknown", message: e instanceof Error ? e.message : String(e) },
+          error: toLoadError(e),
         });
       });
     return () => {
