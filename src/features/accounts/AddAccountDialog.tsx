@@ -326,7 +326,6 @@ export function AddAccountDialog({ onClose, onAdded, accounts = [] }: Props) {
                 : "연결"}
           </button>
         </footer>
-        ;
       </form>
     </div>
   );

@@ -19,8 +19,8 @@ use crate::store::{NewMail, Store};
 const IDLE_TIMEOUT: Duration = Duration::from_secs(90);
 /// 받은편지함 밖의 폴더를 보고 있을 때 그 폴더를 다시 맞추는 간격
 const OPEN_FOLDER_INTERVAL: Duration = Duration::from_secs(45);
-/// 푸시를 못 쓰는 서버를 조회하는 간격
-const POLL_INTERVAL: Duration = Duration::from_secs(60);
+/// 푸시(IDLE)를 못 쓰는 서버(네이버)를 조회하는 간격. 조회는 STATUS 비교로 가볍게 하므로 짧게 둔다.
+const POLL_INTERVAL: Duration = Duration::from_secs(20);
 /// 한 바퀴의 최소 길이. 서버가 계속 변화를 알려도 쉬지 않고 도는 일을 막는다.
 const MIN_ROUND: Duration = Duration::from_secs(2);
 /// 첫 재시도 대기. 잠깐 끊겼다 돌아온 네트워크는 금방 이어지므로 짧게 둔다.
@@ -203,6 +203,15 @@ fn notify_new(app: &AppHandle, account_id: &str, mails: &[NewMail]) {
     let focused = app
         .get_webview_window("main")
         .is_some_and(|w| w.is_focused().unwrap_or(false));
+    eprintln!(
+        "[notify] account={account_id} 새 안 읽은 메일 {}통, 창 포커스={focused}{}",
+        mails.len(),
+        if focused {
+            " → 알림 생략"
+        } else {
+            " → 알림 표시"
+        }
+    );
     if focused {
         return;
     }
@@ -285,9 +294,24 @@ async fn watch(
                 .wait_for_changes(key, timeout, since.as_ref())
                 .await
             {
-                Ok(reason) => woke = Some(reason),
-                Err(ProviderError::Unsupported(_)) => sleep_or_wake(sync, POLL_INTERVAL).await,
-                Err(_) => {
+                Ok(reason) => {
+                    eprintln!(
+                        "[sync] account={account_id} 받은편지함 대기 끝: {reason:?} (한 바퀴 {}초)",
+                        round.elapsed().as_secs()
+                    );
+                    woke = Some(reason);
+                }
+                Err(ProviderError::Unsupported(what)) => {
+                    eprintln!(
+                        "[sync] account={account_id} 푸시 미지원({what}) → {}초마다 조회",
+                        POLL_INTERVAL.as_secs()
+                    );
+                    sleep_or_wake(sync, POLL_INTERVAL).await;
+                    // 시간이 차서 깬 것으로 다뤄, 요약 상태(STATUS)가 그대로면 목록을 통째로 받지 않고 건너뛰게 한다.
+                    woke = Some(WakeReason::TimedOut);
+                }
+                Err(e) => {
+                    eprintln!("[sync] account={account_id} 받은편지함 대기 오류: {e}");
                     failures += 1;
                     sleep_or_wake(sync, retry_delay(failures)).await;
                     continue;

@@ -5,6 +5,9 @@ use tauri_plugin_notification::NotificationExt;
 
 use crate::store::NewMail;
 
+/// Windows 알림음("Mail"은 기본 메일 알림음)
+const NOTIFICATION_SOUND: &str = "Mail";
+
 /// 한꺼번에 알림 여러 개를 띄우지 않고 이 수를 넘으면 한 통으로 묶는다.
 const MAX_SEPARATE: usize = 3;
 
@@ -31,7 +34,13 @@ pub fn messages(account_name: &str, mails: &[NewMail]) -> Vec<(String, String)> 
 
 pub fn show(app: &AppHandle, account_name: &str, mails: &[NewMail]) {
     for (title, body) in messages(account_name, mails) {
-        let _ = app.notification().builder().title(title).body(body).show();
+        let _ = app
+            .notification()
+            .builder()
+            .title(title)
+            .body(body)
+            .sound(NOTIFICATION_SOUND)
+            .show();
     }
 }
 
