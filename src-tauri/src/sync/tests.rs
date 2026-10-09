@@ -600,6 +600,98 @@ async fn 폴더_이동은_서버에서_새_번호로_다시_나타난다() {
 }
 
 #[tokio::test]
+async fn 보관_폴더가_없으면_한_번만_만들고_그리로_옮긴다() {
+    let (store, fake) = added(5).await;
+    sync_all(&store, &fake).await;
+    assert!(store.folder_of_kind("n1", "archive").unwrap().is_none());
+
+    actions::archive_mail(&store, Some(&fake), "n1-inbox-1")
+        .await
+        .unwrap();
+    assert_eq!(inbox_count(&store), 4);
+    let (archive_id, key) = store.folder_of_kind("n1", "archive").unwrap().unwrap();
+    assert_eq!(key, "보관함");
+    flush_pending(&store, &fake, "n1").await.unwrap();
+    sync_all(&store, &fake).await;
+    assert_eq!(store.list_mails(Some("n1"), &archive_id).unwrap().len(), 1);
+
+    actions::archive_mail(&store, Some(&fake), "n1-inbox-2")
+        .await
+        .unwrap();
+    let creates = fake
+        .ops()
+        .iter()
+        .filter(|o| o.starts_with("create:"))
+        .count();
+    assert_eq!(creates, 1);
+}
+
+#[tokio::test]
+async fn gmail처럼_전체보관함이_있으면_만들지_않고_그리로_옮긴다() {
+    let store = Store::open_in_memory().unwrap();
+    let fake = FakeProvider::new(NOW, 5, 0);
+    fake.add_folder("all", "전체보관함", FolderKind::All);
+    add_account(
+        &store,
+        &MemoryStore::default(),
+        &fake,
+        new_account("n1", "a@gmail.com"),
+        "pw",
+    )
+    .await
+    .unwrap();
+    sync_all(&store, &fake).await;
+
+    actions::archive_mail(&store, None, "n1-inbox-1")
+        .await
+        .unwrap();
+    let moved = flush_pending(&store, &fake, "n1").await.unwrap();
+
+    assert_eq!(moved, ["all"]);
+    assert!(!fake.ops().iter().any(|o| o.starts_with("create:")));
+}
+
+#[tokio::test]
+async fn 이미_보관된_메일이나_휴지통_스팸_메일은_보관할_수_없다() {
+    let (store, fake) = added(3).await;
+    sync_all(&store, &fake).await;
+    actions::archive_mail(&store, Some(&fake), "n1-inbox-0")
+        .await
+        .unwrap();
+    let (archive_id, _) = store.folder_of_kind("n1", "archive").unwrap().unwrap();
+    flush_pending(&store, &fake, "n1").await.unwrap();
+    sync_all(&store, &fake).await;
+
+    let archived = store.list_mails(Some("n1"), &archive_id).unwrap();
+    assert!(matches!(
+        actions::archive_mail(&store, Some(&fake), &archived[0].id).await,
+        Err(SyncError::AlreadyArchived)
+    ));
+    let trash = store.list_mails(Some("n1"), "n1-trash").unwrap();
+    assert!(matches!(
+        actions::archive_mail(&store, Some(&fake), &trash[0].id).await,
+        Err(SyncError::AlreadyArchived)
+    ));
+    let spam = store.list_mails(Some("n1"), "n1-spam").unwrap();
+    assert!(matches!(
+        actions::archive_mail(&store, Some(&fake), &spam[0].id).await,
+        Err(SyncError::AlreadyArchived)
+    ));
+}
+
+#[tokio::test]
+async fn 보관_폴더를_만들_수_없는_서비스는_안내_오류를_낸다() {
+    let (store, fake) = added(3).await;
+    sync_all(&store, &fake).await;
+
+    assert!(matches!(
+        actions::archive_mail(&store, None, "n1-inbox-0").await,
+        Err(SyncError::NotConnected)
+    ));
+    assert!(store.get_mail("n1-inbox-0").unwrap().is_some());
+}
+
+#[tokio::test]
 async fn 서버가_거절한_조작은_버리고_큐를_막지_않는다() {
     let (store, fake) = added(5).await;
     sync_all(&store, &fake).await;

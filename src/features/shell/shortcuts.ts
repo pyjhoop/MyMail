@@ -6,6 +6,7 @@ export const SHORTCUTS: { keys: string; label: string }[] = [
   { keys: "r", label: "답장" },
   { keys: "a", label: "전체 답장" },
   { keys: "f", label: "전달" },
+  { keys: "e", label: "보관" },
   { keys: "#", label: "삭제" },
   { keys: "/", label: "검색" },
   { keys: "j", label: "다음 메일" },
@@ -21,6 +22,7 @@ export interface ShortcutHandlers {
   reply: () => void;
   replyAll: () => void;
   forward: () => void;
+  archive: () => void;
   remove: () => void;
   search: () => void;
   next: () => void;
@@ -86,6 +88,8 @@ export function useShortcuts(handlers: ShortcutHandlers, enabled: boolean) {
           return run(h.replyAll);
         case "f":
           return run(h.forward);
+        case "e":
+          return run(h.archive);
         case "#":
           return run(h.remove);
         case "/":

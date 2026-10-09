@@ -2,6 +2,7 @@
 //! 서버에 보낼 조작은 큐에 넣는다. 보내는 일은 `flush_pending`이 한다(연결이 없으면 나중에).
 
 use super::SyncError;
+use crate::providers::MailProvider;
 use crate::store::{OpKind, Store};
 
 fn flag_arg(on: bool) -> &'static str {
@@ -75,6 +76,48 @@ pub fn move_mail(store: &Store, mail_id: &str, dest_folder_id: &str) -> Result<S
     let (_, dest_key) = store
         .folder_info(&mail.account_id, dest_folder_id)?
         .ok_or(SyncError::FolderNotFound)?;
+    store.enqueue(
+        &mail.account_id,
+        OpKind::Move,
+        &mail.folder_key,
+        &mail.remote_id,
+        &dest_key,
+    )?;
+    store.remove_local(&mail)?;
+    Ok(mail.account_id)
+}
+
+/// 보관은 받은편지함 등에서 메일을 치워 두는 동작이다. 이미 보관·휴지통·스팸·임시보관함에 있는 메일은 대상이 아니다.
+const NOT_ARCHIVABLE: [&str; 4] = ["archive", "trash", "spam", "drafts"];
+
+/// 메일을 이 계정의 보관 폴더로 옮긴다. Gmail은 전체보관함으로, 네이버는 "보관함" 폴더로 옮긴다.
+/// 보관 폴더가 아직 없으면 서버에 만든다(`provider`가 있어야 한다). 계정 id를 돌려준다.
+pub async fn archive_mail(
+    store: &Store,
+    provider: Option<&dyn MailProvider>,
+    mail_id: &str,
+) -> Result<String, SyncError> {
+    let mail = store.mail_ref(mail_id)?.ok_or(SyncError::MailNotFound)?;
+    if NOT_ARCHIVABLE.contains(&mail.folder_kind.as_str()) {
+        return Err(SyncError::AlreadyArchived);
+    }
+    let dest_key = match store.folder_of_kind(&mail.account_id, "archive")? {
+        Some((_, key)) => key,
+        None => {
+            let provider = provider.ok_or(SyncError::NotConnected)?;
+            let name = provider
+                .archive_folder_name()
+                .ok_or(SyncError::ArchiveUnavailable)?;
+            provider.create_folder(name).await?;
+            // 만든 폴더가 목록에 보이도록 서버의 폴더 목록으로 맞춘다.
+            let remote = provider.list_folders().await?;
+            store.save_folders(&mail.account_id, &remote)?;
+            store
+                .folder_of_kind(&mail.account_id, "archive")?
+                .ok_or(SyncError::ArchiveUnavailable)?
+                .1
+        }
+    };
     store.enqueue(
         &mail.account_id,
         OpKind::Move,

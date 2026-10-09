@@ -36,6 +36,46 @@ pub fn decode(input: &str) -> String {
     out
 }
 
+/// 폴더 이름을 modified UTF-7로 인코딩한다. 출력 가능한 ASCII는 그대로 두고 `&`는 `&-`로 쓴다.
+pub fn encode(input: &str) -> String {
+    let mut out = String::new();
+    let mut run: Vec<u16> = Vec::new();
+    for c in input.chars() {
+        if ('\u{20}'..='\u{7e}').contains(&c) {
+            flush_run(&mut out, &mut run);
+            if c == '&' {
+                out.push_str("&-");
+            } else {
+                out.push(c);
+            }
+        } else {
+            let mut buf = [0u16; 2];
+            run.extend_from_slice(c.encode_utf16(&mut buf));
+        }
+    }
+    flush_run(&mut out, &mut run);
+    out
+}
+
+fn flush_run(out: &mut String, run: &mut Vec<u16>) {
+    if run.is_empty() {
+        return;
+    }
+    let bytes: Vec<u8> = run.drain(..).flat_map(u16::to_be_bytes).collect();
+    out.push('&');
+    for chunk in bytes.chunks(3) {
+        let n = chunk
+            .iter()
+            .enumerate()
+            .fold(0u32, |acc, (i, b)| acc | (u32::from(*b) << (16 - 8 * i)));
+        let sextets = (chunk.len() * 8).div_ceil(6);
+        for i in 0..sextets {
+            out.push(BASE64[((n >> (18 - 6 * i)) & 63) as usize] as char);
+        }
+    }
+    out.push('-');
+}
+
 fn decode_run(encoded: &[u8]) -> Option<String> {
     let mut units = Vec::new();
     let mut acc: u32 = 0;
@@ -54,7 +94,17 @@ fn decode_run(encoded: &[u8]) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::decode;
+    use super::{decode, encode};
+
+    #[test]
+    fn 인코딩은_디코딩과_짝이_맞는다() {
+        assert_eq!(encode("INBOX"), "INBOX");
+        assert_eq!(encode("휴지통"), "&1zTJwNG1-");
+        assert_eq!(encode("A&B"), "A&-B");
+        for name in ["보관함", "Work 회사", "프로젝트/2024", "a&b한글c"] {
+            assert_eq!(decode(&encode(name)), name);
+        }
+    }
 
     #[test]
     fn ascii는_그대로() {

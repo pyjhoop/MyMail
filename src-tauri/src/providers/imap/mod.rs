@@ -46,6 +46,8 @@ pub struct ImapConfig {
     pub hidden_special_use: &'static [&'static str],
     /// Gmail 확장(X-GM-MSGID·THRID·LABELS)을 쓸지
     pub gmail_extensions: bool,
+    /// 보관 폴더가 따로 없는 서비스가 보관용으로 만들 폴더 이름(Gmail은 전체보관함이 있어 `None`)
+    pub archive_folder_name: Option<&'static str>,
 }
 
 #[derive(Clone)]
@@ -367,6 +369,18 @@ impl ImapProvider {
         })
     }
 
+    /// 폴더를 만든다. 이미 있다는 거절은 성공으로 본다.
+    fn create_folder_blocking(&self, key: &str) -> Result<(), ProviderError> {
+        let mut session = self.connect()?;
+        let result = match session.create(key) {
+            Ok(()) => Ok(()),
+            Err(imap::Error::No(m)) if m.to_lowercase().contains("exist") => Ok(()),
+            Err(e) => Err(map_op_error(e)),
+        };
+        let _ = session.logout();
+        result
+    }
+
     fn delete_blocking(&self, folder_key: &str, remote_id: &str) -> Result<(), ProviderError> {
         let uid = parse_uid(remote_id)?.to_string();
         self.with_folder(folder_key, |s| expunge_uid(s, &uid))
@@ -586,6 +600,18 @@ impl MailProvider for ImapProvider {
             .await
     }
 
+    fn archive_folder_name(&self) -> Option<&'static str> {
+        self.config.archive_folder_name
+    }
+
+    async fn create_folder(&self, name: &str) -> Result<String, ProviderError> {
+        let key = utf7::encode(name);
+        let created = key.clone();
+        self.blocking(move |this| this.create_folder_blocking(&created))
+            .await?;
+        Ok(key)
+    }
+
     async fn delete_message(&self, folder_key: &str, remote_id: &str) -> Result<(), ProviderError> {
         let (key, id) = (folder_key.to_string(), remote_id.to_string());
         self.blocking(move |this| this.delete_blocking(&key, &id))
@@ -678,6 +704,7 @@ fn build_folders(raw: Vec<RawFolder>) -> Vec<RemoteFolder> {
         FolderKind::Spam => 3,
         FolderKind::Trash => 4,
         FolderKind::All => 6,
+        FolderKind::Archive => 5,
         _ => 5,
     });
     folders

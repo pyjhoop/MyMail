@@ -33,6 +33,7 @@ const ICONS: Partial<Record<FolderKind, LucideIcon>> = {
   spam: OctagonAlert,
   trash: Trash2,
   folder: FolderIcon,
+  archive: Archive,
 };
 
 const SYSTEM: FolderKind[] = ["inbox", "sent", "drafts", "spam", "trash"];
@@ -140,7 +141,7 @@ export function FolderPane({
 
   const system = folders.filter((f) => SYSTEM.includes(f.kind));
   const labels = folders.filter((f) => f.kind === "label");
-  const custom = folders.filter((f) => f.kind === "folder");
+  const custom = folders.filter((f) => f.kind === "folder" || f.kind === "archive");
 
   return (
     <aside className={`${styles.pane} ${collapsed ? styles.collapsed : ""}`} aria-label="폴더">
