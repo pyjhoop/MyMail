@@ -1,6 +1,12 @@
 import { ExternalLink, LoaderCircle, TriangleAlert, X } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { addAccount, toLoadError, type Account, type LoadError } from "../../lib/ipc";
+import {
+  addAccount,
+  toLoadError,
+  type Account,
+  type LoadError,
+  type Provider,
+} from "../../lib/ipc";
 import styles from "./AddAccountDialog.module.css";
 
 interface Props {
@@ -8,12 +14,47 @@ interface Props {
   onAdded: (account: Account) => void;
 }
 
-const NAVER_HELP_URL = "https://help.naver.com/service/5640/contents/1070";
+interface ProviderCopy {
+  name: string;
+  domain: string;
+  subtitle: string;
+  idLabel: string;
+  passwordLabel: string;
+  helpUrl: string;
+  steps: string[];
+}
 
-/** 아이디만 적으면 @naver.com을 붙인다 */
-const naverEmail = (input: string) => {
+const PROVIDERS: Record<Provider, ProviderCopy> = {
+  naver: {
+    name: "네이버",
+    domain: "naver.com",
+    subtitle: "네이버 메일에 IMAP으로 연결해요.",
+    idLabel: "아이디",
+    passwordLabel: "비밀번호 또는 애플리케이션 비밀번호",
+    helpUrl: "https://help.naver.com/service/5640/contents/1070",
+    steps: [
+      "네이버 메일 › 환경설정 › POP3/IMAP 설정에서 IMAP 사용 켜기를 해 주세요.",
+      "2단계 인증을 사용 중이면 네이버 보안 설정에서 애플리케이션 비밀번호를 만들어 위에 입력하세요.",
+    ],
+  },
+  gmail: {
+    name: "Gmail",
+    domain: "gmail.com",
+    subtitle: "Gmail에 IMAP으로 연결해요. 개인 Google 계정만 지원해요.",
+    idLabel: "Gmail 주소",
+    passwordLabel: "앱 비밀번호",
+    helpUrl: "https://support.google.com/accounts/answer/185833",
+    steps: [
+      "Google 계정 › 보안에서 2단계 인증 켜기를 먼저 해 주세요.",
+      "같은 화면에서 앱 비밀번호 16자리를 만들어 위에 입력하세요. 평소 쓰는 비밀번호로는 로그인되지 않아요.",
+    ],
+  },
+};
+
+/** 아이디만 적으면 서비스 도메인을 붙인다 */
+const fullEmail = (input: string, domain: string) => {
   const id = input.trim();
-  return id.includes("@") ? id : `${id}@naver.com`;
+  return id.includes("@") ? id : `${id}@${domain}`;
 };
 
 const failureTitle = (e: LoadError) =>
@@ -22,6 +63,8 @@ const failureTitle = (e: LoadError) =>
 export function AddAccountDialog({ onClose, onAdded }: Props) {
   const titleId = useId();
   const idInput = useRef<HTMLInputElement>(null);
+  const [provider, setProvider] = useState<Provider>("naver");
+  const copy = PROVIDERS[provider];
   const [id, setId] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -47,7 +90,7 @@ export function AddAccountDialog({ onClose, onAdded }: Props) {
     setBusy(true);
     setError(null);
     try {
-      onAdded(await addAccount({ provider: "naver", email: naverEmail(id), password }));
+      onAdded(await addAccount({ provider, email: fullEmail(id, copy.domain), password }));
     } catch (err) {
       setError(toLoadError(err));
       setBusy(false);
@@ -66,9 +109,9 @@ export function AddAccountDialog({ onClose, onAdded }: Props) {
         <header className={styles.header}>
           <div>
             <h2 id={titleId} className={styles.title}>
-              네이버 계정 연결
+              {copy.name} 계정 연결
             </h2>
-            <p className={styles.subtitle}>네이버 메일에 IMAP으로 연결해요.</p>
+            <p className={styles.subtitle}>{copy.subtitle}</p>
           </div>
           <button
             type="button"
@@ -81,6 +124,25 @@ export function AddAccountDialog({ onClose, onAdded }: Props) {
           </button>
         </header>
 
+        <div className={styles.providers} role="radiogroup" aria-label="메일 서비스">
+          {(Object.keys(PROVIDERS) as Provider[]).map((p) => (
+            <label key={p} className={styles.provider}>
+              <input
+                type="radio"
+                name="provider"
+                value={p}
+                checked={provider === p}
+                disabled={busy}
+                onChange={() => {
+                  setProvider(p);
+                  setError(null);
+                }}
+              />
+              <span>{PROVIDERS[p].name}</span>
+            </label>
+          ))}
+        </div>
+
         {error && (
           <div className={styles.error} role="alert">
             <TriangleAlert size={16} strokeWidth={1.75} aria-hidden />
@@ -92,7 +154,7 @@ export function AddAccountDialog({ onClose, onAdded }: Props) {
         )}
 
         <label className={styles.field}>
-          <span className={styles.label}>아이디</span>
+          <span className={styles.label}>{copy.idLabel}</span>
           <input
             ref={idInput}
             className={styles.input}
@@ -103,7 +165,7 @@ export function AddAccountDialog({ onClose, onAdded }: Props) {
           />
         </label>
         <label className={styles.field}>
-          <span className={styles.label}>비밀번호 또는 애플리케이션 비밀번호</span>
+          <span className={styles.label}>{copy.passwordLabel}</span>
           <input
             className={styles.input}
             type="password"
@@ -115,14 +177,10 @@ export function AddAccountDialog({ onClose, onAdded }: Props) {
 
         <div className={styles.notice}>
           <div className={styles.noticeTitle}>연결 전에 확인해 주세요</div>
-          <p>
-            네이버 메일 › 환경설정 › POP3/IMAP 설정에서 <strong>IMAP 사용 켜기</strong>를 해 주세요.
-          </p>
-          <p>
-            <strong>2단계 인증을 사용 중</strong>이면 네이버 보안 설정에서{" "}
-            <strong>애플리케이션 비밀번호</strong>를 만들어 위에 입력하세요.
-          </p>
-          <a href={NAVER_HELP_URL} target="_blank" rel="noreferrer" className={styles.link}>
+          {copy.steps.map((step) => (
+            <p key={step}>{step}</p>
+          ))}
+          <a href={copy.helpUrl} target="_blank" rel="noreferrer" className={styles.link}>
             설정 방법 자세히 보기
             <ExternalLink size={12} strokeWidth={1.75} aria-hidden />
           </a>

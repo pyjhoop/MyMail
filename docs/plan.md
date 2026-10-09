@@ -1,6 +1,6 @@
 # MyMail 개발 계획
 
-현재 단계: **M3. 네이버 (IMAP/SMTP)**
+현재 단계: **M5. 동기화 엔진**
 
 규칙: 한 세션에 작업 하나. 끝나면 체크하고, 커밋하고, `/clear`.
 
@@ -49,9 +49,9 @@
 
 ## M4. Gmail (IMAP/SMTP + 앱 비밀번호)
 
-- [ ] imap.gmail.com·smtp.gmail.com 연결, M3의 IMAP 코드 재사용, 실패 안내(2단계 인증·앱 비밀번호)
-- [ ] 라벨(X-GM-LABELS)·스레드(X-GM-THRID), `[Gmail]` 특수 폴더는 SPECIAL-USE로 식별
-- [ ] 전체보관함·라벨 폴더 중복을 X-GM-MSGID로 한 번만 저장
+- [x] imap.gmail.com 연결, M3의 IMAP 코드 재사용, 실패 안내(2단계 인증·앱 비밀번호). smtp.gmail.com은 발송이 없는 지금은 연결할 곳이 없어 M6(작성·발송)에서 한다
+- [x] 라벨(X-GM-LABELS)·스레드(X-GM-THRID), `[Gmail]` 특수 폴더는 SPECIAL-USE로 식별
+- [x] 전체보관함·라벨 폴더 중복을 X-GM-MSGID로 한 번만 저장
 
 ## M5. 동기화 엔진
 

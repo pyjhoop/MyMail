@@ -1,4 +1,5 @@
 .bar {
+  position: relative;
   flex: none;
   display: grid;
   grid-template-columns: 1fr minmax(0, var(--search-width)) 1fr;
@@ -89,4 +90,17 @@
 .close:hover {
   background: var(--color-danger);
   color: var(--color-on-danger);
+}
+
+.progress {
+  position: absolute;
+  inset: auto 0 -1px 0;
+  height: 2px;
+  background: var(--color-border);
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--color-accent);
+  transition: width 0.2s ease;
 }

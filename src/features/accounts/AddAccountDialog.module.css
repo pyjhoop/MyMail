@@ -158,3 +158,30 @@
     transform: rotate(360deg);
   }
 }
+
+.providers {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.provider {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-height-lg);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.provider:has(input:checked) {
+  border-color: var(--color-accent);
+  background: var(--color-bg-hover);
+}
+
+.provider:has(input:focus-visible) {
+  outline: 2px solid var(--color-accent);
+}

@@ -1,12 +1,12 @@
 //! Tauri command. 입력 검증과 서비스 호출만 한다.
 
 use serde::Serialize;
-use tauri::State;
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use std::sync::Arc;
 
 use crate::auth::CredentialStore;
-use crate::providers::{self, ProviderError};
+use crate::providers::{self, MailProvider, ProviderError};
 use crate::store::{Account, Folder, MailDetail, MailSummary, NewAccount, Store, StoreError};
 use crate::sync::{self, SyncError};
 
@@ -74,6 +74,7 @@ pub async fn get_mail(store: State<'_, Store>, id: String) -> CommandResult<Opti
 /// 접속을 확인하고 계정을 추가한다. 성공하면 추가된 계정을 돌려준다.
 #[tauri::command]
 pub async fn add_account(
+    app: AppHandle,
     store: State<'_, Store>,
     credentials: State<'_, Arc<dyn CredentialStore>>,
     provider: String,
@@ -89,8 +90,9 @@ pub async fn add_account(
     if password.is_empty() {
         return Err(invalid("비밀번호를 입력해 주세요."));
     }
-    let remote =
-        providers::create(&provider, &email, &password).map_err(|e| invalid(&e.to_string()))?;
+    let remote: Arc<dyn MailProvider> = providers::create(&provider, &email, &password)
+        .map_err(|e| invalid(&e.to_string()))?
+        .into();
 
     let account = NewAccount {
         id: format!("{provider}-{}", crate::unix_millis()),
@@ -103,7 +105,7 @@ pub async fn add_account(
         color_index: (store.account_count()? % 8) as u8 + 1,
     };
     let id = account.id.clone();
-    sync::add_account(
+    let folders = sync::add_account(
         &store,
         credentials.inner().as_ref(),
         &*remote,
@@ -111,6 +113,16 @@ pub async fn add_account(
         &password,
     )
     .await?;
+
+    // 나머지 폴더는 화면을 막지 않고 백그라운드로 받으면서 진행 상황을 UI에 알린다.
+    let account_id = id.clone();
+    tauri::async_runtime::spawn(async move {
+        let store = app.state::<Store>();
+        sync::backfill(&store, &account_id, &*remote, &folders, |p| {
+            let _ = app.emit("sync-progress", p);
+        })
+        .await;
+    });
     store
         .list_accounts()?
         .into_iter()

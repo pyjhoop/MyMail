@@ -3,6 +3,7 @@
 
 #[cfg(test)]
 pub mod fake;
+pub mod gmail;
 pub mod imap;
 pub mod naver;
 
@@ -21,7 +22,7 @@ pub enum ProviderError {
     Unsupported(String),
 }
 
-#[allow(dead_code)] // Label은 M4(Gmail)에서 사용
+#[allow(dead_code)] // Label은 아직 만드는 곳이 없음
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FolderKind {
     Inbox,
@@ -29,6 +30,8 @@ pub enum FolderKind {
     Drafts,
     Spam,
     Trash,
+    /// 전체보관함(Gmail `\All`). 다른 폴더 메일이 모두 들어 있어 가장 마지막에 동기화한다.
+    All,
     Label,
     Folder,
 }
@@ -41,6 +44,8 @@ impl FolderKind {
             Self::Drafts => "drafts",
             Self::Spam => "spam",
             Self::Trash => "trash",
+            // UI에서는 일반 폴더로 보인다. 구분은 동기화 순서에만 쓴다.
+            Self::All => "folder",
             Self::Label => "label",
             Self::Folder => "folder",
         }
@@ -78,6 +83,8 @@ pub struct RemoteMessage {
     /// 폴더 안에서 유일한 서버 식별자 (IMAP UID 등)
     pub remote_id: String,
     pub thread_id: Option<String>,
+    /// 폴더가 달라도 같은 메일이면 같은 값 (Gmail X-GM-MSGID). 계정 안에서 한 번만 저장한다.
+    pub dedupe_key: Option<String>,
     pub sender: String,
     pub sender_email: String,
     pub recipients: String,
@@ -119,6 +126,11 @@ pub fn create(
     match provider {
         "naver" => Ok(Box::new(imap::ImapProvider::new(
             naver::CONFIG,
+            email.into(),
+            password.into(),
+        ))),
+        "gmail" => Ok(Box::new(imap::ImapProvider::new(
+            gmail::CONFIG,
             email.into(),
             password.into(),
         ))),

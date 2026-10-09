@@ -112,6 +112,7 @@ fn html_message(body: &str, html: Option<&str>) -> crate::providers::RemoteMessa
     RemoteMessage {
         remote_id: "9".into(),
         thread_id: None,
+        dedupe_key: None,
         sender: "뉴스레터".into(),
         sender_email: "news@example.com".into(),
         recipients: "me@naver.com".into(),
@@ -190,4 +191,37 @@ async fn 다시_동기화하면_본문과_html을_서버_값으로_갱신한다(
     assert_eq!(preview, "깨끗한 본문");
     assert_eq!(store.search_mails("a1", "깨끗한").unwrap().len(), 1);
     assert!(store.search_mails("a1", "깨진").unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn 같은_dedupe_key_메일은_폴더가_달라도_한_번만_저장한다() {
+    let store = seeded().await;
+    let mut m = html_message("본문", None);
+    m.dedupe_key = Some("1700000000000002".into());
+    // 라벨 폴더가 먼저, 전체보관함이 나중에 동기화된다.
+    store.save_messages("a1", "inbox", &[m.clone()]).unwrap();
+    store.save_messages("a1", "trash", &[m.clone()]).unwrap();
+    // 같은 폴더를 다시 동기화하는 건 갱신이다.
+    store.save_messages("a1", "inbox", &[m]).unwrap();
+
+    let count: i64 = store
+        .lock()
+        .unwrap()
+        .query_row(
+            "SELECT COUNT(*) FROM messages WHERE dedupe_key = '1700000000000002'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(count, 1);
+    let folder: String = store
+        .lock()
+        .unwrap()
+        .query_row(
+            "SELECT folder_id FROM messages WHERE dedupe_key = '1700000000000002'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(folder, "a1-inbox");
 }

@@ -13,12 +13,14 @@ import {
   listAccounts,
   listFolders,
   listMails,
+  onSyncProgress,
   toLoadError,
   type Account,
   type Folder,
   type LoadError,
   type MailDetail,
   type MailSummary,
+  type SyncProgress,
 } from "./lib/ipc";
 import styles from "./App.module.css";
 
@@ -35,6 +37,7 @@ function App() {
   const [adding, setAdding] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [mailId, setMailId] = useState<string | null>(null);
+  const [syncs, setSyncs] = useState<Record<string, SyncProgress>>({});
 
   // 비동기 결과는 "어떤 요청의 결과인지"(key)와 함께 저장하고, 현재 요청과 같을 때만 ready로 본다.
   // effect 안에서 loading을 동기적으로 setState하지 않기 위한 구조.
@@ -120,6 +123,17 @@ function App() {
     };
   }, [mailId]);
 
+  // 백그라운드 동기화가 폴더를 하나 끝낼 때마다 목록과 안 읽은 수를 다시 읽는다.
+  useEffect(
+    () =>
+      onSyncProgress((progress) => {
+        setSyncs((prev) => ({ ...prev, [progress.accountId]: progress }));
+        setReloadKey((k) => k + 1);
+        listAccounts().then(setAccounts);
+      }),
+    [],
+  );
+
   const selectAccount = useCallback((next: AccountSelection) => {
     setSelection(next);
     setFolderId("");
@@ -143,6 +157,17 @@ function App() {
     return folders.find((f) => f.id === folderId)?.name ?? "받은편지함";
   }, [selection, folders, folderId]);
 
+  const running = Object.values(syncs).filter((s) => s.error === null && s.done < s.total);
+  const failed = Object.values(syncs).find((s) => s.error !== null);
+  const syncDone = running.reduce((n, s) => n + s.done, 0);
+  const syncTotal = running.reduce((n, s) => n + s.total, 0);
+  const syncLabel =
+    running.length > 0
+      ? `메일 가져오는 중 ${syncDone}/${syncTotal}`
+      : failed
+        ? "일부 메일을 가져오지 못했어요"
+        : "방금 동기화됨";
+
   const folderWidth = widths.folderCollapsed ? FOLDER.collapsed : widths.folder;
   const shellStyle = {
     "--folder-width": `${widths.folder}px`,
@@ -151,7 +176,11 @@ function App() {
 
   return (
     <div className={styles.app} style={shellStyle}>
-      <TitleBar syncLabel="방금 동기화됨" onOpenSettings={() => undefined} />
+      <TitleBar
+        syncLabel={syncLabel}
+        syncProgress={running.length > 0 ? syncDone / syncTotal : undefined}
+        onOpenSettings={() => undefined}
+      />
       <div className={styles.body}>
         <AccountRail
           accounts={accounts}

@@ -75,6 +75,7 @@ impl FakeProvider {
         RemoteMessage {
             remote_id: i.to_string(),
             // 세 통씩 묶어 한 스레드로 만든다 (한 묶음 건너 하나).
+            dedupe_key: None,
             thread_id: (i / 3)
                 .is_multiple_of(2)
                 .then(|| format!("{folder_key}-t{}", i / 3)),

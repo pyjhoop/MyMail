@@ -52,4 +52,20 @@ describe("AddAccountDialog", () => {
     expect(screen.getByRole("button", { name: "다시 시도" })).toBeEnabled();
     expect(onAdded).not.toHaveBeenCalled();
   });
+
+  it("Gmail을 고르면 Gmail 주소와 앱 비밀번호 안내로 바뀌고 gmail로 연결한다", async () => {
+    addAccount.mockResolvedValue(FAKE_ACCOUNTS[0]);
+    render(<AddAccountDialog onClose={vi.fn()} onAdded={vi.fn()} />);
+    await userEvent.click(screen.getByRole("radio", { name: "Gmail" }));
+    expect(screen.getByRole("heading")).toHaveTextContent("Gmail 계정 연결");
+    expect(screen.getByText(/앱 비밀번호 16자리/)).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Gmail 주소"), "junho.park");
+    await userEvent.type(screen.getByLabelText("앱 비밀번호"), "abcdabcdabcdabcd");
+    await userEvent.click(screen.getByRole("button", { name: "연결" }));
+    expect(addAccount).toHaveBeenCalledWith({
+      provider: "gmail",
+      email: "junho.park@gmail.com",
+      password: "abcdabcdabcdabcd",
+    });
+  });
 });

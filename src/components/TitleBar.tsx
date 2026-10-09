@@ -4,10 +4,12 @@ import styles from "./TitleBar.module.css";
 
 interface Props {
   syncLabel: string;
+  /** 0~1. 있으면 제목 표시줄 아래에 진행률 막대를 보여 준다 */
+  syncProgress?: number;
   onOpenSettings: () => void;
 }
 
-export function TitleBar({ syncLabel, onOpenSettings }: Props) {
+export function TitleBar({ syncLabel, syncProgress, onOpenSettings }: Props) {
   return (
     <header className={styles.bar} data-tauri-drag-region>
       <div className={styles.brand} data-tauri-drag-region>
@@ -58,6 +60,18 @@ export function TitleBar({ syncLabel, onOpenSettings }: Props) {
           <X size={16} strokeWidth={1.25} aria-hidden />
         </button>
       </div>
+      {syncProgress !== undefined && (
+        <div
+          className={styles.progress}
+          role="progressbar"
+          aria-label="메일 가져오기 진행률"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(syncProgress * 100)}
+        >
+          <div className={styles.progressFill} style={{ width: `${syncProgress * 100}%` }} />
+        </div>
+      )}
     </header>
   );
 }

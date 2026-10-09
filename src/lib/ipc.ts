@@ -1,5 +1,6 @@
 // 백엔드 호출 경계. 컴포넌트는 invoke를 직접 부르지 않고 이 파일의 함수만 쓴다.
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { formatFullTime, formatListTime, formatSize } from "./format";
 import { isOpenableLink } from "./mailHtml";
@@ -158,4 +159,22 @@ export async function getMail(id: string): Promise<MailDetail | null> {
 export async function openExternal(url: string): Promise<void> {
   if (!isOpenableLink(url)) return;
   await openUrl(url.trim());
+}
+
+/** 백그라운드 동기화 진행 상황 (폴더 단위) */
+export interface SyncProgress {
+  accountId: string;
+  done: number;
+  total: number;
+  /** 중간에 실패했을 때의 안내. 이미 받은 메일은 남아 있다. */
+  error: string | null;
+}
+
+/** 진행 상황을 구독한다. 브라우저(pnpm dev)·테스트에서는 아무 일도 하지 않는다. 반환값은 구독 해제 함수. */
+export function onSyncProgress(callback: (progress: SyncProgress) => void): () => void {
+  if (typeof window === "undefined" || !("__TAURI_INTERNALS__" in window)) return () => undefined;
+  const unlisten = listen<SyncProgress>("sync-progress", (e) => callback(e.payload));
+  return () => {
+    void unlisten.then((fn) => fn());
+  };
 }

@@ -26,6 +26,7 @@ pub enum StoreError {
 const MIGRATIONS: &[&str] = &[
     include_str!("migrations/0001_init.sql"),
     include_str!("migrations/0002_html_body.sql"),
+    include_str!("migrations/0003_dedupe_key.sql"),
 ];
 
 const PREVIEW_CHARS: usize = 80;
@@ -145,11 +146,11 @@ impl Store {
             let mut insert = tx.prepare_cached(
                 "INSERT INTO messages (id, account_id, folder_id, thread_id, sender, sender_email,
                      recipients, subject, preview, body, received_at, unread, starred,
-                     has_attachment, label_name, label_color, html)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
+                     has_attachment, label_name, label_color, html, dedupe_key)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
                  ON CONFLICT(id) DO UPDATE SET unread = ?12, starred = ?13,
                      label_name = ?15, label_color = ?16,
-                     preview = ?9, body = ?10, html = ?17, has_attachment = ?14",
+                     preview = ?9, body = ?10, html = ?17, has_attachment = ?14, dedupe_key = ?18",
             )?;
             let mut delete_inline =
                 tx.prepare_cached("DELETE FROM inline_images WHERE message_id = ?1")?;
@@ -162,8 +163,17 @@ impl Store {
             let mut insert_attachment = tx.prepare_cached(
                 "INSERT INTO attachments (message_id, name, size, ext) VALUES (?1, ?2, ?3, ?4)",
             )?;
+            let mut stored_elsewhere = tx.prepare_cached(
+                "SELECT 1 FROM messages WHERE account_id = ?1 AND dedupe_key = ?2 AND id != ?3",
+            )?;
             for m in messages {
                 let id = format!("{folder}-{}", m.remote_id);
+                // 다른 폴더에 이미 저장된 같은 메일이면 건너뛴다(먼저 저장된 폴더가 차지한다).
+                if let Some(key) = &m.dedupe_key {
+                    if stored_elsewhere.exists(params![account_id, key, id])? {
+                        continue;
+                    }
+                }
                 insert.execute(params![
                     id,
                     account_id,
@@ -182,6 +192,7 @@ impl Store {
                     m.label.as_ref().map(|l| l.0.as_str()),
                     m.label.as_ref().map(|l| l.1),
                     m.html,
+                    m.dedupe_key,
                 ])?;
                 delete_inline.execute([&id])?;
                 for img in &m.inline_images {

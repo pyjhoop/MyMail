@@ -21,4 +21,6 @@ pub const CONFIG: ImapConfig = ImapConfig {
         ("trash", FolderKind::Trash),
         ("휴지통", FolderKind::Trash),
     ],
+    hidden_special_use: &[],
+    gmail_extensions: false,
 };

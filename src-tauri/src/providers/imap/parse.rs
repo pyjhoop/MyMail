@@ -37,6 +37,7 @@ pub fn parse_message(fetched: &FetchedMessage) -> RemoteMessage {
     RemoteMessage {
         remote_id: fetched.uid.to_string(),
         thread_id: None,
+        dedupe_key: None,
         sender,
         sender_email,
         recipients: parsed
