@@ -1,5 +1,6 @@
 //! SQLite 저장소와 마이그레이션.
 
+mod compose;
 mod models;
 mod sync_state;
 
@@ -11,6 +12,7 @@ use base64::Engine;
 use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::providers::{RemoteFolder, RemoteMessage};
+pub use compose::{split_address, AddressSuggestion, ComposeInput, ComposeMail};
 pub use models::{
     Account, Attachment, EarlierMail, Folder, LabelTag, MailDetail, MailSummary, NewAccount,
 };
@@ -30,6 +32,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/0002_html_body.sql"),
     include_str!("migrations/0003_dedupe_key.sql"),
     include_str!("migrations/0004_sync.sql"),
+    include_str!("migrations/0005_compose.sql"),
 ];
 
 const PREVIEW_CHARS: usize = 80;
@@ -236,7 +239,7 @@ impl Store {
     pub fn list_accounts(&self) -> Result<Vec<Account>, StoreError> {
         let conn = self.lock()?;
         let mut stmt = conn.prepare(
-            "SELECT a.id, a.name, a.email, a.provider, a.color_index, a.initial,
+            "SELECT a.id, a.name, a.email, a.provider, a.color_index, a.initial, a.signature,
                     (SELECT COUNT(*) FROM messages m JOIN folders f ON f.id = m.folder_id
                       WHERE m.account_id = a.id AND f.kind = 'inbox' AND m.unread = 1)
              FROM accounts a ORDER BY a.position",
@@ -249,7 +252,8 @@ impl Store {
                 provider: r.get(3)?,
                 color_index: r.get(4)?,
                 initial: r.get(5)?,
-                unread: r.get(6)?,
+                signature: r.get(6)?,
+                unread: r.get(7)?,
             })
         })?;
         Ok(rows.collect::<Result<_, _>>()?)
@@ -298,7 +302,24 @@ impl Store {
         );
         let mut stmt = conn.prepare(&sql)?;
         let rows = stmt.query_map(rusqlite::params_from_iter(args), summary_from_row)?;
-        Ok(rows.collect::<Result<_, _>>()?)
+        let mut mails: Vec<MailSummary> = rows.collect::<Result<_, _>>()?;
+        drop(stmt);
+        // 임시보관함에는 서버 메일 위에 이 앱에서 작성 중인 메일을 함께 보여준다.
+        if let Some(account_id) = account_id {
+            let is_drafts: bool = conn
+                .query_row(
+                    "SELECT kind = 'drafts' FROM folders WHERE id = ?1",
+                    [folder_id],
+                    |r| r.get(0),
+                )
+                .optional()?
+                .unwrap_or(false);
+            if is_drafts {
+                mails.extend(compose::summaries(&conn, account_id, folder_id)?);
+                mails.sort_by_key(|m| std::cmp::Reverse(m.received_at));
+            }
+        }
+        Ok(mails)
     }
 
     pub fn get_mail(&self, id: &str) -> Result<Option<MailDetail>, StoreError> {

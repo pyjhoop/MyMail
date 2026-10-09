@@ -1,0 +1,322 @@
+.composer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: var(--reader-min-width);
+  min-height: 0;
+  padding: var(--space-3) var(--space-6) var(--space-4);
+  user-select: text;
+}
+
+.sheet {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+  max-width: var(--reader-html-max-width);
+  margin: 0 auto;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-bg);
+}
+
+.header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 6px var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.grow {
+  flex: 1;
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding-left: var(--space-2);
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.select {
+  min-width: 0;
+  max-width: 100%;
+  height: var(--control-height);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.select:hover {
+  background: var(--color-bg-hover);
+}
+
+.iconButton {
+  flex: none;
+  width: var(--control-height);
+  height: var(--control-height);
+}
+
+.signature {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-subtle);
+}
+
+.signatureLabel {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.signatureText {
+  resize: none;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-bg);
+  font: inherit;
+  font-size: var(--font-size-md);
+  user-select: text;
+}
+
+.signatureActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.primary,
+.secondary {
+  height: var(--control-height);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-control);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.primary {
+  border: 0;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.primary:hover {
+  background: var(--color-accent-hover);
+}
+
+.secondary {
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+}
+
+.secondary:hover {
+  background: var(--color-bg-hover);
+}
+
+.alert,
+.notice {
+  flex: none;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+}
+
+.alert {
+  background: var(--color-danger-subtle);
+  color: var(--color-danger-text);
+}
+
+.notice {
+  background: var(--color-warning-subtle);
+  color: var(--color-warning-text);
+}
+
+.recipients {
+  flex: none;
+}
+
+.recipientRow {
+  position: relative;
+}
+
+.toggles {
+  position: absolute;
+  top: 6px;
+  right: var(--space-3);
+  display: flex;
+  gap: 2px;
+}
+
+.toggle {
+  height: 24px;
+  padding: 0 6px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+}
+
+.subjectRow {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 40px;
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.subjectLabel {
+  flex: none;
+  width: 56px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+}
+
+.subject {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: var(--font-size-md);
+}
+
+.body {
+  flex: 1;
+  min-height: 160px;
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-reading);
+  color: var(--color-text);
+}
+
+.attachments {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: 0 var(--space-4) var(--space-3);
+}
+
+.attachment {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 36px;
+  padding: 0 6px 0 var(--space-2);
+  border-radius: var(--radius-control);
+  background: var(--color-bg-subtle);
+  font-size: var(--font-size-sm);
+}
+
+.ext {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-xs);
+  background: var(--color-bg-hover);
+  font-size: 9px;
+  font-weight: var(--font-weight-bold);
+  line-height: 24px;
+  text-align: center;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.attachName {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--font-weight-semibold);
+}
+
+.attachSize {
+  color: var(--color-text-tertiary);
+}
+
+.attachRemove {
+  width: 24px;
+  height: 24px;
+  color: var(--color-text-tertiary);
+}
+
+.attachError {
+  flex-basis: 100%;
+  font-size: var(--font-size-sm);
+  color: var(--color-danger-text);
+}
+
+.footer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px var(--space-3) 10px var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.saveState,
+.shortcut {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+}
+
+.attachButton {
+  gap: 6px;
+  height: var(--control-height-lg);
+  padding: 0 10px;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.attachButton:focus-within {
+  box-shadow: var(--focus-ring);
+}
+
+.send {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--control-height-lg);
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+
+.send:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+}
+
+.send:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

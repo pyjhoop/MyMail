@@ -7,8 +7,8 @@ use std::time::Duration;
 use async_trait::async_trait;
 
 use super::{
-    FolderKind, FolderSnapshot, MailProvider, ProviderError, RemoteAttachment, RemoteFlags,
-    RemoteFolder, RemoteMessage,
+    FolderKind, FolderSnapshot, MailProvider, OutgoingMail, ProviderError, RemoteAttachment,
+    RemoteFlags, RemoteFolder, RemoteMessage,
 };
 
 const SENDERS: [(&str, &str); 6] = [
@@ -58,6 +58,8 @@ struct FakeServer {
     offline: bool,
     /// 서버가 받은 조작 기록 (`seen:inbox:3:true` 같은 꼴)
     ops: Vec<String>,
+    /// 서버가 받아 보낸 메일
+    sent: Vec<OutgoingMail>,
 }
 
 /// 메모리 안의 가짜 서버. 처음 상태는 항상 같고, 조작(읽음·이동·삭제)이 상태에 반영된다.
@@ -110,6 +112,11 @@ impl FakeProvider {
     /// 서버가 받은 조작 기록
     pub fn ops(&self) -> Vec<String> {
         self.server().ops.clone()
+    }
+
+    /// 보내진 메일
+    pub fn sent_mails(&self) -> Vec<OutgoingMail> {
+        self.server().sent.clone()
     }
 
     /// 새 메일이 도착한 것처럼 폴더에 한 통 넣는다. 새 UID를 돌려준다.
@@ -394,6 +401,15 @@ impl MailProvider for FakeProvider {
                 Ok(())
             },
         )
+    }
+
+    async fn send(&self, mail: &OutgoingMail) -> Result<(), ProviderError> {
+        let mut server = self.server();
+        if server.offline {
+            return Err(ProviderError::Network("연결 끊김".into()));
+        }
+        server.sent.push(mail.clone());
+        Ok(())
     }
 
     async fn wait_for_changes(

@@ -3,6 +3,7 @@
 mod gmail_ext;
 mod html_text;
 mod parse;
+mod smtp;
 pub mod utf7;
 
 use std::collections::{HashMap, HashSet};
@@ -13,8 +14,8 @@ use async_trait::async_trait;
 use native_tls::{TlsConnector, TlsStream};
 
 use super::{
-    FolderKind, FolderSnapshot, MailProvider, ProviderError, RemoteFlags, RemoteFolder,
-    RemoteMessage,
+    FolderKind, FolderSnapshot, MailProvider, OutgoingMail, ProviderError, RemoteFlags,
+    RemoteFolder, RemoteMessage,
 };
 use gmail_ext::GmailAttrs;
 use parse::{parse_message, FetchedMessage};
@@ -29,6 +30,11 @@ const FETCH_CHUNK: usize = 50;
 pub struct ImapConfig {
     pub host: &'static str,
     pub port: u16,
+    /// 보내기용 SMTP 서버 (암묵적 TLS)
+    pub smtp_host: &'static str,
+    pub smtp_port: u16,
+    /// 서비스가 받아주는 메일 한 통의 최대 크기(바이트, 인코딩 전 기준 아님)
+    pub max_message_bytes: u64,
     /// 로그인이 거부됐을 때 사용자에게 보여줄 안내
     pub auth_hint: &'static str,
     /// SPECIAL-USE 속성이 없는 서버를 위한 폴더 이름(소문자) → 종류
@@ -461,6 +467,12 @@ impl MailProvider for ImapProvider {
     ) -> Result<(), ProviderError> {
         let key = folder_key.to_string();
         self.blocking(move |this| this.wait_blocking(&key, timeout))
+            .await
+    }
+
+    async fn send(&self, mail: &OutgoingMail) -> Result<(), ProviderError> {
+        let mail = mail.clone();
+        self.blocking(move |this| smtp::send(&this.config, &this.email, &this.password, &mail))
             .await
     }
 }

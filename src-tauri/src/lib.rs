@@ -1,5 +1,6 @@
 mod auth;
 mod commands;
+mod compose;
 mod providers;
 mod store;
 mod sync;
@@ -41,6 +42,14 @@ pub fn run() {
             commands::set_starred,
             commands::delete_mail,
             commands::move_mail,
+            commands::save_draft,
+            commands::get_draft,
+            commands::discard_draft,
+            commands::add_draft_attachment,
+            commands::remove_draft_attachment,
+            commands::send_draft,
+            commands::suggest_addresses,
+            commands::set_signature,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

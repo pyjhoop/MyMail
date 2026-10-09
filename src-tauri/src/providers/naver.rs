@@ -6,6 +6,9 @@ use super::FolderKind;
 pub const CONFIG: ImapConfig = ImapConfig {
     host: "imap.naver.com",
     port: 993,
+    smtp_host: "smtp.naver.com",
+    smtp_port: 465,
+    max_message_bytes: 20 * 1024 * 1024,
     auth_hint: "아이디·비밀번호가 맞는지, IMAP 사용이 켜져 있는지 확인해 주세요. 2단계 인증을 쓰고 있다면 일반 비밀번호 대신 애플리케이션 비밀번호가 필요해요.",
     name_kinds: &[
         ("sent messages", FolderKind::Sent),

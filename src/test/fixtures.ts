@@ -10,6 +10,7 @@ export const FAKE_ACCOUNTS: Account[] = [
     colorIndex: 1,
     unread: 12,
     initial: "개",
+    signature: "",
   },
   {
     id: "a2",
@@ -19,6 +20,7 @@ export const FAKE_ACCOUNTS: Account[] = [
     colorIndex: 2,
     unread: 3,
     initial: "프",
+    signature: "",
   },
   {
     id: "a3",
@@ -28,6 +30,7 @@ export const FAKE_ACCOUNTS: Account[] = [
     colorIndex: 3,
     unread: 128,
     initial: "네",
+    signature: "",
   },
 ];
 

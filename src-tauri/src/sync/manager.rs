@@ -88,6 +88,32 @@ impl SyncManager {
         }
     }
 
+    /// 계정에 연결된 제공자. 동기화가 돌고 있지 않은 계정(비밀번호를 읽지 못한 경우 등)은 `None`.
+    pub fn provider(&self, account_id: &str) -> Option<Arc<dyn MailProvider>> {
+        self.entries
+            .lock()
+            .ok()
+            .and_then(|e| e.get(account_id).map(|entry| entry.provider.clone()))
+    }
+
+    /// 메일을 보낸 뒤 보낸편지함을 바로 맞춘다. 실패해도 다음 동기화 때 나타난다.
+    pub fn refresh_sent(&self, app: &AppHandle, account_id: &str) {
+        let Some(provider) = self.provider(account_id) else {
+            return;
+        };
+        let (app, id) = (app.clone(), account_id.to_string());
+        tauri::async_runtime::spawn(async move {
+            let store = app.state::<Store>();
+            let Ok(Some((_, key))) = store.folder_of_kind(&id, "sent") else {
+                return;
+            };
+            let _ = sync_account(&store, &*provider, &id, Scope::Folders(&[key]), |p| {
+                let _ = app.emit("sync-progress", p);
+            })
+            .await;
+        });
+    }
+
     /// 로컬에 반영한 사용자 조작을 서버에 보낸다. 이동한 메일은 대상 폴더를 바로 맞춘다.
     /// 연결이 없어 실패하면 큐에 남고, 다음 동기화 때 다시 보낸다.
     pub fn kick(&self, app: &AppHandle, account_id: &str) {

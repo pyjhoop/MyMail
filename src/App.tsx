@@ -4,6 +4,8 @@ import { ResizeHandle } from "./components/ResizeHandle";
 import { TitleBar } from "./components/TitleBar";
 import { AccountRail, type AccountSelection } from "./features/accounts/AccountRail";
 import { AddAccountDialog } from "./features/accounts/AddAccountDialog";
+import { Composer, type ComposeInit, type ComposeResult } from "./features/compose/Composer";
+import { startDraft, type ComposeMode } from "./features/compose/compose";
 import { FolderPane } from "./features/folders/FolderPane";
 import { MailList, type ListStatus } from "./features/mail/MailList";
 import { Reader } from "./features/mail/Reader";
@@ -11,7 +13,9 @@ import { FOLDER, RAIL, usePanelWidths } from "./features/shell/usePanelWidths";
 import { useSystemTheme } from "./features/shell/useSystemTheme";
 import {
   deleteMail,
+  getDraft,
   getMail,
+  isDraftId,
   listAccounts,
   listFolders,
   listMails,
@@ -49,6 +53,7 @@ function App() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [notice, setNotice] = useState<string>();
+  const [compose, setCompose] = useState<ComposeInit | null>(null);
 
   // 비동기 결과는 "어떤 요청의 결과인지"(key)와 함께 저장하고, 현재 요청과 같을 때만 ready로 본다.
   // effect 안에서 loading을 동기적으로 setState하지 않기 위한 구조.
@@ -226,6 +231,44 @@ function App() {
     listAccounts().then(setAccounts);
   };
 
+  // 새 메일·답장·전달. 답장·전달은 열려 있는 메일이 속한 계정으로 보낸다.
+  const startCompose = (mode: ComposeMode) => {
+    const sender =
+      mode === "new" ? (account ?? accounts[0]) : accounts.find((a) => a.id === detail?.accountId);
+    if (!sender) return;
+    const fields = startDraft({ mode, account: sender, mail: detail ?? undefined });
+    setCompose({
+      draft: { ...fields, status: "draft", error: null, attachments: [] },
+      seed: { subject: fields.subject, body: fields.body },
+      notice:
+        mode === "forward" && detail && detail.attachments.length > 0
+          ? "원본에 첨부된 파일은 전달되지 않아요. 필요하면 다시 첨부해 주세요."
+          : undefined,
+    });
+  };
+
+  const openDraft = async (id: string) => {
+    if (compose?.draft.id === id) return;
+    const draft = await getDraft(id).catch(() => null);
+    if (draft) setCompose({ draft, seed: { subject: "", body: "" } });
+  };
+
+  const selectMail = (id: string) => {
+    if (isDraftId(id)) {
+      void openDraft(id);
+      return;
+    }
+    setCompose(null);
+    setMailId(id);
+  };
+
+  const finishCompose = (result: ComposeResult) => {
+    setCompose(null);
+    if (result === "sent") setNotice("메일을 보냈어요.");
+    setReloadKey((k) => k + 1);
+    setFoldersReloadKey((k) => k + 1);
+  };
+
   const index = mailId ? mails.findIndex((m) => m.id === mailId) : -1;
   const move = (delta: number) => {
     const next = mails[index + delta];
@@ -277,7 +320,7 @@ function App() {
             selectedId={folderId}
             collapsed={widths.folderCollapsed}
             onSelect={selectFolder}
-            onCompose={() => undefined}
+            onCompose={() => startCompose("new")}
           />
         </div>
         <ResizeHandle
@@ -296,8 +339,8 @@ function App() {
             mails={mails}
             accounts={accounts}
             showAccount={selection === "all"}
-            selectedId={mailId}
-            onSelect={setMailId}
+            selectedId={compose ? compose.draft.id : mailId}
+            onSelect={selectMail}
             checkedIds={checked}
             onCheckedChange={setCheckedIds}
             onDelete={() => (inTrash ? setConfirmingDelete(true) : void deleteChecked())}
@@ -314,13 +357,26 @@ function App() {
           onEnd={endDrag}
           onReset={resetList}
         />
-        <Reader
-          mail={detail}
-          loading={detailLoading}
-          position={index >= 0 ? `${index + 1} / ${mails.length}` : undefined}
-          onPrev={() => move(-1)}
-          onNext={() => move(1)}
-        />
+        {compose ? (
+          <Composer
+            key={compose.draft.id}
+            accounts={accounts}
+            init={compose}
+            onClose={finishCompose}
+            onSignatureSaved={(accountId, signature) =>
+              setAccounts((prev) => prev.map((a) => (a.id === accountId ? { ...a, signature } : a)))
+            }
+          />
+        ) : (
+          <Reader
+            mail={detail}
+            loading={detailLoading}
+            position={index >= 0 ? `${index + 1} / ${mails.length}` : undefined}
+            onPrev={() => move(-1)}
+            onNext={() => move(1)}
+            onCompose={startCompose}
+          />
+        )}
       </div>
       {confirmingDelete && (
         <ConfirmDialog

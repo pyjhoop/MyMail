@@ -21,21 +21,37 @@ interface Props {
   position?: string;
   onPrev: () => void;
   onNext: () => void;
+  onCompose: (mode: "reply" | "replyAll" | "forward") => void;
 }
 
-export function Reader({ mail, loading, position, onPrev, onNext }: Props) {
+export function Reader({ mail, loading, position, onPrev, onNext, onCompose }: Props) {
   return (
     <main className={styles.reader}>
       <div className={styles.toolbar}>
-        <button type="button" className={`ib ${styles.text}`} disabled={!mail}>
+        <button
+          type="button"
+          className={`ib ${styles.text}`}
+          disabled={!mail}
+          onClick={() => onCompose("reply")}
+        >
           <Reply size={20} strokeWidth={1.75} aria-hidden />
           답장
         </button>
-        <button type="button" className={`ib ${styles.text}`} disabled={!mail}>
+        <button
+          type="button"
+          className={`ib ${styles.text}`}
+          disabled={!mail}
+          onClick={() => onCompose("replyAll")}
+        >
           <ReplyAll size={20} strokeWidth={1.75} aria-hidden />
           전체 답장
         </button>
-        <button type="button" className={`ib ${styles.text}`} disabled={!mail}>
+        <button
+          type="button"
+          className={`ib ${styles.text}`}
+          disabled={!mail}
+          onClick={() => onCompose("forward")}
+        >
           <Forward size={20} strokeWidth={1.75} aria-hidden />
           전달
         </button>

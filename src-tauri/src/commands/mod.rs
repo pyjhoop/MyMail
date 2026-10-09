@@ -6,8 +6,12 @@ use tauri::{AppHandle, Manager, State};
 use std::sync::Arc;
 
 use crate::auth::CredentialStore;
+use crate::compose::{self, ComposeError};
 use crate::providers::{self, MailProvider, ProviderError};
-use crate::store::{Account, Folder, MailDetail, MailSummary, NewAccount, Store, StoreError};
+use crate::store::{
+    Account, AddressSuggestion, ComposeInput, ComposeMail, Folder, MailDetail, MailSummary,
+    NewAccount, Store, StoreError,
+};
 use crate::sync::manager::SyncManager;
 use crate::sync::{self, actions, SyncError};
 
@@ -36,6 +40,21 @@ impl From<SyncError> for CommandError {
         };
         let message = match &e {
             SyncError::Provider(ProviderError::Auth(m) | ProviderError::Network(m)) => m.clone(),
+            other => other.to_string(),
+        };
+        Self { kind, message }
+    }
+}
+
+impl From<ComposeError> for CommandError {
+    fn from(e: ComposeError) -> Self {
+        let kind = match &e {
+            ComposeError::Provider(ProviderError::Auth(_)) => "auth",
+            ComposeError::Provider(ProviderError::Network(_)) => "network",
+            _ => "unknown",
+        };
+        let message = match &e {
+            ComposeError::Provider(ProviderError::Auth(m) | ProviderError::Network(m)) => m.clone(),
             other => other.to_string(),
         };
         Self { kind, message }
@@ -159,8 +178,100 @@ pub async fn delete_mail(
     manager: State<'_, SyncManager>,
     id: String,
 ) -> CommandResult<()> {
+    // 작성 중인 메일(임시보관함)은 서버에 없으므로 이 앱에서만 지운다.
+    if compose::is_draft_id(&id) {
+        store.delete_compose(&id)?;
+        return Ok(());
+    }
     let account_id = actions::delete_mail(&store, &id)?;
     manager.kick(&app, &account_id);
+    Ok(())
+}
+
+/// 작성 내용을 저장한다(자동 저장). 없으면 만들고 있으면 덮어쓴다. 첨부는 건드리지 않는다.
+#[tauri::command]
+pub async fn save_draft(store: State<'_, Store>, draft: ComposeInput) -> CommandResult<()> {
+    if !compose::is_draft_id(&draft.id) {
+        return Err(invalid("작성 중인 메일 번호가 올바르지 않아요."));
+    }
+    store.save_compose(&draft)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_draft(store: State<'_, Store>, id: String) -> CommandResult<Option<ComposeMail>> {
+    Ok(store.get_compose(&id)?)
+}
+
+/// 작성 중인 메일을 버린다. 첨부도 함께 지워진다.
+#[tauri::command]
+pub async fn discard_draft(store: State<'_, Store>, id: String) -> CommandResult<()> {
+    store.delete_compose(&id)?;
+    Ok(())
+}
+
+/// 첨부를 더하고 첨부 id를 돌려준다. `data`는 base64. 서비스의 용량 한도를 넘으면 거절한다.
+#[tauri::command]
+pub async fn add_draft_attachment(
+    store: State<'_, Store>,
+    id: String,
+    name: String,
+    mime: String,
+    data: String,
+) -> CommandResult<i64> {
+    let bytes = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, data.trim())
+        .map_err(|_| invalid("첨부 파일을 읽지 못했어요."))?;
+    Ok(compose::add_attachment(&store, &id, &name, &mime, &bytes)?)
+}
+
+#[tauri::command]
+pub async fn remove_draft_attachment(
+    store: State<'_, Store>,
+    id: String,
+    attachment_id: i64,
+) -> CommandResult<()> {
+    store.remove_compose_attachment(&id, attachment_id)?;
+    Ok(())
+}
+
+/// 작성 중인 메일을 보낸다. 실패하면 메일은 `failed`로 남아 임시보관함에서 다시 보낼 수 있다.
+#[tauri::command]
+pub async fn send_draft(
+    app: AppHandle,
+    store: State<'_, Store>,
+    manager: State<'_, SyncManager>,
+    id: String,
+) -> CommandResult<()> {
+    let mail = store
+        .get_compose(&id)?
+        .ok_or_else(|| CommandError::from(ComposeError::NotFound))?;
+    let Some(provider) = manager.provider(&mail.account_id) else {
+        return Err(CommandError {
+            kind: "auth",
+            message: "이 계정에 연결할 수 없어요. 앱 비밀번호를 확인해 주세요.".into(),
+        });
+    };
+    compose::send(&store, &*provider, &id).await?;
+    manager.refresh_sent(&app, &mail.account_id);
+    Ok(())
+}
+
+/// 받는사람 자동완성: 받은 메일의 보낸 사람과 보낸 메일의 받는 사람 중 `query`와 맞는 주소
+#[tauri::command]
+pub async fn suggest_addresses(
+    store: State<'_, Store>,
+    query: String,
+) -> CommandResult<Vec<AddressSuggestion>> {
+    Ok(store.suggest_addresses(&query)?)
+}
+
+#[tauri::command]
+pub async fn set_signature(
+    store: State<'_, Store>,
+    account_id: String,
+    signature: String,
+) -> CommandResult<()> {
+    store.set_signature(&account_id, signature.trim_end())?;
     Ok(())
 }
 

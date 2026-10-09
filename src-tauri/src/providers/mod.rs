@@ -123,6 +123,27 @@ pub struct FolderSnapshot {
     pub messages: Vec<RemoteFlags>,
 }
 
+#[derive(Debug, Clone)]
+pub struct OutgoingAttachment {
+    pub name: String,
+    pub mime: String,
+    pub data: Vec<u8>,
+}
+
+/// 보낼 메일. 주소는 `이름 <주소>` 또는 `주소` 꼴이다.
+#[derive(Debug, Clone)]
+pub struct OutgoingMail {
+    pub from_name: String,
+    pub from_email: String,
+    pub to: Vec<String>,
+    pub cc: Vec<String>,
+    pub bcc: Vec<String>,
+    pub subject: String,
+    /// 일반 텍스트 본문
+    pub body: String,
+    pub attachments: Vec<OutgoingAttachment>,
+}
+
 fn unsupported<T>(what: &str) -> Result<T, ProviderError> {
     Err(ProviderError::Unsupported(what.into()))
 }
@@ -191,6 +212,11 @@ pub trait MailProvider: Send + Sync {
         unsupported("메일 삭제")
     }
 
+    /// 메일을 보낸다(SMTP). 서버가 보낸편지함에 사본을 남기는지는 서비스에 따른다.
+    async fn send(&self, _mail: &OutgoingMail) -> Result<(), ProviderError> {
+        unsupported("메일 보내기")
+    }
+
     /// 폴더에 변화가 생기거나 `timeout`이 지날 때까지 기다린다(IMAP IDLE).
     /// 서버가 푸시를 지원하지 않으면 `Unsupported`를 돌려주고, 호출한 쪽이 주기적으로 조회한다.
     async fn wait_for_changes(
@@ -199,6 +225,15 @@ pub trait MailProvider: Send + Sync {
         _timeout: Duration,
     ) -> Result<(), ProviderError> {
         unsupported("새 메일 알림")
+    }
+}
+
+/// 서비스가 받아주는 메일 한 통의 최대 크기(바이트). 모르는 서비스면 `None`.
+pub fn message_size_limit(provider: &str) -> Option<u64> {
+    match provider {
+        "naver" => Some(naver::CONFIG.max_message_bytes),
+        "gmail" => Some(gmail::CONFIG.max_message_bytes),
+        _ => None,
     }
 }
 

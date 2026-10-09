@@ -17,6 +17,8 @@ export interface Account {
   unread: number;
   /** 아바타에 보이는 한 글자 */
   initial: string;
+  /** 새 메일·답장 끝에 넣는 서명 (일반 텍스트) */
+  signature: string;
 }
 
 export type FolderKind = "inbox" | "sent" | "drafts" | "spam" | "trash" | "label" | "folder";
@@ -196,4 +198,100 @@ export function onSyncProgress(callback: (progress: SyncProgress) => void): () =
   return () => {
     void unlisten.then((fn) => fn());
   };
+}
+
+/** 받는사람 한 명. 주소 목록은 `이름 <주소>` 또는 `주소` 문자열로 오간다. */
+export interface Recipient {
+  name: string;
+  email: string;
+}
+
+export function parseRecipient(raw: string): Recipient {
+  const text = raw.trim();
+  const open = text.lastIndexOf("<");
+  const close = text.lastIndexOf(">");
+  if (open >= 0 && close > open) {
+    return {
+      name: text.slice(0, open).trim().replace(/^"|"$/g, "").trim(),
+      email: text.slice(open + 1, close).trim(),
+    };
+  }
+  return { name: "", email: text };
+}
+
+export function formatRecipient({ name, email }: Recipient): string {
+  return name ? `${name} <${email}>` : email;
+}
+
+/** 작성 중이거나 보내지 못한 메일. id는 항상 `draft:`로 시작한다. */
+export interface Draft {
+  id: string;
+  accountId: string;
+  to: string[];
+  cc: string[];
+  bcc: string[];
+  subject: string;
+  body: string;
+  /** failed: 보내기에 실패해 임시보관함에 남은 메일 */
+  status: "draft" | "failed";
+  error: string | null;
+  attachments: { id: number; name: string; size: number }[];
+}
+
+export type DraftFields = Omit<Draft, "status" | "error" | "attachments">;
+
+export const DRAFT_PREFIX = "draft:";
+
+export const isDraftId = (id: string) => id.startsWith(DRAFT_PREFIX);
+
+export function newDraftId(): string {
+  return `${DRAFT_PREFIX}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** 작성 내용을 저장한다(자동 저장). 첨부는 건드리지 않는다. */
+export function saveDraft(draft: DraftFields): Promise<void> {
+  return call("save_draft", { draft });
+}
+
+export function getDraft(id: string): Promise<Draft | null> {
+  return call("get_draft", { id });
+}
+
+/** 작성 중인 메일을 첨부와 함께 버린다. */
+export function discardDraft(id: string): Promise<void> {
+  return call("discard_draft", { id });
+}
+
+/** 첨부를 더한다. 서비스의 용량 한도를 넘으면 LoadError로 던진다. 먼저 `saveDraft`로 메일을 만들어 둬야 한다. */
+export async function addDraftAttachment(id: string, file: File): Promise<number> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  // 큰 파일에서 호출 스택이 넘치지 않도록 조각내어 base64로 바꾼다.
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return call("add_draft_attachment", {
+    id,
+    name: file.name,
+    mime: file.type,
+    data: btoa(binary),
+  });
+}
+
+export function removeDraftAttachment(id: string, attachmentId: number): Promise<void> {
+  return call("remove_draft_attachment", { id, attachmentId });
+}
+
+/** 저장해 둔 작성 내용을 보낸다. 실패하면 메일은 임시보관함에 `failed`로 남고 LoadError로 던진다. */
+export function sendDraft(id: string): Promise<void> {
+  return call("send_draft", { id });
+}
+
+/** 받는사람 자동완성 후보 */
+export function suggestAddresses(query: string): Promise<Recipient[]> {
+  return call("suggest_addresses", { query });
+}
+
+export function setSignature(accountId: string, signature: string): Promise<void> {
+  return call("set_signature", { accountId, signature });
 }

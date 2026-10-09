@@ -20,6 +20,8 @@ pub struct Account {
     pub color_index: u8,
     pub unread: u32,
     pub initial: String,
+    /// 새 메일·답장 끝에 넣는 서명(일반 텍스트). 없으면 빈 문자열
+    pub signature: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
