@@ -39,7 +39,7 @@ describe("메일 목록 정렬", () => {
     render(<App />);
     await screen.findByText("제주 여행 일정 0");
     expect(sortButton()).toHaveAccessibleName("정렬: 최신순");
-    expect(listMails).toHaveBeenLastCalledWith(null, "", "newest");
+    await waitFor(() => expect(listMails).toHaveBeenLastCalledWith(null, "", "newest"));
 
     fireEvent.click(sortButton());
     fireEvent.click(screen.getByRole("menuitemradio", { name: "오래된순" }));
@@ -58,7 +58,7 @@ describe("메일 목록 정렬", () => {
       target: { value: "일정 1" },
     });
     await screen.findByText("검색: 일정 1");
-    expect(searchMails).toHaveBeenLastCalledWith(null, "일정 1", "subject");
+    await waitFor(() => expect(searchMails).toHaveBeenLastCalledWith(null, "일정 1", "subject"));
   });
 
   it("선택을 저장하고 다음 실행 때 복원한다", async () => {
@@ -72,7 +72,7 @@ describe("메일 목록 정렬", () => {
     render(<App />);
     await screen.findByText("제주 여행 일정 0");
     expect(sortButton()).toHaveAccessibleName("정렬: 안 읽음 먼저");
-    expect(listMails).toHaveBeenLastCalledWith(null, "", "unread");
+    await waitFor(() => expect(listMails).toHaveBeenLastCalledWith(null, "", "unread"));
   });
 
   it("저장된 값이 알 수 없는 값이면 최신순으로 시작한다", async () => {

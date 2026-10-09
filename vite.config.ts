@@ -34,5 +34,7 @@ export default defineConfig(() => ({
     environment: "jsdom",
     setupFiles: ["./src/test-setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
+    // App 전체를 그리는 테스트가 많아 동시에 돌리면 CPU 부하로 키 입력·대기 타이밍이 흔들린다.
+    maxWorkers: 2,
   },
 }));

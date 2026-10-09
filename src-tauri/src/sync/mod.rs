@@ -8,7 +8,6 @@ pub mod scheduler;
 
 use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
-use std::time::Instant;
 
 use crate::auth::{AuthError, CredentialStore};
 use crate::providers::{FolderKind, FolderStatus, MailProvider, ProviderError, RemoteFolder};
@@ -255,11 +254,6 @@ pub struct SyncOptions<'a> {
     pub first: Option<&'a str>,
 }
 
-fn log(account_id: &str, message: &str) {
-    // 계정 id·폴더 key·개수·시간만 남긴다. 주소·비밀번호·본문은 남기지 않는다.
-    eprintln!("[sync] account={account_id} {message}");
-}
-
 /// 서버와 로컬을 맞춘다. 먼저 보내지 못한 조작을 보내고, 폴더마다 UID를 대조해 새 메일은 받고 사라진 메일은 지운다.
 /// 이미 받은 UID는 건너뛰므로 중간에 끊겨도 다음 실행이 남은 것부터 이어받는다.
 /// 진행 상황은 `report`로 알리며, 끝나면(받을 게 없어도) `done == total`인 알림을 한 번 보낸다.
@@ -297,25 +291,12 @@ pub async fn sync_account_with(
         total: 0,
         report,
     };
-    let started = Instant::now();
     let result = run_sync(store, provider, account_id, scope, options, &mut tracker).await;
     match &result {
         Ok(()) => {
-            log(
-                account_id,
-                &format!(
-                    "동기화 끝 ({}ms, 새로 받은 메일 {}통)",
-                    started.elapsed().as_millis(),
-                    tracker.done
-                ),
-            );
             tracker.emit(None);
         }
         Err(e) => {
-            log(
-                account_id,
-                &format!("동기화 실패 ({}ms): {}", started.elapsed().as_millis(), e),
-            );
             tracker.emit(Some(user_message(e)));
         }
     }
@@ -367,19 +348,9 @@ async fn run_sync<F: Fn(Progress)>(
             && status.is_some()
             && options.cache.as_ref().and_then(|c| c.get(key)) == status;
         if unchanged {
-            log(account_id, &format!("폴더 {key} 건너뜀 (변화 없음)"));
             continue;
         }
-        let started = Instant::now();
         let plan = plan_folder(store, provider, account_id, folder_id).await?;
-        log(
-            account_id,
-            &format!(
-                "폴더 {key} 대조 {}ms, 받을 메일 {}통",
-                started.elapsed().as_millis(),
-                plan.missing.len()
-            ),
-        );
         plans.push(plan);
         if let Some(status) = status {
             synced.push((key.clone(), status.clone()));

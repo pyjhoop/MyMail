@@ -203,15 +203,6 @@ fn notify_new(app: &AppHandle, account_id: &str, mails: &[NewMail]) {
     let focused = app
         .get_webview_window("main")
         .is_some_and(|w| w.is_focused().unwrap_or(false));
-    eprintln!(
-        "[notify] account={account_id} 새 안 읽은 메일 {}통, 창 포커스={focused}{}",
-        mails.len(),
-        if focused {
-            " → 알림 생략"
-        } else {
-            " → 알림 표시"
-        }
-    );
     if focused {
         return;
     }
@@ -295,23 +286,14 @@ async fn watch(
                 .await
             {
                 Ok(reason) => {
-                    eprintln!(
-                        "[sync] account={account_id} 받은편지함 대기 끝: {reason:?} (한 바퀴 {}초)",
-                        round.elapsed().as_secs()
-                    );
                     woke = Some(reason);
                 }
-                Err(ProviderError::Unsupported(what)) => {
-                    eprintln!(
-                        "[sync] account={account_id} 푸시 미지원({what}) → {}초마다 조회",
-                        POLL_INTERVAL.as_secs()
-                    );
+                Err(ProviderError::Unsupported(_)) => {
                     sleep_or_wake(sync, POLL_INTERVAL).await;
                     // 시간이 차서 깬 것으로 다뤄, 요약 상태(STATUS)가 그대로면 목록을 통째로 받지 않고 건너뛰게 한다.
                     woke = Some(WakeReason::TimedOut);
                 }
-                Err(e) => {
-                    eprintln!("[sync] account={account_id} 받은편지함 대기 오류: {e}");
+                Err(_) => {
                     failures += 1;
                     sleep_or_wake(sync, retry_delay(failures)).await;
                     continue;
