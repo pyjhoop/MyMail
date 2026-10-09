@@ -20,6 +20,7 @@ import {
   listFolders,
   listMails,
   onSyncProgress,
+  onTrayCompose,
   searchMails,
   setRead,
   toLoadError,
@@ -260,6 +261,12 @@ function App() {
           : undefined,
     });
   };
+
+  const startComposeRef = useRef(startCompose);
+  useEffect(() => {
+    startComposeRef.current = startCompose;
+  });
+  useEffect(() => onTrayCompose(() => startComposeRef.current("new")), []);
 
   const openDraft = async (id: string) => {
     if (compose?.draft.id === id) return;

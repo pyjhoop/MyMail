@@ -11,7 +11,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use super::{flush_pending, sync_account, Progress, Scope};
 use crate::auth::CredentialStore;
 use crate::providers::{self, MailProvider, ProviderError};
-use crate::store::Store;
+use crate::store::{NewMail, Store};
 
 /// 받은편지함 변화를 기다리는 최대 시간. 서버가 연결을 끊기 전에 다시 건다.
 const IDLE_TIMEOUT: Duration = Duration::from_secs(9 * 60);
@@ -59,9 +59,15 @@ impl SyncManager {
             let (app, provider, id) = (app.clone(), provider.clone(), account_id.to_string());
             tauri::async_runtime::spawn(async move {
                 let store = app.state::<Store>();
-                watch(&store, &*provider, &id, |p| {
-                    let _ = app.emit("sync-progress", p);
-                })
+                watch(
+                    &store,
+                    &*provider,
+                    &id,
+                    |p| {
+                        let _ = app.emit("sync-progress", p);
+                    },
+                    |mails| notify_new(&app, &id, &mails),
+                )
                 .await;
             })
         };
@@ -148,17 +154,41 @@ fn retry_delay(failures: u32) -> Duration {
         .min(RETRY_MAX)
 }
 
+/// 새 메일을 Windows 알림으로 알린다. 사용자가 앱을 보고 있으면 알리지 않는다.
+fn notify_new(app: &AppHandle, account_id: &str, mails: &[NewMail]) {
+    let focused = app
+        .get_webview_window("main")
+        .is_some_and(|w| w.is_focused().unwrap_or(false));
+    if focused {
+        return;
+    }
+    let name = app
+        .state::<Store>()
+        .list_accounts()
+        .ok()
+        .and_then(|accounts| accounts.into_iter().find(|a| a.id == account_id))
+        .map_or_else(String::new, |a| a.name);
+    crate::notify::show(app, &name, mails);
+}
+
 /// 동기화를 되풀이한다. 끝나지 않는 작업이라 `abort`로 멈춘다.
+/// 앱을 켠 뒤 첫 동기화는 쌓여 있던 메일을 받는 것이라 알리지 않고, 이후 새로 받은 안 읽은 메일만 `on_new`로 알린다.
 async fn watch(
     store: &Store,
     provider: &dyn MailProvider,
     account_id: &str,
     report: impl Fn(Progress),
+    on_new: impl Fn(Vec<NewMail>),
 ) {
     let mut last_full: Option<Instant> = None;
     let mut failures = 0u32;
     loop {
         let round = Instant::now();
+        let watermark = if last_full.is_some() {
+            store.mail_watermark(account_id).ok()
+        } else {
+            None
+        };
         let full = last_full.is_none_or(|t| t.elapsed() >= FULL_SYNC_INTERVAL);
         let inbox = store
             .folder_of_kind(account_id, "inbox")
@@ -181,6 +211,13 @@ async fn watch(
         match result {
             Ok(()) => {
                 failures = 0;
+                if let Some(mark) = watermark {
+                    if let Ok(mails) = store.new_unread_inbox(account_id, mark) {
+                        if !mails.is_empty() {
+                            on_new(mails);
+                        }
+                    }
+                }
                 if full || inbox.is_none() {
                     last_full = Some(Instant::now());
                 }

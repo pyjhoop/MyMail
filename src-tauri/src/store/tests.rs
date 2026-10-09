@@ -303,3 +303,29 @@ fn 이미_저장된_메일의_uid_기록은_마이그레이션이_채운다() {
     drop(store);
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+#[tokio::test]
+async fn 워터마크_이후_새로_저장된_안읽은_받은편지함_메일만_찾는다() {
+    let store = seeded().await;
+    let mark = store.mail_watermark("a1").unwrap();
+    assert!(store.new_unread_inbox("a1", mark).unwrap().is_empty());
+
+    let inbox = store
+        .list_folders("a1")
+        .unwrap()
+        .into_iter()
+        .find(|f| f.kind == "inbox")
+        .unwrap();
+    let key = folder_key("a1", &inbox.id);
+    let mut fresh = html_message("본문", None);
+    fresh.remote_id = "9001".into();
+    let mut read = html_message("본문", None);
+    read.remote_id = "9002".into();
+    read.unread = false;
+    store.save_messages("a1", &key, &[fresh, read]).unwrap();
+
+    let found = store.new_unread_inbox("a1", mark).unwrap();
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].subject, "소식");
+    assert!(store.new_unread_inbox("other", mark).unwrap().is_empty());
+}

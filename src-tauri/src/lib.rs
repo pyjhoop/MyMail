@@ -1,14 +1,19 @@
 mod auth;
 mod commands;
 mod compose;
+mod notify;
 mod providers;
 mod store;
 mod sync;
+mod tray;
 
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use tauri::Manager;
+
+/// 시작 프로그램으로 실행될 때 붙는 인자
+const STARTUP_FLAG: &str = "--minimized";
 
 fn unix_millis() -> u128 {
     SystemTime::now()
@@ -20,6 +25,11 @@ fn unix_millis() -> u128 {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![STARTUP_FLAG]),
+        ))
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
@@ -30,7 +40,21 @@ pub fn run() {
             // 저장된 계정은 앱을 켜는 즉시 동기화를 이어간다.
             app.state::<sync::manager::SyncManager>()
                 .start_all(app.handle());
+            tray::setup(app.handle())?;
+            // 로그인할 때 자동으로 켜진 경우에는 창 없이 트레이에서 시작한다.
+            if std::env::args().any(|a| a == STARTUP_FLAG) {
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.hide();
+                }
+            }
             Ok(())
+        })
+        // 창을 닫아도 트레이에 남아 새 메일을 받는다. 종료는 트레이 메뉴에서 한다.
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::list_accounts,

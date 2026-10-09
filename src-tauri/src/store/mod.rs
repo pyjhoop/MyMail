@@ -2,6 +2,7 @@
 
 mod compose;
 mod models;
+mod notify;
 mod sync_state;
 
 use std::path::Path;
@@ -16,6 +17,7 @@ pub use compose::{split_address, AddressSuggestion, ComposeInput, ComposeMail};
 pub use models::{
     Account, Attachment, EarlierMail, Folder, LabelTag, MailDetail, MailSummary, NewAccount,
 };
+pub use notify::NewMail;
 pub use sync_state::{folder_key, OpKind};
 
 #[derive(Debug, thiserror::Error)]

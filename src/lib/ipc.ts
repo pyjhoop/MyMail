@@ -206,6 +206,15 @@ export function onSyncProgress(callback: (progress: SyncProgress) => void): () =
   };
 }
 
+/** 트레이 메뉴의 "새 메일"을 구독한다. 브라우저(pnpm dev)·테스트에서는 아무 일도 하지 않는다. */
+export function onTrayCompose(callback: () => void): () => void {
+  if (typeof window === "undefined" || !("__TAURI_INTERNALS__" in window)) return () => undefined;
+  const unlisten = listen("tray-compose", () => callback());
+  return () => {
+    void unlisten.then((fn) => fn());
+  };
+}
+
 /** 받는사람 한 명. 주소 목록은 `이름 <주소>` 또는 `주소` 문자열로 오간다. */
 export interface Recipient {
   name: string;
