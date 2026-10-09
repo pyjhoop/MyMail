@@ -1,3 +1,4 @@
+mod attachments;
 mod auth;
 mod commands;
 mod compose;
@@ -26,6 +27,7 @@ fn unix_millis() -> u128 {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -38,6 +40,7 @@ pub fn run() {
             let store = store::Store::open(&dir.join("mymail.db"))?;
             app.manage(store);
             app.manage(Arc::new(auth::KeyringStore) as Arc<dyn auth::CredentialStore>);
+            app.manage(attachments::SavedFiles::default());
             app.manage(sync::manager::SyncManager::default());
             // 저장된 계정은 앱을 켜는 즉시 동기화를 이어간다.
             app.state::<sync::manager::SyncManager>()
@@ -79,6 +82,9 @@ pub fn run() {
             commands::send_draft,
             commands::suggest_addresses,
             commands::set_signature,
+            commands::save_attachment,
+            commands::save_all_attachments,
+            commands::reveal_saved_attachment,
             commands::get_autostart,
             commands::set_autostart,
             commands::app_version,

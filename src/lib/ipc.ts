@@ -57,6 +57,8 @@ export interface MailSummary {
 }
 
 export interface MailAttachment {
+  /** 저장할 때 가리키는 번호. 이름이 같은 첨부도 구분한다. */
+  id: number;
   name: string;
   size: string;
   ext: string;
@@ -85,7 +87,7 @@ export interface RawMailDetail extends RawMailSummary {
   to: string;
   body: string[];
   html?: string | null;
-  attachments: { name: string; size: number; ext: string }[];
+  attachments: { id: number; name: string; size: number; ext: string }[];
   earlier: { sender: string; initial: string; preview: string; receivedAt: number }[];
 }
 
@@ -176,6 +178,24 @@ export async function getMail(id: string): Promise<MailDetail | null> {
       date: formatListTime(e.receivedAt),
     })),
   };
+}
+
+/** 저장 대화상자를 닫으면 `cancelled`(오류 아님). */
+export type SaveResult = { status: "cancelled" } | { status: "saved"; count: number };
+
+/** 첨부 하나를 저장한다. 저장 위치는 백엔드가 파일 저장 대화상자로 묻는다. */
+export function saveAttachment(mailId: string, attachmentId: number): Promise<SaveResult> {
+  return call("save_attachment", { mailId, attachmentId });
+}
+
+/** 메일의 첨부를 모두 저장한다. 폴더를 고르는 대화상자가 열린다. */
+export function saveAllAttachments(mailId: string): Promise<SaveResult> {
+  return call("save_all_attachments", { mailId });
+}
+
+/** 방금 저장한 첨부를 탐색기에서 보여 준다. attachmentId를 생략하면 "모두 저장"한 폴더. */
+export function revealSavedAttachment(mailId: string, attachmentId?: number): Promise<void> {
+  return call("reveal_saved_attachment", { mailId, attachmentId: attachmentId ?? null });
 }
 
 /** 읽음 표시를 바꾼다. 로컬에 바로 반영되고 서버에는 백그라운드로 보낸다(오프라인이면 연결 뒤에). */

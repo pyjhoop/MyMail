@@ -73,6 +73,26 @@ pub struct RemoteFolder {
 pub struct RemoteAttachment {
     pub name: String,
     pub size: u64,
+    /// 메일 원문에서 첨부를 센 순서(0부터). 내려받을 때 어느 파트인지 가리킨다.
+    pub part_index: u32,
+    pub mime: String,
+}
+
+/// 내려받을 첨부를 가리키는 값. 저장해 둔 `part_index`가 없는 옛 메일은 이름·크기로 찾는다.
+#[derive(Debug, Clone)]
+pub struct AttachmentTarget {
+    pub part_index: Option<u32>,
+    pub name: String,
+    pub size: u64,
+}
+
+/// 내려받은 첨부 내용
+#[derive(Debug, Clone)]
+pub struct AttachmentData {
+    pub name: String,
+    #[allow(dead_code)] // 이미지·PDF 미리보기(후속)에서 쓴다
+    pub mime: String,
+    pub data: Vec<u8>,
 }
 
 /// HTML 본문이 `cid:`로 가리키는 인라인 이미지. 첨부 목록에는 올리지 않는다.
@@ -232,6 +252,30 @@ pub trait MailProvider: Send + Sync {
         _remote_id: &str,
     ) -> Result<(), ProviderError> {
         unsupported("메일 삭제")
+    }
+
+    /// 첨부 하나의 내용을 받는다. `\Seen`이 달리지 않아야 한다(읽음 상태를 바꾸지 않는다).
+    async fn fetch_attachment(
+        &self,
+        _folder_key: &str,
+        _remote_id: &str,
+        _target: &AttachmentTarget,
+    ) -> Result<AttachmentData, ProviderError> {
+        unsupported("첨부 받기")
+    }
+
+    /// 같은 메일의 첨부 여러 개를 받는다. 구현체가 메일을 한 번만 받도록 오버라이드할 수 있다.
+    async fn fetch_attachments(
+        &self,
+        folder_key: &str,
+        remote_id: &str,
+        targets: &[AttachmentTarget],
+    ) -> Result<Vec<AttachmentData>, ProviderError> {
+        let mut out = Vec::with_capacity(targets.len());
+        for t in targets {
+            out.push(self.fetch_attachment(folder_key, remote_id, t).await?);
+        }
+        Ok(out)
     }
 
     /// 메일을 보낸다(SMTP). 서버가 보낸편지함에 사본을 남기는지는 서비스에 따른다.

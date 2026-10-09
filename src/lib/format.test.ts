@@ -24,9 +24,10 @@ describe("formatFullTime", () => {
 });
 
 describe("formatSize", () => {
-  it("B·KB·MB로 줄인다", () => {
+  it("B·KB·MB·GB로 줄인다", () => {
     expect(formatSize(512)).toBe("512 B");
     expect(formatSize(384_000)).toBe("384 KB");
     expect(formatSize(1_250_000)).toBe("1.3 MB");
+    expect(formatSize(2_400_000_000)).toBe("2.4 GB");
   });
 });

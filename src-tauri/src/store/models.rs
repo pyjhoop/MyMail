@@ -65,6 +65,8 @@ pub struct MailSummary {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Attachment {
+    /// 내려받을 때 가리키는 번호. 이름이 같은 첨부도 구분한다.
+    pub id: i64,
     pub name: String,
     /// 바이트
     pub size: u64,
