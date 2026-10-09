@@ -38,6 +38,34 @@
   gap: 2px;
 }
 
+.checkedCount {
+  align-self: center;
+  margin-right: var(--space-1);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.delete {
+  width: var(--control-height);
+  height: var(--control-height);
+}
+
+.delete:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.notice {
+  flex: none;
+  margin: 0 var(--space-4) var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--color-danger-subtle);
+  color: var(--color-danger-text);
+  font-size: var(--font-size-sm);
+}
+
 .sort {
   height: var(--control-height);
   gap: var(--space-1);
@@ -86,16 +114,46 @@
   position: absolute;
   top: 0;
   left: 0;
+  width: 100%;
+  height: var(--mail-row-height);
+  border-radius: var(--radius-control);
+  background: transparent;
+  transition: background var(--duration-fast);
+}
+
+.main {
   display: flex;
   gap: 6px;
   width: 100%;
-  height: var(--mail-row-height);
+  height: 100%;
   padding: 10px var(--space-3) 10px 6px;
   border: 0;
   border-radius: var(--radius-control);
   background: transparent;
   text-align: left;
-  transition: background var(--duration-fast);
+}
+
+/* 체크박스는 안 읽음 점 자리에 겹쳐 놓고, 마우스를 올리거나 선택 중일 때만 보인다 */
+.check {
+  position: absolute;
+  top: 12px;
+  left: 7px;
+  margin: 0;
+  opacity: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.row:hover .check,
+.row:focus-within .check,
+.selecting .check,
+.check:checked {
+  opacity: 1;
+}
+
+.row:hover .dot,
+.selecting .dot {
+  opacity: 0;
 }
 
 .row:hover {

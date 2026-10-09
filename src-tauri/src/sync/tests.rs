@@ -638,6 +638,19 @@ async fn 아직_서버에_못_보낸_조작이_걸린_메일은_동기화가_덮
 }
 
 #[tokio::test]
+async fn 지우는_중인_메일은_동기화가_다시_받지_않는다() {
+    let (store, fake) = added(5).await;
+    sync_all(&store, &fake).await;
+    // 서버는 아직 옮기기 전인데 로컬에서는 이미 지운 상황 (이동 조작은 큐에 있다).
+    actions::delete_mail(&store, "n1-inbox-4").unwrap();
+
+    let plan = plan_folder(&store, &fake, "n1", "n1-inbox").await.unwrap();
+
+    assert!(plan.missing.is_empty());
+    assert_eq!(inbox_count(&store), 4);
+}
+
+#[tokio::test]
 async fn 푸시를_못_쓰는_서버는_unsupported로_알려_준다() {
     let failing = Failing { verify: None };
     let err = failing

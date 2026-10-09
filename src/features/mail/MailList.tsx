@@ -1,6 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowUpDown, Paperclip, RefreshCw, Star } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { ArrowUpDown, Paperclip, RefreshCw, Star, Trash2 } from "lucide-react";
+import { useMemo, useRef, useState, type MouseEvent } from "react";
 import {
   AuthErrorState,
   EmptyFolder,
@@ -24,6 +24,13 @@ interface Props {
   showAccount: boolean;
   selectedId: string | null;
   onSelect: (id: string) => void;
+  /** 체크박스·Ctrl+클릭·Shift+클릭으로 고른 메일들 (본문을 여는 selectedId와 별개) */
+  checkedIds: ReadonlySet<string>;
+  onCheckedChange: (ids: Set<string>) => void;
+  onDelete: () => void;
+  deleting?: boolean;
+  /** 삭제 결과 등 목록 위에 보여줄 안내 */
+  notice?: string;
   onRefresh: () => void;
 }
 
@@ -45,10 +52,17 @@ export function MailList({
   showAccount,
   selectedId,
   onSelect,
+  checkedIds,
+  onCheckedChange,
+  onDelete,
+  deleting = false,
+  notice,
   onRefresh,
 }: Props) {
   const [filter, setFilter] = useState<Filter>("all");
   const scrollRef = useRef<HTMLDivElement>(null);
+  /** Shift+클릭 범위의 시작점. 가상화로 행이 사라져도 id로 기억한다. */
+  const anchorId = useRef<string | null>(null);
 
   const unreadCount = useMemo(() => mails.filter((m) => m.unread).length, [mails]);
   const visible = useMemo(
@@ -60,6 +74,34 @@ export function MailList({
           : mails,
     [mails, filter],
   );
+
+  const changeFilter = (next: Filter) => {
+    setFilter(next);
+    // 필터로 가려진 메일이 선택에 남아 같이 지워지는 일을 막는다.
+    if (checkedIds.size > 0) onCheckedChange(new Set());
+  };
+
+  /** 선택만 바꾸는 클릭이면 선택을 갱신하고, 평범한 클릭이면 본문을 연다 */
+  const pick = (id: string, e: MouseEvent, fromCheckbox: boolean) => {
+    const additive = e.ctrlKey || e.metaKey || fromCheckbox;
+    if (!e.shiftKey && !additive) {
+      if (checkedIds.size > 0) onCheckedChange(new Set());
+      anchorId.current = id;
+      onSelect(id);
+      return;
+    }
+    const next = new Set(e.shiftKey && !additive ? [] : checkedIds);
+    const from = visible.findIndex((m) => m.id === (anchorId.current ?? selectedId));
+    if (e.shiftKey && from >= 0) {
+      const to = visible.findIndex((m) => m.id === id);
+      for (let i = Math.min(from, to); i <= Math.max(from, to); i++) next.add(visible[i].id);
+    } else {
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      anchorId.current = id;
+    }
+    onCheckedChange(next);
+  };
 
   // TanStack Virtual은 React Compiler 메모이제이션과 맞지 않지만 이 컴포넌트에서는 문제 없다.
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -78,6 +120,18 @@ export function MailList({
           {status === "ready" && <span className={styles.unread}>안 읽음 {unreadCount}</span>}
         </div>
         <div className={styles.headActions}>
+          {checkedIds.size > 0 && (
+            <span className={styles.checkedCount}>선택 {checkedIds.size}개</span>
+          )}
+          <button
+            type="button"
+            className={`ib ${styles.delete}`}
+            aria-label="삭제"
+            disabled={checkedIds.size === 0 || deleting}
+            onClick={onDelete}
+          >
+            <Trash2 size={16} strokeWidth={1.75} aria-hidden />
+          </button>
           <button type="button" className={`ib ${styles.sort}`} aria-label="정렬: 최신순">
             <ArrowUpDown size={16} strokeWidth={1.75} aria-hidden />
             최신순
@@ -101,12 +155,18 @@ export function MailList({
             role="tab"
             aria-selected={filter === f.id}
             className={`ib ${styles.tab} ${filter === f.id ? styles.tabActive : ""}`}
-            onClick={() => setFilter(f.id)}
+            onClick={() => changeFilter(f.id)}
           >
             {f.label}
           </button>
         ))}
       </div>
+
+      {notice && (
+        <div className={styles.notice} role="alert">
+          {notice}
+        </div>
+      )}
 
       {status === "loading" && <ListSkeleton />}
       {status === "error" && error?.kind === "network" && <OfflineState onRetry={onRefresh} />}
@@ -124,70 +184,85 @@ export function MailList({
             {virtualizer.getVirtualItems().map((v) => {
               const m = visible[v.index];
               const selected = m.id === selectedId;
+              const checked = checkedIds.has(m.id);
               const account = showAccount ? accounts.find((a) => a.id === m.accountId) : undefined;
               return (
-                <button
+                <div
                   key={m.id}
-                  type="button"
-                  className={`${styles.row} ${selected ? styles.selected : ""}`}
+                  className={`${styles.row} ${selected || checked ? styles.selected : ""} ${
+                    checkedIds.size > 0 ? styles.selecting : ""
+                  }`}
                   style={{ transform: `translateY(${v.start}px)` }}
-                  aria-current={selected}
-                  onClick={() => onSelect(m.id)}
                 >
-                  <span className={styles.gutter}>
-                    {m.unread && <span className={styles.dot} aria-label="안 읽음" />}
-                  </span>
-                  <span className={styles.body}>
-                    <span className={styles.line}>
-                      <span className={`${styles.sender} ${m.unread ? styles.strong : ""}`}>
-                        {account && (
-                          <span
-                            className={styles.accountDot}
-                            style={{ background: `var(--account-${account.colorIndex})` }}
-                            title={account.name}
+                  <input
+                    type="checkbox"
+                    className={styles.check}
+                    aria-label={`${m.sender} - ${m.subject} 선택`}
+                    checked={checked}
+                    onChange={() => undefined}
+                    onClick={(e) => pick(m.id, e, true)}
+                  />
+                  <button
+                    type="button"
+                    className={styles.main}
+                    aria-current={selected}
+                    onClick={(e) => pick(m.id, e, false)}
+                  >
+                    <span className={styles.gutter}>
+                      {m.unread && <span className={styles.dot} aria-label="안 읽음" />}
+                    </span>
+                    <span className={styles.body}>
+                      <span className={styles.line}>
+                        <span className={`${styles.sender} ${m.unread ? styles.strong : ""}`}>
+                          {account && (
+                            <span
+                              className={styles.accountDot}
+                              style={{ background: `var(--account-${account.colorIndex})` }}
+                              title={account.name}
+                            />
+                          )}
+                          {m.sender}
+                          {m.threadCount && (
+                            <span className={styles.threadCount}>{m.threadCount}</span>
+                          )}
+                        </span>
+                        <span className={styles.time}>{m.time}</span>
+                      </span>
+                      <span className={`${styles.subject} ${m.unread ? styles.strong : ""}`}>
+                        {m.subject}
+                      </span>
+                      <span className={styles.line}>
+                        <span className={styles.preview}>{m.preview}</span>
+                        {m.label && (
+                          <span className={styles.chip}>
+                            <span
+                              className={styles.chipDot}
+                              style={{ background: `var(--account-${m.label.colorIndex})` }}
+                            />
+                            {m.label.name}
+                          </span>
+                        )}
+                        {m.hasAttachment && (
+                          <Paperclip
+                            size={16}
+                            strokeWidth={1.75}
+                            className={styles.meta}
+                            aria-label="첨부 있음"
                           />
                         )}
-                        {m.sender}
-                        {m.threadCount && (
-                          <span className={styles.threadCount}>{m.threadCount}</span>
+                        {m.starred && (
+                          <Star
+                            size={16}
+                            strokeWidth={1.75}
+                            fill="currentColor"
+                            className={styles.star}
+                            aria-label="별표"
+                          />
                         )}
                       </span>
-                      <span className={styles.time}>{m.time}</span>
                     </span>
-                    <span className={`${styles.subject} ${m.unread ? styles.strong : ""}`}>
-                      {m.subject}
-                    </span>
-                    <span className={styles.line}>
-                      <span className={styles.preview}>{m.preview}</span>
-                      {m.label && (
-                        <span className={styles.chip}>
-                          <span
-                            className={styles.chipDot}
-                            style={{ background: `var(--account-${m.label.colorIndex})` }}
-                          />
-                          {m.label.name}
-                        </span>
-                      )}
-                      {m.hasAttachment && (
-                        <Paperclip
-                          size={16}
-                          strokeWidth={1.75}
-                          className={styles.meta}
-                          aria-label="첨부 있음"
-                        />
-                      )}
-                      {m.starred && (
-                        <Star
-                          size={16}
-                          strokeWidth={1.75}
-                          fill="currentColor"
-                          className={styles.star}
-                          aria-label="별표"
-                        />
-                      )}
-                    </span>
-                  </span>
-                </button>
+                  </button>
+                </div>
               );
             })}
           </div>

@@ -1,0 +1,67 @@
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-scrim);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 380px;
+  max-width: calc(100vw - var(--space-8));
+  padding: var(--space-6);
+  border-radius: var(--radius-card);
+  background: var(--color-bg);
+  box-shadow: var(--shadow-modal);
+}
+
+.title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+}
+
+.message {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.danger,
+.secondary {
+  height: var(--control-height-lg);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-control);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.danger {
+  border: 0;
+  background: var(--color-danger);
+  color: var(--color-on-accent);
+}
+
+.danger:hover {
+  opacity: 0.9;
+}
+
+.secondary {
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-bg);
+}
+
+.secondary:hover {
+  background: var(--color-bg-hover);
+}

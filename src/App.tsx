@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { ConfirmDialog } from "./components/ConfirmDialog";
 import { ResizeHandle } from "./components/ResizeHandle";
 import { TitleBar } from "./components/TitleBar";
 import { AccountRail, type AccountSelection } from "./features/accounts/AccountRail";
@@ -9,6 +10,7 @@ import { Reader } from "./features/mail/Reader";
 import { FOLDER, RAIL, usePanelWidths } from "./features/shell/usePanelWidths";
 import { useSystemTheme } from "./features/shell/useSystemTheme";
 import {
+  deleteMail,
   getMail,
   listAccounts,
   listFolders,
@@ -27,6 +29,7 @@ import styles from "./App.module.css";
 
 const EMPTY_MAILS: MailSummary[] = [];
 const EMPTY_FOLDERS: Folder[] = [];
+const EMPTY_IDS: ReadonlySet<string> = new Set();
 /** 방향키로 훑을 때 읽음 처리되지 않도록 본문을 연 뒤 이만큼 기다린다. */
 const READ_DELAY_MS = 1000;
 
@@ -42,6 +45,10 @@ function App() {
   const [foldersReloadKey, setFoldersReloadKey] = useState(0);
   const [mailId, setMailId] = useState<string | null>(null);
   const [syncs, setSyncs] = useState<Record<string, SyncProgress>>({});
+  const [checkedIds, setCheckedIds] = useState<ReadonlySet<string>>(EMPTY_IDS);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [notice, setNotice] = useState<string>();
 
   // 비동기 결과는 "어떤 요청의 결과인지"(key)와 함께 저장하고, 현재 요청과 같을 때만 ready로 본다.
   // effect 안에서 loading을 동기적으로 setState하지 않기 위한 구조.
@@ -49,7 +56,8 @@ function App() {
     null,
   );
   const [mailsResult, setMailsResult] = useState<{
-    key: string;
+    /** 어느 폴더의 목록인지. 새로고침(reloadKey)이 바뀌어도 같으면 이전 목록을 유지해 깜빡이지 않는다. */
+    scope: string;
     mails: MailSummary[];
     error?: LoadError;
   } | null>(null);
@@ -72,8 +80,8 @@ function App() {
       : (folders.find((f) => f.kind === "inbox")?.id ?? "");
   const folderPending = selection !== "all" && folderId === "";
 
-  const mailsKey = `${selection}|${folderId}|${reloadKey}`;
-  const mailsReady = mailsResult?.key === mailsKey;
+  const mailsScope = `${selection}|${folderId}`;
+  const mailsReady = mailsResult?.scope === mailsScope;
   const status: ListStatus = !mailsReady ? "loading" : mailsResult.error ? "error" : "ready";
   const mails = mailsReady ? mailsResult.mails : EMPTY_MAILS;
   const error = mailsReady ? mailsResult.error : undefined;
@@ -101,12 +109,12 @@ function App() {
     let cancelled = false;
     listMails(selection === "all" ? null : selection, folderId)
       .then((result) => {
-        if (!cancelled) setMailsResult({ key: mailsKey, mails: result });
+        if (!cancelled) setMailsResult({ scope: mailsScope, mails: result });
       })
       .catch((e: unknown) => {
         if (cancelled) return;
         setMailsResult({
-          key: mailsKey,
+          scope: mailsScope,
           mails: [],
           error: toLoadError(e),
         });
@@ -114,7 +122,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [selection, folderId, folderPending, mailsKey]);
+  }, [selection, folderId, folderPending, mailsScope, reloadKey]);
 
   useEffect(() => {
     if (!mailId) return;
@@ -173,13 +181,50 @@ function App() {
     setSelection(next);
     setFolderId("");
     setMailId(null);
+    setCheckedIds(EMPTY_IDS);
+    setNotice(undefined);
   }, []);
 
   const selectFolder = useCallback((id: string, accountId: string) => {
     setSelection(accountId);
     setFolderId(id);
     setMailId(null);
+    setCheckedIds(EMPTY_IDS);
+    setNotice(undefined);
   }, []);
+
+  // 동기화로 목록이 바뀌어 사라진 메일은 선택에서 뺀다.
+  const checked = useMemo(
+    () => new Set(mails.filter((m) => checkedIds.has(m.id)).map((m) => m.id)),
+    [mails, checkedIds],
+  );
+
+  // 휴지통 안의 메일은 지우면 되돌릴 수 없어 확인을 받는다. 통합 보기는 받은편지함뿐이라 해당 없음.
+  const inTrash = selection !== "all" && folders.find((f) => f.id === folderId)?.kind === "trash";
+
+  const deleteChecked = async () => {
+    setConfirmingDelete(false);
+    const ids = [...checked];
+    if (ids.length === 0) return;
+    setDeleting(true);
+    setNotice(undefined);
+    let failed = 0;
+    // 같은 계정의 IMAP 연결을 번갈아 쓰지 않도록 하나씩 처리한다.
+    for (const id of ids) {
+      try {
+        await deleteMail(id);
+      } catch {
+        failed += 1;
+      }
+    }
+    setDeleting(false);
+    setCheckedIds(EMPTY_IDS);
+    if (mailId && ids.includes(mailId)) setMailId(null);
+    if (failed > 0) setNotice(`메일 ${failed}통을 삭제하지 못했어요. 잠시 후 다시 시도해 주세요.`);
+    setReloadKey((k) => k + 1);
+    setFoldersReloadKey((k) => k + 1);
+    listAccounts().then(setAccounts);
+  };
 
   const index = mailId ? mails.findIndex((m) => m.id === mailId) : -1;
   const move = (delta: number) => {
@@ -253,6 +298,11 @@ function App() {
             showAccount={selection === "all"}
             selectedId={mailId}
             onSelect={setMailId}
+            checkedIds={checked}
+            onCheckedChange={setCheckedIds}
+            onDelete={() => (inTrash ? setConfirmingDelete(true) : void deleteChecked())}
+            deleting={deleting}
+            notice={notice}
             onRefresh={() => setReloadKey((k) => k + 1)}
           />
         </div>
@@ -272,6 +322,15 @@ function App() {
           onNext={() => move(1)}
         />
       </div>
+      {confirmingDelete && (
+        <ConfirmDialog
+          title="메일을 완전히 삭제할까요?"
+          message={`선택한 메일 ${checked.size}통이 휴지통에서 완전히 지워져요. 되돌릴 수 없어요.`}
+          confirmLabel="완전히 삭제"
+          onConfirm={() => void deleteChecked()}
+          onCancel={() => setConfirmingDelete(false)}
+        />
+      )}
       {adding && (
         <AddAccountDialog
           onClose={() => setAdding(false)}

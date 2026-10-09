@@ -197,12 +197,15 @@ async fn plan_folder(
     store.apply_flags(folder_id, &changed)?;
 
     // 지운 메일이 풀어 준 중복 사본이 있을 수 있어 기록을 다시 읽는다.
+    // 지우거나 옮기는 중인 메일은 서버에 아직 남아 있어도 다시 받지 않는다(받으면 목록에 되살아난다).
+    // 스냅샷 뒤에 큐에 들어온 조작도 막으려고 여기서 다시 읽는다.
     let known = store.known_uids(folder_id)?;
+    let pending = store.pending_remote_ids(account_id, &key)?;
     let mut missing: Vec<String> = snapshot
         .messages
         .into_iter()
         .map(|m| m.remote_id)
-        .filter(|id| !known.contains(id))
+        .filter(|id| !known.contains(id) && !pending.contains(id))
         .collect();
     missing.sort_by_key(|id| Reverse(id.parse::<u64>().unwrap_or(0)));
     Ok(FolderPlan {
