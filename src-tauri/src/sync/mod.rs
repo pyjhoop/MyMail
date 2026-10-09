@@ -3,12 +3,14 @@
 
 pub mod actions;
 pub mod manager;
+pub mod scheduler;
 
 use std::cmp::Reverse;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::time::Instant;
 
 use crate::auth::{AuthError, CredentialStore};
-use crate::providers::{FolderKind, MailProvider, ProviderError, RemoteFolder};
+use crate::providers::{FolderKind, FolderStatus, MailProvider, ProviderError, RemoteFolder};
 use crate::store::{folder_key, NewAccount, OpKind, Store, StoreError};
 
 #[derive(Debug, thiserror::Error)]
@@ -21,6 +23,8 @@ pub enum SyncError {
     NoTrash,
     #[error("옮길 폴더를 찾을 수 없어요")]
     FolderNotFound,
+    #[error("이 계정은 아직 서버에 연결되지 않았어요")]
+    NotConnected,
     #[error(transparent)]
     Auth(#[from] AuthError),
     #[error(transparent)]
@@ -232,6 +236,25 @@ impl<F: Fn(Progress)> Tracker<'_, F> {
     }
 }
 
+/// 마지막으로 맞춘 시점의 폴더 요약 상태(서버 key별). 같으면 그 폴더는 다시 대조하지 않는다.
+pub type StatusCache = HashMap<String, FolderStatus>;
+
+/// 동기화 방식 조정. 기본값은 모든 대상 폴더를 빠짐없이 대조한다.
+#[derive(Default)]
+pub struct SyncOptions<'a> {
+    /// 폴더 요약 상태를 기록할 곳. 있으면 폴더마다 STATUS를 조회해 맞춘 뒤의 값을 저장한다.
+    pub cache: Option<&'a mut StatusCache>,
+    /// 요약 상태가 `cache`와 같은 폴더는 건너뛴다(`cache`가 있어야 한다).
+    pub skip_unchanged: bool,
+    /// 이 서버 key의 폴더를 가장 먼저, 건너뛰지 않고 맞춘다(지금 사용자가 보는 폴더).
+    pub first: Option<&'a str>,
+}
+
+fn log(account_id: &str, message: &str) {
+    // 계정 id·폴더 key·개수·시간만 남긴다. 주소·비밀번호·본문은 남기지 않는다.
+    eprintln!("[sync] account={account_id} {message}");
+}
+
 /// 서버와 로컬을 맞춘다. 먼저 보내지 못한 조작을 보내고, 폴더마다 UID를 대조해 새 메일은 받고 사라진 메일은 지운다.
 /// 이미 받은 UID는 건너뛰므로 중간에 끊겨도 다음 실행이 남은 것부터 이어받는다.
 /// 진행 상황은 `report`로 알리며, 끝나면(받을 게 없어도) `done == total`인 알림을 한 번 보낸다.
@@ -243,16 +266,53 @@ pub async fn sync_account(
     scope: Scope<'_>,
     report: impl Fn(Progress),
 ) -> Result<(), SyncError> {
+    sync_account_with(
+        store,
+        provider,
+        account_id,
+        scope,
+        SyncOptions::default(),
+        report,
+    )
+    .await
+}
+
+/// `sync_account`에 동기화 방식 조정(`SyncOptions`)을 더한 것.
+pub async fn sync_account_with(
+    store: &Store,
+    provider: &dyn MailProvider,
+    account_id: &str,
+    scope: Scope<'_>,
+    options: SyncOptions<'_>,
+    report: impl Fn(Progress),
+) -> Result<(), SyncError> {
     let mut tracker = Tracker {
         account_id,
         done: 0,
         total: 0,
         report,
     };
-    let result = run_sync(store, provider, account_id, scope, &mut tracker).await;
+    let started = Instant::now();
+    let result = run_sync(store, provider, account_id, scope, options, &mut tracker).await;
     match &result {
-        Ok(()) => tracker.emit(None),
-        Err(e) => tracker.emit(Some(user_message(e))),
+        Ok(()) => {
+            log(
+                account_id,
+                &format!(
+                    "동기화 끝 ({}ms, 새로 받은 메일 {}통)",
+                    started.elapsed().as_millis(),
+                    tracker.done
+                ),
+            );
+            tracker.emit(None);
+        }
+        Err(e) => {
+            log(
+                account_id,
+                &format!("동기화 실패 ({}ms): {}", started.elapsed().as_millis(), e),
+            );
+            tracker.emit(Some(user_message(e)));
+        }
     }
     result
 }
@@ -262,6 +322,7 @@ async fn run_sync<F: Fn(Progress)>(
     provider: &dyn MailProvider,
     account_id: &str,
     scope: Scope<'_>,
+    mut options: SyncOptions<'_>,
     tracker: &mut Tracker<'_, F>,
 ) -> Result<(), SyncError> {
     flush_pending(store, provider, account_id).await?;
@@ -270,7 +331,7 @@ async fn run_sync<F: Fn(Progress)>(
         store.save_folders(account_id, &folders)?;
     }
 
-    let mut plans = Vec::new();
+    let mut targets: Vec<(String, String)> = Vec::new();
     for folder in store.list_folders(account_id)? {
         let key = folder_key(account_id, &folder.id);
         if let Scope::Folders(keys) = scope {
@@ -278,7 +339,46 @@ async fn run_sync<F: Fn(Progress)>(
                 continue;
             }
         }
-        plans.push(plan_folder(store, provider, account_id, &folder.id).await?);
+        targets.push((folder.id, key));
+    }
+    // 사용자가 보는 폴더를 먼저 맞춘다(나머지 순서는 그대로).
+    targets.sort_by_key(|(_, key)| options.first != Some(key.as_str()));
+
+    // 폴더 요약 상태는 대조 전에 읽는다: 대조하는 동안 생긴 변화는 다음 번에 다르게 보여 다시 맞춘다.
+    // 조회가 안 되는 서버는 비워 두고 전부 대조한다(오류는 이어지는 호출이 드러낸다).
+    let statuses = if options.cache.is_some() {
+        let keys: Vec<String> = targets.iter().map(|(_, k)| k.clone()).collect();
+        provider.folder_statuses(&keys).await.unwrap_or_default()
+    } else {
+        HashMap::new()
+    };
+
+    let mut plans = Vec::new();
+    let mut synced = Vec::new();
+    for (folder_id, key) in &targets {
+        let status = statuses.get(key);
+        let unchanged = options.skip_unchanged
+            && options.first != Some(key.as_str())
+            && status.is_some()
+            && options.cache.as_ref().and_then(|c| c.get(key)) == status;
+        if unchanged {
+            log(account_id, &format!("폴더 {key} 건너뜀 (변화 없음)"));
+            continue;
+        }
+        let started = Instant::now();
+        let plan = plan_folder(store, provider, account_id, folder_id).await?;
+        log(
+            account_id,
+            &format!(
+                "폴더 {key} 대조 {}ms, 받을 메일 {}통",
+                started.elapsed().as_millis(),
+                plan.missing.len()
+            ),
+        );
+        plans.push(plan);
+        if let Some(status) = status {
+            synced.push((key.clone(), status.clone()));
+        }
     }
     tracker.total = plans.iter().map(|p| p.missing.len()).sum();
     if tracker.total > 0 {
@@ -296,6 +396,10 @@ async fn run_sync<F: Fn(Progress)>(
     }
     for (key, ids) in rest {
         download(store, provider, account_id, &key, &ids, tracker).await?;
+    }
+    // 끝까지 맞춘 폴더만 기록한다. 중간에 실패하면 다음 번에 그 폴더를 다시 맞춘다.
+    if let Some(cache) = options.cache.as_mut() {
+        cache.extend(synced);
     }
     Ok(())
 }
@@ -316,7 +420,6 @@ async fn download<F: Fn(Progress)>(
     }
     Ok(())
 }
-
 /// 진행 알림에 담는 사용자용 오류 문구
 fn user_message(e: &SyncError) -> String {
     match e {
@@ -327,3 +430,5 @@ fn user_message(e: &SyncError) -> String {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_fast;

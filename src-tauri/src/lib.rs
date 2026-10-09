@@ -68,6 +68,7 @@ pub fn run() {
             commands::add_account,
             commands::set_read,
             commands::set_starred,
+            commands::sync_now,
             commands::delete_mail,
             commands::move_mail,
             commands::save_draft,

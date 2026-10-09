@@ -313,6 +313,45 @@ fn invalid(message: &str) -> CommandError {
     }
 }
 
+/// 지금 서버와 동기화한다. 끝나면 돌아온다(진행은 `sync-progress` 이벤트로도 알린다).
+/// `account_id`가 없으면 모든 계정. `open_folder_id`는 사용자가 보는 폴더로, 먼저 맞추고 이후 더 자주 맞춘다.
+/// 같은 계정이 이미 동기화 중이면 새로 시작하지 않고 끝나길 기다리며, 연달아 불러도 한 번만 돈다.
+#[tauri::command]
+pub async fn sync_now(
+    app: AppHandle,
+    store: State<'_, Store>,
+    account_id: Option<String>,
+    open_folder_id: Option<String>,
+) -> CommandResult<()> {
+    let ids = match account_id {
+        Some(id) => vec![id],
+        None => store.list_accounts()?.into_iter().map(|a| a.id).collect(),
+    };
+    let single = ids.len() == 1;
+    let tasks: Vec<_> = ids
+        .into_iter()
+        .map(|id| {
+            let (app, open) = (app.clone(), open_folder_id.clone());
+            tauri::async_runtime::spawn(async move {
+                app.state::<SyncManager>()
+                    .sync_now(&app, &id, open.as_deref())
+                    .await
+            })
+        })
+        .collect();
+    let mut first_error = None;
+    for task in tasks {
+        match task.await {
+            Ok(Err(SyncError::NotConnected)) if !single => {}
+            Ok(Err(e)) => {
+                first_error.get_or_insert(e);
+            }
+            _ => {}
+        }
+    }
+    first_error.map_or(Ok(()), |e| Err(e.into()))
+}
+
 /// Windows 시작 시 실행 여부.
 #[tauri::command]
 pub async fn get_autostart(app: AppHandle) -> CommandResult<bool> {

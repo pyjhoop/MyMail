@@ -1,6 +1,7 @@
 // 백엔드 호출 경계. 컴포넌트는 invoke를 직접 부르지 않고 이 파일의 함수만 쓴다.
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { formatFullTime, formatListTime, formatSize } from "./format";
 import { isOpenableLink } from "./mailHtml";
@@ -192,6 +193,26 @@ export function moveMail(id: string, folderId: string): Promise<void> {
 export async function openExternal(url: string): Promise<void> {
   if (!isOpenableLink(url)) return;
   await openUrl(url.trim());
+}
+
+/**
+ * 지금 서버와 동기화하고 끝나면 돌아온다. accountId가 null이면 모든 계정.
+ * openFolderId(지금 보는 폴더)는 가장 먼저 맞추고 이후 더 자주 맞춘다.
+ * 이미 동기화 중이면 그것이 끝나길 기다리고, 연달아 불러도 한 번만 돈다.
+ */
+export function syncNow(accountId: string | null, openFolderId?: string): Promise<void> {
+  return call("sync_now", { accountId, openFolderId: openFolderId ?? null });
+}
+
+/** 창이 포커스를 얻을 때(트레이에서 다시 열 때 포함)를 구독한다. 브라우저(pnpm dev)·테스트에서는 아무 일도 하지 않는다. */
+export function onWindowFocus(callback: () => void): () => void {
+  if (typeof window === "undefined" || !("__TAURI_INTERNALS__" in window)) return () => undefined;
+  const unlisten = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+    if (focused) callback();
+  });
+  return () => {
+    void unlisten.then((fn) => fn());
+  };
 }
 
 /** 백그라운드 동기화 진행 상황 (받을 메일 수 단위. 받을 게 없으면 done === total === 0) */

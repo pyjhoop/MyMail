@@ -7,6 +7,7 @@ pub mod gmail;
 pub mod imap;
 pub mod naver;
 
+use std::collections::HashMap;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -123,6 +124,27 @@ pub struct FolderSnapshot {
     pub messages: Vec<RemoteFlags>,
 }
 
+/// 폴더의 요약 상태(IMAP STATUS). 이 값이 그대로면 UID·플래그 전체를 다시 받지 않아도 된다.
+/// 별표처럼 개수에 드러나지 않는 변화는 잡지 못하므로 가끔은 전체 대조를 따로 해야 한다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FolderStatus {
+    pub uid_validity: Option<u32>,
+    pub uid_next: Option<u32>,
+    /// 폴더의 메일 수
+    pub messages: u32,
+    /// 안 읽은 메일 수
+    pub unseen: u32,
+}
+
+/// `wait_for_changes`가 돌아온 이유
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WakeReason {
+    /// 서버가 변화를 알렸거나, 기다리기 시작할 때 이미 바뀌어 있었다.
+    Changed,
+    /// 변화 없이 시간이 지났다.
+    TimedOut,
+}
+
 #[derive(Debug, Clone)]
 pub struct OutgoingAttachment {
     pub name: String,
@@ -217,13 +239,24 @@ pub trait MailProvider: Send + Sync {
         unsupported("메일 보내기")
     }
 
+    /// 여러 폴더의 요약 상태를 연결 하나로 조회한다. 조회하지 못한 폴더는 결과에서 빠진다.
+    async fn folder_statuses(
+        &self,
+        _folder_keys: &[String],
+    ) -> Result<HashMap<String, FolderStatus>, ProviderError> {
+        unsupported("폴더 요약 조회")
+    }
+
     /// 폴더에 변화가 생기거나 `timeout`이 지날 때까지 기다린다(IMAP IDLE).
+    /// `since`는 마지막으로 맞춘 시점의 상태다. 기다리기 시작할 때 이미 달라져 있으면(동기화 끝과 IDLE 시작 사이의 변화)
+    /// 기다리지 않고 `Changed`로 돌아온다.
     /// 서버가 푸시를 지원하지 않으면 `Unsupported`를 돌려주고, 호출한 쪽이 주기적으로 조회한다.
     async fn wait_for_changes(
         &self,
         _folder_key: &str,
         _timeout: Duration,
-    ) -> Result<(), ProviderError> {
+        _since: Option<&FolderStatus>,
+    ) -> Result<WakeReason, ProviderError> {
         unsupported("새 메일 알림")
     }
 }
