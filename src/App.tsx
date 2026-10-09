@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { ResizeHandle } from "./components/ResizeHandle";
 import { TitleBar } from "./components/TitleBar";
 import { AccountRail, type AccountSelection } from "./features/accounts/AccountRail";
+import { AddAccountDialog } from "./features/accounts/AddAccountDialog";
 import { FolderPane } from "./features/folders/FolderPane";
 import { MailList, type ListStatus } from "./features/mail/MailList";
 import { Reader } from "./features/mail/Reader";
@@ -30,7 +31,8 @@ function App() {
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selection, setSelection] = useState<AccountSelection>("all");
-  const [folderId, setFolderId] = useState("");
+  const [selectedFolderId, setFolderId] = useState("");
+  const [adding, setAdding] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [mailId, setMailId] = useState<string | null>(null);
 
@@ -55,6 +57,13 @@ function App() {
 
   const folders =
     selection !== "all" && foldersResult?.key === selection ? foldersResult.folders : EMPTY_FOLDERS;
+
+  // 계정을 고르면 폴더 목록이 올 때까지 폴더를 모른다. 목록이 오면 받은편지함(kind)을 고른다.
+  const folderId =
+    selection === "all" || folders.some((f) => f.id === selectedFolderId)
+      ? selectedFolderId
+      : (folders.find((f) => f.kind === "inbox")?.id ?? "");
+  const folderPending = selection !== "all" && folderId === "";
 
   const mailsKey = `${selection}|${folderId}|${reloadKey}`;
   const mailsReady = mailsResult?.key === mailsKey;
@@ -81,6 +90,7 @@ function App() {
   }, [selection]);
 
   useEffect(() => {
+    if (folderPending) return;
     let cancelled = false;
     listMails(selection === "all" ? null : selection, folderId)
       .then((result) => {
@@ -97,7 +107,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [selection, folderId, mailsKey]);
+  }, [selection, folderId, folderPending, mailsKey]);
 
   useEffect(() => {
     if (!mailId) return;
@@ -112,7 +122,7 @@ function App() {
 
   const selectAccount = useCallback((next: AccountSelection) => {
     setSelection(next);
-    setFolderId(next === "all" ? "" : `${next}-inbox`);
+    setFolderId("");
     setMailId(null);
   }, []);
 
@@ -147,7 +157,7 @@ function App() {
           accounts={accounts}
           selected={selection}
           onSelect={selectAccount}
-          onAddAccount={() => undefined}
+          onAddAccount={() => setAdding(true)}
           onOpenSettings={() => undefined}
         />
         <div ref={folderPaneRef} className={styles.pane}>
@@ -198,6 +208,16 @@ function App() {
           onNext={() => move(1)}
         />
       </div>
+      {adding && (
+        <AddAccountDialog
+          onClose={() => setAdding(false)}
+          onAdded={(added) => {
+            setAdding(false);
+            setAccounts((prev) => [...prev, added]);
+            selectAccount(added.id);
+          }}
+        />
+      )}
     </div>
   );
 }

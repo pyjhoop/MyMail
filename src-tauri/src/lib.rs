@@ -4,14 +4,15 @@ mod providers;
 mod store;
 mod sync;
 
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use tauri::Manager;
 
-fn unix_now() -> i64 {
+fn unix_millis() -> u128 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs() as i64)
+        .map_or(0, |d| d.as_millis())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -22,8 +23,8 @@ pub fn run() {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
             let store = store::Store::open(&dir.join("mymail.db"))?;
-            tauri::async_runtime::block_on(sync::seed_fake_accounts(&store, unix_now()))?;
             app.manage(store);
+            app.manage(Arc::new(auth::KeyringStore) as Arc<dyn auth::CredentialStore>);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -31,6 +32,7 @@ pub fn run() {
             commands::list_folders,
             commands::list_mails,
             commands::get_mail,
+            commands::add_account,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

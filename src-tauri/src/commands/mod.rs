@@ -3,7 +3,12 @@
 use serde::Serialize;
 use tauri::State;
 
-use crate::store::{Account, Folder, MailDetail, MailSummary, Store, StoreError};
+use std::sync::Arc;
+
+use crate::auth::CredentialStore;
+use crate::providers::{self, ProviderError};
+use crate::store::{Account, Folder, MailDetail, MailSummary, NewAccount, Store, StoreError};
+use crate::sync::{self, SyncError};
 
 /// UI의 `LoadError`와 같은 모양.
 #[derive(Debug, Serialize)]
@@ -18,6 +23,21 @@ impl From<StoreError> for CommandError {
             kind: "unknown",
             message: e.to_string(),
         }
+    }
+}
+
+impl From<SyncError> for CommandError {
+    fn from(e: SyncError) -> Self {
+        let kind = match &e {
+            SyncError::Provider(ProviderError::Auth(_)) => "auth",
+            SyncError::Provider(ProviderError::Network(_)) => "network",
+            _ => "unknown",
+        };
+        let message = match &e {
+            SyncError::Provider(ProviderError::Auth(m) | ProviderError::Network(m)) => m.clone(),
+            other => other.to_string(),
+        };
+        Self { kind, message }
     }
 }
 
@@ -49,4 +69,58 @@ pub async fn list_mails(
 #[tauri::command]
 pub async fn get_mail(store: State<'_, Store>, id: String) -> CommandResult<Option<MailDetail>> {
     Ok(store.get_mail(&id)?)
+}
+
+/// 접속을 확인하고 계정을 추가한다. 성공하면 추가된 계정을 돌려준다.
+#[tauri::command]
+pub async fn add_account(
+    store: State<'_, Store>,
+    credentials: State<'_, Arc<dyn CredentialStore>>,
+    provider: String,
+    email: String,
+    password: String,
+    name: Option<String>,
+) -> CommandResult<Account> {
+    let email = email.trim().to_string();
+    let password = password.trim().to_string();
+    if !email.contains('@') {
+        return Err(invalid("이메일 주소를 확인해 주세요."));
+    }
+    if password.is_empty() {
+        return Err(invalid("비밀번호를 입력해 주세요."));
+    }
+    let remote =
+        providers::create(&provider, &email, &password).map_err(|e| invalid(&e.to_string()))?;
+
+    let account = NewAccount {
+        id: format!("{provider}-{}", crate::unix_millis()),
+        name: name
+            .map(|n| n.trim().to_string())
+            .filter(|n| !n.is_empty())
+            .unwrap_or_else(|| email.clone()),
+        email,
+        provider,
+        color_index: (store.account_count()? % 8) as u8 + 1,
+    };
+    let id = account.id.clone();
+    sync::add_account(
+        &store,
+        credentials.inner().as_ref(),
+        &*remote,
+        account,
+        &password,
+    )
+    .await?;
+    store
+        .list_accounts()?
+        .into_iter()
+        .find(|a| a.id == id)
+        .ok_or_else(|| invalid("추가한 계정을 찾을 수 없어요."))
+}
+
+fn invalid(message: &str) -> CommandError {
+    CommandError {
+        kind: "unknown",
+        message: message.into(),
+    }
 }

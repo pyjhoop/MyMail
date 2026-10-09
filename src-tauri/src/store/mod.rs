@@ -57,6 +57,21 @@ impl Store {
             .query_row("SELECT COUNT(*) FROM accounts", [], |r| r.get(0))?)
     }
 
+    pub fn account_email_exists(&self, email: &str) -> Result<bool, StoreError> {
+        Ok(self.lock()?.query_row(
+            "SELECT EXISTS(SELECT 1 FROM accounts WHERE lower(email) = lower(?1))",
+            [email],
+            |r| r.get(0),
+        )?)
+    }
+
+    /// 계정과 딸린 폴더·메일·첨부를 지운다(ON DELETE CASCADE).
+    pub fn delete_account(&self, account_id: &str) -> Result<(), StoreError> {
+        self.lock()?
+            .execute("DELETE FROM accounts WHERE id = ?1", [account_id])?;
+        Ok(())
+    }
+
     pub fn insert_account(&self, account: &NewAccount) -> Result<(), StoreError> {
         let conn = self.lock()?;
         let position: i64 = conn.query_row("SELECT COUNT(*) FROM accounts", [], |r| r.get(0))?;

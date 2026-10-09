@@ -103,6 +103,16 @@ async function call<T>(command: string, args?: Record<string, unknown>): Promise
   }
 }
 
+/** 접속을 확인하고 계정을 추가한다. 실패하면 LoadError(kind: "auth" | "network" | "unknown")로 던진다. */
+export function addAccount(input: {
+  provider: Provider;
+  email: string;
+  password: string;
+  name?: string;
+}): Promise<Account> {
+  return call("add_account", input);
+}
+
 export function listAccounts(): Promise<Account[]> {
   return call("list_accounts");
 }

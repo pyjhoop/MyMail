@@ -105,6 +105,10 @@ impl FakeProvider {
 
 #[async_trait]
 impl MailProvider for FakeProvider {
+    async fn verify(&self) -> Result<(), ProviderError> {
+        Ok(())
+    }
+
     async fn list_folders(&self) -> Result<Vec<RemoteFolder>, ProviderError> {
         let mut folders = vec![
             Self::folder("inbox", "받은편지함", FolderKind::Inbox),
