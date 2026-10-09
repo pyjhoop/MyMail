@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>MyMail — 인라인 답장 작성기</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:"Pretendard";src:url(/_blob/90b6419f48d00e757ad3a12ef030097e) format("woff2");font-weight:45 920;font-style:normal;font-display:swap}
+body{margin:0}
+.mm{
+--font-sans:"Pretendard",-apple-system,"Segoe UI","Malgun Gothic",sans-serif;
+--color-bg:#FFFFFF;--color-bg-subtle:#F7F7F8;--color-bg-hover:#EFEFF1;--color-bg-selected:#E8E8ED;
+--color-border:#E7E7EA;--color-border-strong:#D4D4D8;
+--color-text:#18181B;--color-text-secondary:#52525B;--color-text-tertiary:#6B6B74;
+--color-accent:#4F46E5;--color-accent-hover:#4338CA;--color-accent-text:#4F46E5;--color-accent-subtle:#EEEEFD;--color-on-accent:#FFFFFF;
+--color-badge-bg:#18181B;--color-badge-text:#FFFFFF;
+--color-star:#D97706;--color-danger:#DC2626;--color-danger-text:#B91C1C;--color-danger-subtle:#FEF0F0;
+--color-warning-text:#B45309;--color-warning-subtle:#FFF7E6;--color-success:#15803D;--color-highlight-bg:#FDE68A;
+--color-overlay:#18181B;--color-on-overlay:#FFFFFF;--color-overlay-accent:#A5A8FA;--color-scrim:rgba(24,24,27,.32);
+--shadow-popup:0 8px 24px rgba(24,24,27,.10),0 0 0 1px rgba(24,24,27,.06);
+--focus-ring:0 0 0 1px var(--color-accent),0 0 0 4px var(--color-accent-subtle);
+--account-1:#2563EB;--account-2:#15803D;--account-3:#C2410C;--account-4:#7C3AED;--account-5:#BE185D;--account-6:#0F766E;--account-7:#A16207;--account-8:#B91C1C;--on-account:#FFFFFF;
+}
+.mm.dark{
+--color-bg:#131316;--color-bg-subtle:#18181C;--color-bg-hover:#222227;--color-bg-selected:#2A2A31;
+--color-border:#26262C;--color-border-strong:#34343C;
+--color-text:#EDEDEF;--color-text-secondary:#A1A1AA;--color-text-tertiary:#8B8B94;
+--color-accent:#5E5CE6;--color-accent-hover:#6E6CF0;--color-accent-text:#A5A8FA;--color-accent-subtle:#23234A;--color-on-accent:#FFFFFF;
+--color-badge-bg:#EDEDEF;--color-badge-text:#131316;
+--color-star:#F5B83D;--color-danger:#F87171;--color-danger-text:#FCA5A5;--color-danger-subtle:#3A1C1E;
+--color-warning-text:#FBBF24;--color-warning-subtle:#2E2410;--color-success:#4ADE80;--color-highlight-bg:#6B5410;
+--color-overlay:#EDEDEF;--color-on-overlay:#131316;--color-overlay-accent:#4F46E5;--color-scrim:rgba(0,0,0,.55);
+--shadow-popup:0 8px 24px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.06);
+--account-1:#60A5FA;--account-2:#4ADE80;--account-3:#FB923C;--account-4:#A78BFA;--account-5:#F472B6;--account-6:#2DD4BF;--account-7:#FACC15;--account-8:#F87171;--on-account:#131316;
+}
+.mm button{font-family:inherit;cursor:pointer}
+.mm .ib:hover{background:var(--color-bg-hover)}
+.mm a{color:var(--color-accent-text);text-decoration:none}
+.mm a:hover{text-decoration:underline}
+@keyframes mmspin{to{transform:rotate(360deg)}}
+</style>
+</helmet>
+<div class="mm {{themeClass}}" style="width: 1440px; height: 900px; display: flex; flex-direction: column; overflow: hidden; position: relative; background: var(--color-bg); color: var(--color-text); font-family: var(--font-sans); font-size: 14px; line-height: 1.5; letter-spacing: -0.005em">
+
+<header style="height: 40px; flex: none; display: grid; grid-template-columns: 1fr minmax(0, 480px) 1fr; align-items: center; gap: 16px; background: var(--color-bg-subtle); border-bottom: 1px solid var(--color-border)">
+<div style="display: flex; align-items: center; gap: 8px; padding-left: 20px">
+<span style="width: 22px; height: 22px; border-radius: 6px; background: var(--color-accent); color: var(--color-on-accent); display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9 6 9-6"></path><path d="M3 7v10h18V7"></path></svg></span>
+<span style="font-size: 14px; font-weight: 700; letter-spacing: -0.01em">MyMail</span>
+</div>
+<label style="height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 10px; border-radius: 6px; background: var(--color-bg-hover); color: var(--color-text-tertiary)">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+<input type="search" placeholder="메일 검색" aria-label="메일 검색" style="flex: 1; min-width: 0; border: 0; background: transparent; outline: none; font: 400 13px/1 var(--font-sans); color: var(--color-text)">
+<kbd style="min-width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; border: 1px solid var(--color-border-strong); font: 500 11px/1 var(--font-sans); color: var(--color-text-tertiary)">/</kbd>
+</label>
+<div style="display: flex; align-items: center; justify-content: flex-end; height: 40px">
+<span style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--color-text-tertiary); margin-right: 12px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 15-5.5 5.5L9 18"></path><path d="M5 17.743A7 7 0 1 1 15.71 10h1.79a4.5 4.5 0 0 1 1.5 8.742"></path></svg>방금 동기화됨</span>
+<button class="ib" aria-label="최소화" style="width: 46px; height: 40px; border: 0; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" aria-hidden="true"><path d="M6 12h12"></path></svg></button>
+<button class="ib" aria-label="최대화" style="width: 46px; height: 40px; border: 0; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1"></rect></svg></button>
+<button class="ib" aria-label="닫기" style="width: 46px; height: 40px; border: 0; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"></path></svg></button>
+</div>
+</header>
+
+<div style="flex: 1; min-height: 0; display: flex">
+
+<nav aria-label="계정" style="width: 64px; flex: none; display: flex; flex-direction: column; align-items: center; padding: 12px 0; gap: 8px; background: var(--color-bg-subtle); border-right: 1px solid var(--color-border)">
+<div style="width: 64px; height: 48px; display: flex; align-items: center; justify-content: center">
+<button class="ib" aria-label="전체 받은편지함" style="position: relative; width: 40px; height: 40px; border: 0; border-radius: 10px; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"></path><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"></path><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"></path></svg><span style="position: absolute; top: -4px; left: 26px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--color-badge-bg); color: var(--color-badge-text); font: 600 11px/18px var(--font-sans); box-shadow: 0 0 0 2px var(--color-bg-subtle)">99+</span></button>
+</div>
+<span style="width: 24px; height: 1px; background: var(--color-border-strong); margin: 2px 0 6px"></span>
+<sc-for list="{{rail}}" as="a" hint-placeholder-count="3">
+<div style="position: relative; width: 64px; height: 52px; display: flex; align-items: center; justify-content: center">
+<sc-if value="{{a.sel}}" hint-placeholder-val="{{false}}"><span style="position: absolute; left: 0; top: 14px; width: 3px; height: 24px; border-radius: 0 3px 3px 0; background: var(--color-text)"></span></sc-if>
+<button aria-label="{{a.label}}" style="position: relative; width: 40px; height: 40px; border: 0; padding: 0; border-radius: 50%; background: {{a.c}}; color: var(--on-account); font: 600 15px/40px var(--font-sans); box-shadow: 0 0 0 2px var(--color-bg-subtle), 0 0 0 4px {{a.c}}">{{a.n}}<sc-if value="{{a.badge}}" hint-placeholder-val="{{false}}"><span style="position: absolute; top: -7px; left: 26px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--color-badge-bg); color: var(--color-badge-text); font: 600 11px/18px var(--font-sans); box-shadow: 0 0 0 2px var(--color-bg-subtle); white-space: nowrap">{{a.badge}}</span></sc-if><span style="position: absolute; right: -4px; bottom: -4px; width: 16px; height: 16px; border-radius: 50%; background: var(--color-bg); color: var(--color-text); font: 800 10px/16px var(--font-sans); box-shadow: 0 0 0 2px var(--color-bg-subtle)">{{a.svc}}</span></button>
+</div>
+</sc-for>
+</nav>
+
+<aside aria-label="폴더" style="width: 220px; flex: none; display: flex; flex-direction: column; background: var(--color-bg-subtle); padding: 16px 8px 12px">
+<div style="padding: 0 8px 12px"><div style="font-size: 14px; font-weight: 600; line-height: 1.4">개인 Gmail</div><div style="font-size: 12px; color: var(--color-text-tertiary); line-height: 1.4">junho.park@gmail.com</div></div>
+<button style="height: 36px; margin: 0 4px 16px; border: 0; border-radius: 6px; background: var(--color-accent); color: var(--color-on-accent); display: flex; align-items: center; gap: 8px; padding: 0 12px; font-size: 14px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"></path></svg><span style="flex: 1; text-align: left">새 메일</span><kbd style="font: 500 11px/1 var(--font-sans); opacity: .75">C</kbd></button>
+<a href="#inbox" style="height: 32px; display: flex; align-items: center; gap: 10px; padding: 0 8px; border-radius: 6px; background: var(--color-bg-selected); color: var(--color-text); font-weight: 600; text-decoration: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"></polyline><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg><span style="flex: 1">받은편지함</span><span style="font-size: 12px">12</span></a>
+<a href="#sent" style="height: 32px; display: flex; align-items: center; gap: 10px; padding: 0 8px; border-radius: 6px; color: var(--color-text-secondary); text-decoration: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4Z"></path><path d="M22 2 11 13"></path></svg><span style="flex: 1">보낸편지함</span></a>
+<a href="#drafts" style="height: 32px; display: flex; align-items: center; gap: 10px; padding: 0 8px; border-radius: 6px; color: var(--color-text-secondary); text-decoration: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path></svg><span style="flex: 1">임시보관함</span><span style="font-size: 12px; color: var(--color-text-tertiary)">3</span></a>
+<a href="#spam" style="height: 32px; display: flex; align-items: center; gap: 10px; padding: 0 8px; border-radius: 6px; color: var(--color-text-secondary); text-decoration: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"></polygon><path d="M12 8v4"></path><path d="M12 16h.01"></path></svg><span style="flex: 1">스팸</span><span style="font-size: 12px; color: var(--color-text-tertiary)">4</span></a>
+<a href="#trash" style="height: 32px; display: flex; align-items: center; gap: 10px; padding: 0 8px; border-radius: 6px; color: var(--color-text-secondary); text-decoration: none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg><span style="flex: 1">휴지통</span></a>
+</aside>
+<div style="width: 1px; flex: none; background: var(--color-border)"></div>
+
+<section aria-label="메일 목록" style="width: 360px; flex: none; display: flex; flex-direction: column; min-height: 0">
+<div style="height: 48px; flex: none; display: flex; align-items: center; padding: 0 16px 0 20px; gap: 8px"><h2 style="margin: 0; font-size: 16px; font-weight: 700">받은편지함</h2><span style="font-size: 12px; color: var(--color-text-tertiary)">안 읽음 12</span></div>
+<div style="flex: none; display: flex; gap: 4px; padding: 0 16px 8px">
+<button style="height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: var(--color-bg-selected); color: var(--color-text); font-size: 12px; font-weight: 600">전체</button>
+<button class="ib" style="height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); font-size: 12px">안 읽음</button>
+<button class="ib" style="height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); font-size: 12px">별표</button>
+</div>
+<div style="flex: 1; min-height: 0; overflow: hidden; padding: 0 8px; display: flex; flex-direction: column; gap: 2px">
+<sc-for list="{{mails}}" as="m" hint-placeholder-count="8">
+<article style="display: flex; gap: 6px; padding: 10px 12px 10px 6px; border-radius: 6px; background: {{m.bg}}">
+<div style="width: 18px; flex: none; display: flex; justify-content: center; padding-top: 2px"><sc-if value="{{m.unread}}" hint-placeholder-val="{{false}}"><span style="width: 6px; height: 6px; margin-top: 7px; border-radius: 50%; background: var(--color-accent)"></span></sc-if></div>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px">
+<div style="display: flex; gap: 6px"><span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: {{m.weight}}; color: {{m.color}}">{{m.sender}}</span><span style="font-size: 12px; color: var(--color-text-tertiary)">{{m.time}}</span></div>
+<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: {{m.weight}}; color: {{m.color}}">{{m.subject}}</div>
+<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; color: var(--color-text-tertiary)">{{m.preview}}</div>
+</div>
+</article>
+</sc-for>
+</div>
+</section>
+<div style="width: 1px; flex: none; background: var(--color-border)"></div>
+
+<main style="flex: 1; min-width: 480px; display: flex; flex-direction: column; min-height: 0; position: relative">
+<div style="height: 48px; flex: none; display: flex; align-items: center; gap: 2px; padding: 0 16px">
+<button class="ib" style="height: 32px; border: 0; border-radius: 6px; background: var(--color-bg-selected); color: var(--color-text); display: flex; align-items: center; gap: 6px; padding: 0 10px; font-size: 14px; font-weight: 600"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"></polyline><path d="M20 18v-2a4 4 0 0 0-4-4H4"></path></svg>답장</button>
+<button class="ib" style="height: 32px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; gap: 6px; padding: 0 10px; font-size: 14px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="7 17 2 12 7 7"></polyline><polyline points="12 17 7 12 12 7"></polyline><path d="M22 18v-2a4 4 0 0 0-4-4H7"></path></svg>전체 답장</button>
+<button class="ib" style="height: 32px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; gap: 6px; padding: 0 10px; font-size: 14px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 17 20 12 15 7"></polyline><path d="M4 18v-2a4 4 0 0 1 4-4h12"></path></svg>전달</button>
+</div>
+
+<div style="flex: 1; min-height: 0; overflow: hidden; padding: 4px 48px 0">
+<div style="max-width: 680px; margin: 0 auto">
+<h1 style="margin: 0 0 12px; font-size: 20px; line-height: 1.4; font-weight: 700; letter-spacing: -0.015em">10월 가족여행 일정표랑 항공권 보내줄게</h1>
+<sc-for list="{{thread}}" as="t" hint-placeholder-count="3">
+<div style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 8px; margin: 0 -8px; border-radius: 6px">
+<span style="width: 24px; height: 24px; flex: none; border-radius: 50%; background: {{t.avBg}}; color: {{t.avFg}}; font: 600 11px/24px var(--font-sans); text-align: center">{{t.n}}</span>
+<span style="width: 72px; flex: none; font-weight: 500">{{t.who}}</span>
+<span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--color-text-tertiary)">{{t.text}}</span>
+<span style="font-size: 12px; color: var(--color-text-tertiary)">{{t.date}}</span>
+</div>
+</sc-for>
+
+<!-- 인라인 작성기 -->
+<section aria-label="답장 작성" style="position: relative; margin-top: 12px; border-radius: 10px; border: 1px solid var(--color-border-strong); background: var(--color-bg)">
+<div style="display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--color-border)">
+<button class="ib" aria-label="작성 모드: 답장" style="height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; gap: 2px; padding: 0 6px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 17 4 12 9 7"></polyline><path d="M20 18v-2a4 4 0 0 0-4-4H4"></path></svg><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+<span style="width: 1px; height: 16px; background: var(--color-border)"></span>
+<button class="ib" aria-haspopup="listbox" aria-label="보내는 계정: 개인 Gmail" style="height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text); display: flex; align-items: center; gap: 6px; padding: 0 8px; font-size: 12px"><span style="width: 8px; height: 8px; border-radius: 50%; background: var(--account-1)"></span><b style="font-weight: 600">개인 Gmail</b><span style="color: var(--color-text-tertiary)">junho.park@gmail.com</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--color-text-tertiary)"><path d="m6 9 6 6 6-6"></path></svg></button>
+<span style="flex: 1"></span>
+<button class="ib" aria-label="별도 창으로 열기" title="별도 창으로 열기 (Shift+클릭)" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"></path><path d="M10 14 21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg></button>
+<button class="ib" aria-label="임시보관 삭제" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg></button>
+</div>
+
+<div style="display: flex; align-items: center; gap: 6px; min-height: 40px; padding: 4px 12px; border-bottom: 1px solid var(--color-border); flex-wrap: wrap">
+<label for="to-input" style="width: 56px; font-size: 12px; color: var(--color-text-tertiary)">받는사람</label>
+<span style="height: 24px; display: inline-flex; align-items: center; gap: 6px; padding: 0 4px 0 3px; border-radius: 999px; background: var(--color-bg-hover); font-size: 12px"><span style="width: 18px; height: 18px; border-radius: 50%; background: var(--color-bg-selected); color: var(--color-text-secondary); font: 600 10px/18px var(--font-sans); text-align: center">도</span>김도윤<button aria-label="김도윤 삭제" style="width: 16px; height: 16px; border: 0; border-radius: 50%; padding: 0; background: transparent; color: var(--color-text-tertiary); display: flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></button></span>
+<span style="display: inline-flex; align-items: center; font-size: 14px">하<span style="width: 1px; height: 18px; background: var(--color-text); margin-left: 1px"></span></span>
+<input id="to-input" aria-label="받는사람 추가" aria-expanded="true" aria-controls="ac-list" style="flex: 1; min-width: 40px; border: 0; outline: none; background: transparent; font: 400 14px/1 var(--font-sans)">
+<button class="ib" style="height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-tertiary); font-size: 12px; padding: 0 6px">참조</button>
+<button class="ib" style="height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-tertiary); font-size: 12px; padding: 0 6px">숨은참조</button>
+</div>
+<div style="display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-bottom: 1px solid var(--color-border)">
+<span style="width: 56px; font-size: 12px; color: var(--color-text-tertiary)">제목</span>
+<span style="font-size: 14px; color: var(--color-text-secondary)">Re: 10월 가족여행 일정표랑 항공권 보내줄게</span>
+</div>
+
+<div role="toolbar" aria-label="서식" style="display: flex; align-items: center; gap: 2px; padding: 4px 8px">
+<button class="ib" aria-haspopup="listbox" style="height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; gap: 4px; padding: 0 8px; font-size: 12px">기본 글꼴<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+<button class="ib" aria-haspopup="listbox" style="height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; gap: 4px; padding: 0 8px; font-size: 12px">14<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+<span style="width: 1px; height: 16px; background: var(--color-border); margin: 0 4px"></span>
+<button class="ib" aria-label="굵게" aria-pressed="true" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: var(--color-bg-selected); color: var(--color-text); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8"></path></svg></button>
+<button class="ib" aria-label="기울임" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 4h-9M14 20H5M15 4 9 20"></path></svg></button>
+<button class="ib" aria-label="밑줄" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4v6a6 6 0 0 0 12 0V4"></path><path d="M4 20h16"></path></svg></button>
+<span style="width: 1px; height: 16px; background: var(--color-border); margin: 0 4px"></span>
+<button class="ib" aria-label="글머리 기호 목록" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h.01M3 12h.01M3 18h.01M8 6h13M8 12h13M8 18h13"></path></svg></button>
+<button class="ib" aria-label="번호 목록" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 6h11M10 12h11M10 18h11M4 6h1v4M4 10h2M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"></path></svg></button>
+<button class="ib" aria-label="링크" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></button>
+<button class="ib" aria-label="이미지 넣기" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"></path></svg></button>
+<button class="ib" aria-label="파일 첨부" style="width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg></button>
+</div>
+
+<div role="textbox" aria-multiline="true" aria-label="본문" style="padding: 8px 16px 12px; min-height: 128px; font-size: 14px; line-height: 1.7">
+<p style="margin: 0 0 10px">도윤아 고마워! 일정표 확인했어. 둘째 날 오후에 <b style="font-weight: 700">협재 해변</b> 추가해 둘게.</p>
+<p style="margin: 0">렌터카는 공항 근처 업체로 알아보고, 확인 메일 오면 바로 전달할게<span style="display: inline-block; width: 1px; height: 18px; background: var(--color-text); vertical-align: -3px; margin-left: 1px"></span></p>
+<p style="margin: 14px 0 0; color: var(--color-text-tertiary); font-size: 12px">— 박준호 드림</p>
+</div>
+
+<div style="display: flex; gap: 8px; padding: 0 16px 12px">
+<div style="display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 6px 0 8px; border-radius: 6px; background: var(--color-bg-subtle)">
+<span style="width: 24px; height: 24px; border-radius: 4px; background: var(--color-bg-hover); color: var(--account-8); font: 700 8px/24px var(--font-sans); text-align: center">PDF</span>
+<span style="font-size: 12px; font-weight: 600">렌터카_견적비교.pdf</span><span style="font-size: 12px; color: var(--color-text-tertiary)">212 KB</span>
+<button class="ib" aria-label="첨부 삭제" style="width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-tertiary); display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+</div>
+</div>
+
+<div style="display: flex; align-items: center; gap: 12px; padding: 10px 12px 10px 16px; border-top: 1px solid var(--color-border)">
+<span style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--color-text-tertiary)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>임시저장됨 · 오전 10:41</span>
+<span style="flex: 1"></span>
+<span style="font-size: 12px; color: var(--color-text-tertiary)">Ctrl + Enter</span>
+<div style="display: flex; border-radius: 6px; overflow: hidden">
+<button style="height: 32px; border: 0; background: var(--color-accent); color: var(--color-on-accent); display: flex; align-items: center; gap: 6px; padding: 0 14px; font-size: 14px; font-weight: 600"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4Z"></path><path d="M22 2 11 13"></path></svg>보내기</button>
+<button aria-label="예약 발송" aria-haspopup="menu" style="width: 30px; height: 32px; border: 0; border-left: 1px solid rgba(255,255,255,.28); background: var(--color-accent); color: var(--color-on-accent); display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></button>
+</div>
+</div>
+
+<!-- 자동완성 -->
+<div id="ac-list" role="listbox" aria-label="받는사람 추천" style="position: absolute; left: 140px; top: 84px; width: 360px; padding: 4px; border-radius: 10px; background: var(--color-bg); box-shadow: var(--shadow-popup); z-index: 3">
+<sc-for list="{{suggest}}" as="s" hint-placeholder-count="3">
+<div role="option" aria-selected="{{s.active}}" style="display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 8px; border-radius: 6px; background: {{s.bg}}">
+<span style="width: 28px; height: 28px; flex: none; border-radius: 50%; background: var(--color-bg-selected); color: var(--color-text-secondary); font: 600 12px/28px var(--font-sans); text-align: center">{{s.n}}</span>
+<span style="flex: 1; min-width: 0; line-height: 1.35"><span style="display: block; font-size: 14px">{{s.pre}}<b style="font-weight: 700; color: var(--color-accent-text)">하</b>{{s.post}}</span><span style="display: block; font-size: 12px; color: var(--color-text-tertiary)">{{s.email}}</span></span>
+<span style="font-size: 12px; color: var(--color-text-tertiary)">{{s.meta}}</span>
+</div>
+</sc-for>
+<div style="display: flex; gap: 12px; padding: 6px 8px 4px; border-top: 1px solid var(--color-border); margin-top: 4px; font-size: 12px; color: var(--color-text-tertiary)"><span>↑↓ 이동</span><span>Enter 추가</span><span>Esc 닫기</span></div>
+</div>
+</section>
+</div>
+</div>
+
+<!-- 발송 토스트 -->
+<div role="status" aria-live="polite" style="position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; height: 40px; padding: 0 8px 0 14px; border-radius: 10px; background: var(--color-overlay); color: var(--color-on-overlay); font-size: 14px; box-shadow: var(--shadow-popup); white-space: nowrap; z-index: 4">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" aria-hidden="true" style="animation: mmspin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.22-8.56"></path></svg>
+<span>보내는 중… <span style="opacity: .7">이서연에게</span></span>
+<button style="height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--color-overlay-accent); font-size: 14px; font-weight: 600; padding: 0 8px">취소</button>
+<span style="font-size: 12px; opacity: .6; margin-right: 4px">5초</span>
+</div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const rail = [
+      { n: '개', c: 'var(--account-1)', badge: '12', svc: 'G', sel: true, label: '개인 Gmail · junho.park@gmail.com (선택됨)' },
+      { n: '프', c: 'var(--account-2)', badge: '3', svc: 'G', sel: false, label: '프로젝트 Gmail · junho.dev@gmail.com' },
+      { n: '네', c: 'var(--account-3)', badge: '99+', svc: 'N', sel: false, label: '네이버 · junho_p@naver.com' }
+    ];
+    const fo = (name, count, dot, sel) => ({ name, count, dot, bg: sel ? 'var(--color-bg-selected)' : 'transparent', color: sel ? 'var(--color-text)' : 'var(--color-text-secondary)', weight: sel ? '600' : '400' });
+    const folders = [
+      fo('받은편지함', '12', 'var(--color-text-tertiary)', true), fo('보낸편지함', '', 'var(--color-text-tertiary)'),
+      fo('임시보관함', '3', 'var(--color-text-tertiary)'), fo('스팸', '4', 'var(--color-text-tertiary)'), fo('휴지통', '', 'var(--color-text-tertiary)')
+    ];
+    const mails = [
+      ['누리택배', '오전 10:12', '[누리택배] 오늘 14~16시 사이 배송 예정입니다', '운송장 6842-1937-5520 · 보내는 분 모아마켓', true],
+      ['이서연', '오전 9:41', '이번 주 토요일 북한산 갈래?', '날씨 괜찮으면 아침 8시에 불광역 2번 출구에서 보자.', false],
+      ['김도윤', '오전 9:12', '10월 가족여행 일정표랑 항공권 보내줄게', '준호야, 항공권 예매 끝났어! 10월 23일(금) 김포 → 제주…', false, true],
+      ['한결카드', '오전 8:05', '[한결카드] 2026년 9월 이용대금 명세서', '결제 예정일 10월 14일 · 청구 금액 842,310원', true],
+      ['주간 테크레터', '어제', 'AI 에이전트가 바꾸는 개발 워크플로', '이번 주에는 코드 리뷰 자동화 사례 세 가지와…', true],
+      ['엄마', '어제', '김치 보냈다', '택배로 김치랑 멸치볶음 보냈으니 받으면 바로 냉장고에…', false],
+      ['동네도서관', '어제', '예약하신 도서가 도착했습니다', '「물고기는 존재하지 않는다」 · 10월 15일까지 수령', false],
+      ['박소윤', '10월 7일', '저희 결혼합니다 — 11월 22일 청첩장', '오랜만이야! 11월 22일 토요일 낮 12시 반, 서초구…', false]
+    ].map(([sender, time, subject, preview, unread, sel]) => ({
+      sender, time, subject, preview, unread,
+      bg: sel ? 'var(--color-bg-selected)' : 'transparent',
+      weight: unread ? '600' : '400',
+      color: unread || sel ? 'var(--color-text)' : 'var(--color-text-secondary)'
+    }));
+    const thread = [
+      { n: '나', who: '나', avBg: 'var(--account-1)', avFg: 'var(--on-account)', text: '도윤아, 항공편 시간 정해지면 알려줘. 렌터카는 내가 알아볼게.', date: '10월 6일' },
+      { n: '도', who: '김도윤', avBg: 'var(--color-bg-selected)', avFg: 'var(--color-text-secondary)', text: '응 금요일 저녁 비행기로 잡으려고. 내일 확정해서 보낼게!', date: '10월 7일' },
+      { n: '도', who: '김도윤', avBg: 'var(--color-bg-selected)', avFg: 'var(--color-text-secondary)', text: '준호야, 항공권 예매 끝났어! 10월 23일(금) 김포 → 제주 19:20 출발이고…  · 첨부 3', date: '오전 9:12' }
+    ];
+    const suggest = [
+      { n: '하', pre: '김', post: '은', email: 'haeun.k@naver.com', meta: '최근 연락', active: 'true', bg: 'var(--color-bg-hover)' },
+      { n: '준', pre: '', post: '준서', email: 'junseo.ha@gmail.com', meta: '보낸 메일 12', active: 'false', bg: 'transparent' },
+      { n: '린', pre: '박', post: '린', email: 'harin.park@naver.com', meta: '', active: 'false', bg: 'transparent' }
+    ];
+    return { themeClass: dark ? 'dark' : '', rail, folders, mails, thread, suggest };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>MyMail — 검색 추천</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:"Pretendard";src:url(/_blob/90b6419f48d00e757ad3a12ef030097e) format("woff2");font-weight:45 920;font-style:normal;font-display:swap}
+body{margin:0}
+.mm{
+--font-sans:"Pretendard",-apple-system,"Segoe UI","Malgun Gothic",sans-serif;
+--color-bg:#FFFFFF;--color-bg-subtle:#F7F7F8;--color-bg-hover:#EFEFF1;--color-bg-selected:#E8E8ED;
+--color-border:#E7E7EA;--color-border-strong:#D4D4D8;
+--color-text:#18181B;--color-text-secondary:#52525B;--color-text-tertiary:#6B6B74;
+--color-accent:#4F46E5;--color-accent-text:#4F46E5;--color-accent-subtle:#EEEEFD;--color-on-accent:#FFFFFF;
+--color-scrim:rgba(24,24,27,.32);
+--shadow-popup:0 8px 24px rgba(24,24,27,.10),0 0 0 1px rgba(24,24,27,.06);
+--focus-ring:0 0 0 1px var(--color-accent),0 0 0 4px var(--color-accent-subtle);
+--account-1:#2563EB;--account-2:#15803D;--account-3:#C2410C;--on-account:#FFFFFF;
+}
+.mm.dark{
+--color-bg:#131316;--color-bg-subtle:#18181C;--color-bg-hover:#222227;--color-bg-selected:#2A2A31;
+--color-border:#26262C;--color-border-strong:#34343C;
+--color-text:#EDEDEF;--color-text-secondary:#A1A1AA;--color-text-tertiary:#8B8B94;
+--color-accent:#5E5CE6;--color-accent-text:#A5A8FA;--color-accent-subtle:#23234A;--color-on-accent:#FFFFFF;
+--color-scrim:rgba(0,0,0,.55);
+--shadow-popup:0 8px 24px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.06);
+--account-1:#60A5FA;--account-2:#4ADE80;--account-3:#FB923C;--on-account:#131316;
+}
+.mm button{font-family:inherit;cursor:pointer}
+.mm .ib:hover{background:var(--color-bg-hover)}
+</style>
+</helmet>
+<div class="mm {{themeClass}}" style="width: 1440px; height: 560px; display: flex; flex-direction: column; overflow: hidden; position: relative; background: var(--color-bg); color: var(--color-text); font-family: var(--font-sans); font-size: 14px; line-height: 1.5; letter-spacing: -0.005em">
+<header style="height: 40px; flex: none; display: grid; grid-template-columns: 1fr minmax(0, 560px) 1fr; align-items: center; gap: 16px; background: var(--color-bg-subtle); border-bottom: 1px solid var(--color-border); position: relative; z-index: 3">
+<div style="display: flex; align-items: center; gap: 8px; padding-left: 20px">
+<span style="width: 22px; height: 22px; border-radius: 6px; background: var(--color-accent); color: var(--color-on-accent); display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9 6 9-6"></path><path d="M3 7v10h18V7"></path></svg></span>
+<span style="font-size: 14px; font-weight: 700">MyMail</span>
+</div>
+<label style="height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 10px; border-radius: 6px; background: var(--color-bg); box-shadow: var(--focus-ring); color: var(--color-text-tertiary)">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+<span style="width: 1px; height: 16px; background: var(--color-text)"></span>
+<input type="search" placeholder="메일 검색" aria-label="메일 검색" aria-expanded="true" aria-controls="search-suggest" style="flex: 1; min-width: 0; border: 0; background: transparent; outline: none; font: 400 13px/1 var(--font-sans); color: var(--color-text)">
+<span style="font-size: 12px; color: var(--color-text-tertiary)">모든 계정</span>
+</label>
+<div></div>
+</header>
+
+<div style="flex: 1; min-height: 0; display: flex">
+<div style="width: 64px; background: var(--color-bg-subtle); border-right: 1px solid var(--color-border)"></div>
+<div style="width: 220px; background: var(--color-bg-subtle); padding: 16px; display: flex; flex-direction: column; gap: 12px"><span style="height: 12px; width: 60%; border-radius: 4px; background: var(--color-bg-selected)"></span><span style="height: 32px; border-radius: 6px; background: var(--color-bg-selected)"></span><span style="height: 10px; width: 80%; border-radius: 4px; background: var(--color-bg-hover)"></span><span style="height: 10px; width: 70%; border-radius: 4px; background: var(--color-bg-hover)"></span></div>
+<div style="width: 1px; background: var(--color-border)"></div>
+<div style="width: 360px; padding: 16px 20px; display: flex; flex-direction: column; gap: 18px"><span style="height: 12px; width: 40%; border-radius: 4px; background: var(--color-bg-selected)"></span><span style="height: 40px; border-radius: 6px; background: var(--color-bg-hover)"></span><span style="height: 40px; border-radius: 6px; background: var(--color-bg-hover)"></span><span style="height: 40px; border-radius: 6px; background: var(--color-bg-hover)"></span></div>
+<div style="width: 1px; background: var(--color-border)"></div>
+<div style="flex: 1"></div>
+</div>
+<div aria-hidden="true" style="position: absolute; inset: 40px 0 0 0; background: var(--color-scrim)"></div>
+
+<div id="search-suggest" role="listbox" aria-label="검색 추천" style="position: absolute; top: 44px; left: 440px; width: 560px; border-radius: 10px; background: var(--color-bg); box-shadow: var(--shadow-popup); overflow: hidden; z-index: 4">
+<div style="padding: 8px 6px 4px">
+<div style="padding: 4px 10px 6px; font-size: 12px; font-weight: 600; color: var(--color-text-tertiary)">최근 검색</div>
+<sc-for list="{{recent}}" as="r" hint-placeholder-count="3">
+<div role="option" aria-selected="{{r.sel}}" style="display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 6px; background: {{r.bg}}">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--color-text-tertiary)"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+<span style="flex: 1">{{r.q}}<sc-if value="{{r.op}}" hint-placeholder-val="{{false}}"><code style="margin-left: 6px; padding: 1px 6px; border-radius: 4px; background: var(--color-bg-selected); font: 500 12px/1.5 ui-monospace, Consolas, monospace; color: var(--color-text-secondary)">{{r.op}}</code></sc-if></span>
+<sc-if value="{{r.hover}}" hint-placeholder-val="{{false}}"><span style="font-size: 12px; color: var(--color-text-tertiary)">Enter</span><button aria-label="최근 검색에서 삭제" style="width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-tertiary); display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></button></sc-if>
+</div>
+</sc-for>
+</div>
+<div style="padding: 4px 6px 8px; border-top: 1px solid var(--color-border)">
+<div style="padding: 8px 10px 6px; font-size: 12px; font-weight: 600; color: var(--color-text-tertiary)">보낸사람</div>
+<sc-for list="{{people}}" as="p" hint-placeholder-count="3">
+<div role="option" aria-selected="false" class="ib" style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border-radius: 6px">
+<span style="width: 24px; height: 24px; border-radius: 50%; background: var(--color-bg-selected); color: var(--color-text-secondary); font: 600 11px/24px var(--font-sans); text-align: center">{{p.n}}</span>
+<span style="font-weight: 500">{{p.name}}</span><span style="flex: 1; font-size: 12px; color: var(--color-text-tertiary)">{{p.email}}</span>
+<span style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--color-text-tertiary)"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{p.c}}"></span>{{p.count}}</span>
+</div>
+</sc-for>
+</div>
+<div style="padding: 10px 16px 12px; border-top: 1px solid var(--color-border); display: flex; flex-wrap: wrap; align-items: center; gap: 6px">
+<span style="font-size: 12px; color: var(--color-text-tertiary); margin-right: 4px">검색어 팁</span>
+<sc-for list="{{ops}}" as="o" hint-placeholder-count="5"><code style="padding: 2px 8px; border-radius: 6px; background: var(--color-bg-hover); font: 500 12px/1.5 ui-monospace, Consolas, monospace; color: var(--color-text-secondary)">{{o}}</code></sc-for>
+</div>
+<div style="display: flex; gap: 16px; padding: 8px 16px; background: var(--color-bg-subtle); font-size: 12px; color: var(--color-text-tertiary)"><span>↑↓ 이동</span><span>Enter 검색</span><span>Tab 보낸사람 필터로</span><span style="flex: 1"></span><span>Esc 닫기</span></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":560}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      themeClass: (this.props.dark ?? false) ? 'dark' : '',
+      recent: [
+        { q: '항공권', op: false, hover: true, sel: 'true', bg: 'var(--color-bg-hover)' },
+        { q: '명세서', op: 'from:한결카드', hover: false, sel: 'false', bg: 'transparent' },
+        { q: '청첩장', op: 'has:첨부', hover: false, sel: 'false', bg: 'transparent' }
+      ],
+      people: [
+        { n: '도', name: '김도윤', email: 'doyun.kim@gmail.com', c: 'var(--account-1)', count: '메일 24' },
+        { n: '서', name: '이서연', email: 'seoyeon.lee@gmail.com', c: 'var(--account-1)', count: '메일 17' },
+        { n: '민', name: '정민재', email: 'minjae.j@gmail.com', c: 'var(--account-2)', count: '메일 9' }
+      ],
+      ops: ['from:', 'to:', 'has:첨부', 'is:안읽음', 'is:별표', 'after:2026-09-01']
+    };
+  }
+}
+</script>
+</body>
+</html>

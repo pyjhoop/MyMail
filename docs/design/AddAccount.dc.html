@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>MyMail — 계정 추가 4단계</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:"Pretendard";src:url(/_blob/90b6419f48d00e757ad3a12ef030097e) format("woff2");font-weight:45 920;font-style:normal;font-display:swap}
+body{margin:0}
+.mm{
+--font-sans:"Pretendard",-apple-system,"Segoe UI","Malgun Gothic",sans-serif;
+--desk:#D6D6DC;--desk-text:#3F3F46;
+--color-bg:#FFFFFF;--color-bg-subtle:#F7F7F8;--color-bg-hover:#EFEFF1;--color-bg-selected:#E8E8ED;
+--color-border:#E7E7EA;--color-border-strong:#D4D4D8;
+--color-text:#18181B;--color-text-secondary:#52525B;--color-text-tertiary:#6B6B74;
+--color-accent:#4F46E5;--color-accent-hover:#4338CA;--color-accent-text:#4F46E5;--color-accent-subtle:#EEEEFD;--color-on-accent:#FFFFFF;
+--color-danger:#DC2626;--color-danger-text:#B91C1C;--color-danger-subtle:#FEF0F0;
+--shadow-modal:0 24px 64px rgba(24,24,27,.18),0 0 0 1px rgba(24,24,27,.06);
+--focus-ring:0 0 0 1px var(--color-accent),0 0 0 4px var(--color-accent-subtle);
+--account-1:#2563EB;--account-2:#15803D;--account-3:#C2410C;--account-4:#7C3AED;--account-5:#BE185D;--account-6:#0F766E;--account-7:#A16207;--account-8:#B91C1C;--on-account:#FFFFFF;
+}
+.mm.dark{
+--desk:#0A0A0C;--desk-text:#A1A1AA;
+--color-bg:#131316;--color-bg-subtle:#18181C;--color-bg-hover:#222227;--color-bg-selected:#2A2A31;
+--color-border:#26262C;--color-border-strong:#34343C;
+--color-text:#EDEDEF;--color-text-secondary:#A1A1AA;--color-text-tertiary:#8B8B94;
+--color-accent:#5E5CE6;--color-accent-hover:#6E6CF0;--color-accent-text:#A5A8FA;--color-accent-subtle:#23234A;--color-on-accent:#FFFFFF;
+--color-danger:#F87171;--color-danger-text:#FCA5A5;--color-danger-subtle:#3A1C1E;
+--shadow-modal:0 24px 64px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.08);
+--account-1:#60A5FA;--account-2:#4ADE80;--account-3:#FB923C;--account-4:#A78BFA;--account-5:#F472B6;--account-6:#2DD4BF;--account-7:#FACC15;--account-8:#F87171;--on-account:#131316;
+}
+.mm button{font-family:inherit;cursor:pointer}
+.mm .ib:hover{background:var(--color-bg-hover)}
+.mm .sec:hover{background:var(--color-bg-hover)}
+.mm a{color:var(--color-accent-text);text-decoration:none;font-weight:600}
+.mm a:hover{text-decoration:underline}
+@keyframes mmspin{to{transform:rotate(360deg)}}
+</style>
+</helmet>
+<div class="mm {{themeClass}}" style="width: 1800px; height: 1460px; box-sizing: border-box; padding: 48px 60px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 60px; row-gap: 48px; align-items: start; background: var(--desk); color: var(--color-text); font-family: var(--font-sans); font-size: 14px; line-height: 1.5; letter-spacing: -0.005em">
+
+<!-- ① 서비스 선택 -->
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 12px">
+<figcaption style="font-size: 12px; font-weight: 600; color: var(--desk-text)">① 서비스 선택</figcaption>
+<div role="dialog" aria-modal="true" aria-labelledby="t1" style="width: 520px; border-radius: 10px; background: var(--color-bg); box-shadow: var(--shadow-modal); overflow: hidden">
+<div style="display: flex; align-items: center; gap: 12px; padding: 16px 16px 0 24px">
+<span style="font-size: 12px; color: var(--color-text-tertiary)">1 / 4</span>
+<span style="display: flex; gap: 4px"><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-accent)"></span><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-bg-selected)"></span><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-bg-selected)"></span><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-bg-selected)"></span></span>
+<span style="flex: 1"></span>
+<button class="ib" aria-label="닫기" style="width: 32px; height: 32px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+</div>
+<div style="padding: 12px 24px 24px">
+<h2 id="t1" style="margin: 0 0 4px; font-size: 20px; font-weight: 700; letter-spacing: -0.015em">어떤 메일 계정을 추가할까요?</h2>
+<p style="margin: 0 0 20px; color: var(--color-text-secondary)">계정은 나중에 설정에서 더 추가하거나 순서를 바꿀 수 있어요.</p>
+<div role="radiogroup" aria-label="서비스" style="display: flex; flex-direction: column; gap: 8px">
+<label style="display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 10px; background: var(--color-accent-subtle); box-shadow: inset 0 0 0 1.5px var(--color-accent); cursor: pointer">
+<span style="width: 40px; height: 40px; flex: none; border-radius: 50%; background: var(--color-bg); font: 800 16px/40px var(--font-sans); text-align: center">G</span>
+<span style="flex: 1; line-height: 1.4"><span style="display: block; font-weight: 600">Google</span><span style="display: block; font-size: 12px; color: var(--color-text-secondary)">Gmail 개인 계정 · 브라우저에서 안전하게 로그인</span></span>
+<input type="radio" name="svc" checked aria-label="Google" style="width: 18px; height: 18px; margin: 0; accent-color: var(--color-accent)">
+</label>
+<label class="sec" style="display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 10px; box-shadow: inset 0 0 0 1px var(--color-border); cursor: pointer">
+<span style="width: 40px; height: 40px; flex: none; border-radius: 50%; background: var(--color-bg-hover); font: 800 16px/40px var(--font-sans); text-align: center">N</span>
+<span style="flex: 1; line-height: 1.4"><span style="display: block; font-weight: 600">네이버</span><span style="display: block; font-size: 12px; color: var(--color-text-secondary)">naver.com 메일 · IMAP/SMTP로 연결</span></span>
+<input type="radio" name="svc" aria-label="네이버" style="width: 18px; height: 18px; margin: 0; accent-color: var(--color-accent)">
+</label>
+</div>
+</div>
+<div style="display: flex; justify-content: flex-end; gap: 8px; padding: 16px 24px; border-top: 1px solid var(--color-border)">
+<button class="sec" style="height: 36px; padding: 0 14px; border: 1px solid var(--color-border-strong); border-radius: 6px; background: var(--color-bg); color: var(--color-text); font-size: 14px; font-weight: 500">취소</button>
+<button style="height: 36px; padding: 0 16px; border: 0; border-radius: 6px; background: var(--color-accent); color: var(--color-on-accent); font-size: 14px; font-weight: 600">다음</button>
+</div>
+</div>
+</figure>
+
+<!-- ② Google 대기 -->
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 12px">
+<figcaption style="font-size: 12px; font-weight: 600; color: var(--desk-text)">② Google — 브라우저 로그인 대기</figcaption>
+<div role="dialog" aria-modal="true" aria-labelledby="t2" style="width: 520px; border-radius: 10px; background: var(--color-bg); box-shadow: var(--shadow-modal); overflow: hidden">
+<div style="display: flex; align-items: center; gap: 12px; padding: 16px 16px 0 24px">
+<span style="font-size: 12px; color: var(--color-text-tertiary)">2 / 4</span>
+<span style="display: flex; gap: 4px"><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-accent)"></span><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-accent)"></span><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-bg-selected)"></span><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-bg-selected)"></span></span>
+<span style="flex: 1"></span>
+<button class="ib" aria-label="닫기" style="width: 32px; height: 32px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+</div>
+<div style="padding: 28px 24px 28px; display: flex; flex-direction: column; align-items: center; text-align: center">
+<span style="position: relative; width: 64px; height: 64px; margin-bottom: 20px">
+<svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true" style="position: absolute; inset: 0; animation: mmspin 1.4s linear infinite"><circle cx="32" cy="32" r="29" fill="none" stroke="var(--color-bg-selected)" stroke-width="3"></circle><path d="M32 3a29 29 0 0 1 29 29" fill="none" stroke="var(--color-accent)" stroke-width="3" stroke-linecap="round"></path></svg>
+<span style="position: absolute; inset: 14px; border-radius: 50%; background: var(--color-bg-hover); display: flex; align-items: center; justify-content: center; color: var(--color-text-secondary)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg></span>
+</span>
+<h2 id="t2" style="margin: 0 0 8px; font-size: 20px; font-weight: 700; letter-spacing: -0.015em">브라우저에서 로그인을 완료하세요</h2>
+<p style="margin: 0 0 20px; color: var(--color-text-secondary); line-height: 1.6">기본 브라우저에 Google 로그인 창을 열었어요.<br>로그인하고 메일 접근을 허용하면 자동으로 다음 단계로 넘어가요.</p>
+<div style="display: flex; gap: 8px; margin-bottom: 20px">
+<button class="sec" style="height: 32px; padding: 0 12px; border: 1px solid var(--color-border-strong); border-radius: 6px; background: var(--color-bg); color: var(--color-text); font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"></path><path d="M10 14 21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg>브라우저 다시 열기</button>
+<button class="sec" style="height: 32px; padding: 0 12px; border: 1px solid var(--color-border-strong); border-radius: 6px; background: var(--color-bg); color: var(--color-text); font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2"></rect><path d="M4 16V6a2 2 0 0 1 2-2h10"></path></svg>로그인 링크 복사</button>
+</div>
+<p role="status" style="margin: 0; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--color-text-tertiary)"><span style="width: 6px; height: 6px; border-radius: 50%; background: var(--color-accent)"></span>응답 기다리는 중 · 4:32 후 만료</p>
+</div>
+<div style="display: flex; justify-content: space-between; gap: 8px; padding: 16px 24px; border-top: 1px solid var(--color-border)">
+<button class="sec" style="height: 36px; padding: 0 14px; border: 1px solid var(--color-border-strong); border-radius: 6px; background: var(--color-bg); color: var(--color-text); font-size: 14px; font-weight: 500">이전</button>
+<button disabled style="height: 36px; padding: 0 16px; border: 0; border-radius: 6px; background: var(--color-accent); color: var(--color-on-accent); font-size: 14px; font-weight: 600; opacity: .4; cursor: not-allowed">다음</button>
+</div>
+</div>
+</figure>
+
+<!-- ② 네이버 입력 -->
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 12px">
+<figcaption style="font-size: 12px; font-weight: 600; color: var(--desk-text)">② 네이버 — 아이디·비밀번호 입력</figcaption>
+<div role="dialog" aria-modal="true" aria-labelledby="t3" style="width: 520px; border-radius: 10px; background: var(--color-bg); box-shadow: var(--shadow-modal); overflow: hidden">
+<div style="display: flex; align-items: center; gap: 12px; padding: 16px 16px 0 24px">
+<span style="font-size: 12px; color: var(--color-text-tertiary)">2 / 4</span>
+<span style="display: flex; gap: 4px"><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-accent)"></span><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-accent)"></span><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-bg-selected)"></span><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-bg-selected)"></span></span>
+<span style="flex: 1"></span>
+<button class="ib" aria-label="닫기" style="width: 32px; height: 32px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+</div>
+<div style="padding: 12px 24px 24px; display: flex; flex-direction: column; gap: 16px">
+<div><h2 id="t3" style="margin: 0 0 4px; font-size: 20px; font-weight: 700; letter-spacing: -0.015em">네이버 계정 연결</h2><p style="margin: 0; color: var(--color-text-secondary)">네이버 메일에 IMAP으로 연결해요.</p></div>
+<label style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 12px; font-weight: 600; color: var(--color-text-secondary)">아이디</span>
+<span style="display: flex; align-items: center; height: 40px; padding: 0 12px; border-radius: 6px; box-shadow: var(--focus-ring); background: var(--color-bg)"><input value="junho_p" style="flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: 400 14px/1 var(--font-sans); color: var(--color-text)"><span style="font-size: 14px; color: var(--color-text-tertiary)">@naver.com</span></span></label>
+<label style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 12px; font-weight: 600; color: var(--color-text-secondary)">비밀번호 또는 애플리케이션 비밀번호</span>
+<span style="display: flex; align-items: center; height: 40px; padding: 0 4px 0 12px; border-radius: 6px; border: 1px solid var(--color-border-strong); background: var(--color-bg)"><input type="password" value="placeholder" style="flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: 400 14px/1 var(--font-sans); color: var(--color-text)"><button class="ib" aria-label="비밀번호 표시" style="width: 32px; height: 32px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-tertiary); display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"></path><circle cx="12" cy="12" r="3"></circle></svg></button></span></label>
+<div style="padding: 14px 16px; border-radius: 10px; background: var(--color-bg-subtle)">
+<div style="font-size: 12px; font-weight: 600; margin-bottom: 6px">연결 전에 확인해 주세요</div>
+<ol style="margin: 0; padding-left: 18px; font-size: 12px; color: var(--color-text-secondary); line-height: 1.7">
+<li>네이버 메일 › 환경설정 › POP3/IMAP 설정에서 <b style="font-weight: 600; color: var(--color-text)">IMAP 사용 켜기</b>를 해 주세요.</li>
+<li><b style="font-weight: 600; color: var(--color-text)">2단계 인증을 사용 중</b>이면 네이버 보안 설정에서 <b style="font-weight: 600; color: var(--color-text)">애플리케이션 비밀번호</b>를 만들어 위에 입력하세요.</li>
+</ol>
+<a href="#guide" style="display: inline-block; margin-top: 8px; font-size: 12px">설정 방법 자세히 보기 ↗</a>
+</div>
+</div>
+<div style="display: flex; justify-content: space-between; gap: 8px; padding: 16px 24px; border-top: 1px solid var(--color-border)">
+<button class="sec" style="height: 36px; padding: 0 14px; border: 1px solid var(--color-border-strong); border-radius: 6px; background: var(--color-bg); color: var(--color-text); font-size: 14px; font-weight: 500">이전</button>
+<button style="height: 36px; padding: 0 16px; border: 0; border-radius: 6px; background: var(--color-accent); color: var(--color-on-accent); font-size: 14px; font-weight: 600">연결</button>
+</div>
+</div>
+</figure>
+
+<!-- ② 네이버 실패 -->
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 12px">
+<figcaption style="font-size: 12px; font-weight: 600; color: var(--desk-text)">② 네이버 — 로그인 실패</figcaption>
+<div role="dialog" aria-modal="true" aria-labelledby="t4" style="width: 520px; border-radius: 10px; background: var(--color-bg); box-shadow: var(--shadow-modal); overflow: hidden">
+<div style="display: flex; align-items: center; gap: 12px; padding: 16px 16px 0 24px">
+<span style="font-size: 12px; color: var(--color-text-tertiary)">2 / 4</span>
+<span style="display: flex; gap: 4px"><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-accent)"></span><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-accent)"></span><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-bg-selected)"></span><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-bg-selected)"></span></span>
+<span style="flex: 1"></span>
+<button class="ib" aria-label="닫기" style="width: 32px; height: 32px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+</div>
+<div style="padding: 12px 24px 24px; display: flex; flex-direction: column; gap: 16px">
+<div><h2 id="t4" style="margin: 0 0 4px; font-size: 20px; font-weight: 700; letter-spacing: -0.015em">네이버 계정 연결</h2><p style="margin: 0; color: var(--color-text-secondary)">네이버 메일에 IMAP으로 연결해요.</p></div>
+<div role="alert" style="display: flex; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--color-danger-subtle); color: var(--color-danger-text)">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; margin-top: 1px"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4M12 16h.01"></path></svg>
+<div style="font-size: 12px; line-height: 1.6"><b style="display: block; font-size: 14px; font-weight: 600">로그인하지 못했어요</b>아이디·비밀번호가 맞는지, IMAP 사용이 켜져 있는지 확인해 주세요. 2단계 인증을 쓰고 있다면 일반 비밀번호 대신 애플리케이션 비밀번호가 필요해요.</div>
+</div>
+<label style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 12px; font-weight: 600; color: var(--color-text-secondary)">아이디</span>
+<span style="display: flex; align-items: center; height: 40px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--color-border-strong); background: var(--color-bg)"><input value="junho_p" style="flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: 400 14px/1 var(--font-sans); color: var(--color-text)"><span style="font-size: 14px; color: var(--color-text-tertiary)">@naver.com</span></span></label>
+<label style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 12px; font-weight: 600; color: var(--color-text-secondary)">비밀번호 또는 애플리케이션 비밀번호</span>
+<span style="display: flex; align-items: center; height: 40px; padding: 0 4px 0 12px; border-radius: 6px; border: 1px solid var(--color-danger); box-shadow: 0 0 0 3px var(--color-danger-subtle); background: var(--color-bg)"><input type="password" value="placeholder" aria-invalid="true" aria-describedby="pw-err" style="flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: 400 14px/1 var(--font-sans); color: var(--color-text)"><button class="ib" aria-label="비밀번호 표시" style="width: 32px; height: 32px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-tertiary); display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"></path><circle cx="12" cy="12" r="3"></circle></svg></button></span>
+<span id="pw-err" style="font-size: 12px; color: var(--color-danger-text)">서버가 인증을 거부했어요 (AUTHENTICATIONFAILED)</span></label>
+<a href="#app-password" style="font-size: 12px">애플리케이션 비밀번호 만드는 방법 ↗</a>
+</div>
+<div style="display: flex; justify-content: space-between; gap: 8px; padding: 16px 24px; border-top: 1px solid var(--color-border)">
+<button class="sec" style="height: 36px; padding: 0 14px; border: 1px solid var(--color-border-strong); border-radius: 6px; background: var(--color-bg); color: var(--color-text); font-size: 14px; font-weight: 500">이전</button>
+<button style="height: 36px; padding: 0 16px; border: 0; border-radius: 6px; background: var(--color-accent); color: var(--color-on-accent); font-size: 14px; font-weight: 600">다시 시도</button>
+</div>
+</div>
+</figure>
+
+<!-- ③ 표시 이름·색 -->
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 12px">
+<figcaption style="font-size: 12px; font-weight: 600; color: var(--desk-text)">③ 표시 이름 · 계정 색</figcaption>
+<div role="dialog" aria-modal="true" aria-labelledby="t5" style="width: 520px; border-radius: 10px; background: var(--color-bg); box-shadow: var(--shadow-modal); overflow: hidden">
+<div style="display: flex; align-items: center; gap: 12px; padding: 16px 16px 0 24px">
+<span style="font-size: 12px; color: var(--color-text-tertiary)">3 / 4</span>
+<span style="display: flex; gap: 4px"><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-accent)"></span><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-accent)"></span><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-accent)"></span><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-bg-selected)"></span></span>
+<span style="flex: 1"></span>
+<button class="ib" aria-label="닫기" style="width: 32px; height: 32px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+</div>
+<div style="padding: 12px 24px 24px; display: flex; flex-direction: column; gap: 20px">
+<div><h2 id="t5" style="margin: 0 0 4px; font-size: 20px; font-weight: 700; letter-spacing: -0.015em">계정을 알아보기 쉽게</h2><p style="margin: 0; color: var(--color-text-secondary)">junho_p@naver.com 에 연결됐어요.</p></div>
+<label style="display: flex; flex-direction: column; gap: 6px"><span style="font-size: 12px; font-weight: 600; color: var(--color-text-secondary)">표시 이름</span>
+<input value="네이버" style="height: 40px; box-sizing: border-box; padding: 0 12px; border-radius: 6px; border: 1px solid var(--color-border-strong); outline: none; background: var(--color-bg); font: 400 14px/1 var(--font-sans); color: var(--color-text)"></label>
+<fieldset style="margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 10px">
+<legend style="padding: 0; margin-bottom: 10px; font-size: 12px; font-weight: 600; color: var(--color-text-secondary)">계정 색</legend>
+<div style="display: flex; gap: 14px">
+<sc-for list="{{swatches}}" as="s" hint-placeholder-count="8">
+<button aria-label="{{s.label}}" aria-pressed="{{s.pressed}}" style="width: 32px; height: 32px; border: 0; padding: 0; border-radius: 50%; background: {{s.c}}; color: var(--on-account); box-shadow: {{s.ring}}; display: flex; align-items: center; justify-content: center"><sc-if value="{{s.sel}}" hint-placeholder-val="{{false}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></sc-if></button>
+</sc-for>
+</div>
+<span style="font-size: 12px; color: var(--color-text-tertiary)">회색 테두리는 다른 계정이 쓰는 색이에요 (파랑 · 초록) — 겹쳐도 선택할 수 있어요</span>
+</fieldset>
+<div style="display: flex; align-items: center; gap: 16px; padding: 16px; border-radius: 10px; background: var(--color-bg-subtle)">
+<span style="position: relative; width: 40px; height: 40px; flex: none; border-radius: 50%; background: var(--account-3); color: var(--on-account); font: 600 15px/40px var(--font-sans); text-align: center; box-shadow: 0 0 0 2px var(--color-bg-subtle), 0 0 0 4px var(--account-3)">네<span style="position: absolute; right: -4px; bottom: -4px; width: 16px; height: 16px; border-radius: 50%; background: var(--color-bg); color: var(--color-text); font: 800 10px/16px var(--font-sans); box-shadow: 0 0 0 2px var(--color-bg-subtle)">N</span></span>
+<span style="flex: 1; position: relative; padding: 6px 0 6px 12px; line-height: 1.4"><span style="position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px; border-radius: 2px; background: var(--account-3)"></span><span style="display: block; font-weight: 600">북한산 산우회</span><span style="display: block; font-size: 12px; color: var(--color-text-tertiary)">[카페 공지] 10월 정기산행 안내</span></span>
+<span style="font-size: 12px; color: var(--color-text-tertiary)">미리보기</span>
+</div>
+</div>
+<div style="display: flex; justify-content: space-between; gap: 8px; padding: 16px 24px; border-top: 1px solid var(--color-border)">
+<button class="sec" style="height: 36px; padding: 0 14px; border: 1px solid var(--color-border-strong); border-radius: 6px; background: var(--color-bg); color: var(--color-text); font-size: 14px; font-weight: 500">이전</button>
+<button style="height: 36px; padding: 0 16px; border: 0; border-radius: 6px; background: var(--color-accent); color: var(--color-on-accent); font-size: 14px; font-weight: 600">다음</button>
+</div>
+</div>
+</figure>
+
+<!-- ④ 동기화 -->
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 12px">
+<figcaption style="font-size: 12px; font-weight: 600; color: var(--desk-text)">④ 전체 메일 동기화</figcaption>
+<div role="dialog" aria-modal="true" aria-labelledby="t6" style="width: 520px; border-radius: 10px; background: var(--color-bg); box-shadow: var(--shadow-modal); overflow: hidden">
+<div style="display: flex; align-items: center; gap: 12px; padding: 16px 16px 0 24px">
+<span style="font-size: 12px; color: var(--color-text-tertiary)">4 / 4</span>
+<span style="display: flex; gap: 4px"><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-accent)"></span><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-accent)"></span><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-accent)"></span><span style="width: 24px; height: 4px; border-radius: 2px; background: var(--color-accent)"></span></span>
+<span style="flex: 1"></span>
+<button class="ib" aria-label="닫기" style="width: 32px; height: 32px; border: 0; border-radius: 6px; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"></path></svg></button>
+</div>
+<div style="padding: 12px 24px 24px; display: flex; flex-direction: column; gap: 20px">
+<div><h2 id="t6" style="margin: 0 0 4px; font-size: 20px; font-weight: 700; letter-spacing: -0.015em">메일을 가져오고 있어요</h2><p style="margin: 0; color: var(--color-text-secondary)">최근 메일부터 가져오니 바로 읽기 시작해도 돼요.</p></div>
+<div>
+<div style="display: flex; align-items: baseline; gap: 6px; margin-bottom: 10px"><span style="font-size: 28px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums">1,204</span><span style="font-size: 14px; color: var(--color-text-tertiary)">/ 1,880통</span><span style="flex: 1"></span><span style="font-size: 12px; color: var(--color-text-tertiary)">64% · 약 2분 남음</span></div>
+<div role="progressbar" aria-valuenow="64" aria-valuemin="0" aria-valuemax="100" aria-label="전체 동기화 진행률" style="height: 8px; border-radius: 4px; background: var(--color-bg-selected); overflow: hidden"><span style="display: block; width: 64%; height: 8px; border-radius: 4px; background: var(--account-3)"></span></div>
+</div>
+<div style="display: flex; flex-direction: column">
+<sc-for list="{{syncFolders}}" as="f" hint-placeholder-count="4">
+<div style="display: flex; align-items: center; gap: 10px; height: 36px; border-bottom: 1px solid var(--color-border)">
+<span style="width: 16px; display: flex; justify-content: center; color: {{f.iconColor}}"><sc-if value="{{f.running}}" hint-placeholder-val="{{false}}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true" style="animation: mmspin 1s linear infinite"><path d="M21 12a9 9 0 1 1-6.22-8.56"></path></svg></sc-if><sc-if value="{{f.done}}" hint-placeholder-val="{{false}}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></sc-if><sc-if value="{{f.waiting}}" hint-placeholder-val="{{false}}"><span style="width: 6px; height: 6px; border-radius: 50%; background: var(--color-border-strong)"></span></sc-if></span>
+<span style="flex: 1; color: {{f.color}}">{{f.name}}</span>
+<span style="font-size: 12px; color: var(--color-text-tertiary); font-variant-numeric: tabular-nums">{{f.count}}</span>
+</div>
+</sc-for>
+</div>
+<div style="display: flex; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--color-bg-subtle); font-size: 12px; color: var(--color-text-secondary); line-height: 1.6">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; margin-top: 2px; color: var(--color-text-tertiary)"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4M12 8h.01"></path></svg>
+<span>이 창을 닫아도 동기화는 <b style="font-weight: 600; color: var(--color-text)">백그라운드에서 계속돼요.</b> 진행 상황은 타이틀 바의 동기화 아이콘에서 볼 수 있어요.</span>
+</div>
+</div>
+<div style="display: flex; justify-content: flex-end; gap: 8px; padding: 16px 24px; border-top: 1px solid var(--color-border)">
+<button style="height: 36px; padding: 0 16px; border: 0; border-radius: 6px; background: var(--color-accent); color: var(--color-on-accent); font-size: 14px; font-weight: 600">메일함 열기</button>
+</div>
+</div>
+</figure>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":1800,"height":1460}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const names = ['파랑 (개인 Gmail 사용 중)', '초록 (프로젝트 Gmail 사용 중)', '주황', '보라', '분홍', '청록', '황토', '빨강'];
+    const swatches = names.map((label, i) => {
+      const c = 'var(--account-' + (i + 1) + ')';
+      const sel = i === 2;
+      const used = i < 2;
+      return {
+        label, c, sel, pressed: sel ? 'true' : 'false',
+        ring: sel ? '0 0 0 2px var(--color-bg), 0 0 0 4px ' + c : used ? '0 0 0 2px var(--color-bg), 0 0 0 3px var(--color-border-strong)' : 'none'
+      };
+    });
+    const syncFolders = [
+      { name: '받은메일함', count: '1,204 / 1,880', running: true, done: false, waiting: false, iconColor: 'var(--account-3)', color: 'var(--color-text)' },
+      { name: '보낸메일함', count: '412 / 412', running: false, done: true, waiting: false, iconColor: 'var(--color-text-tertiary)', color: 'var(--color-text-secondary)' },
+      { name: '내게쓴메일함', count: '대기 중', running: false, done: false, waiting: true, iconColor: 'var(--color-text-tertiary)', color: 'var(--color-text-secondary)' },
+      { name: '스팸메일함', count: '대기 중', running: false, done: false, waiting: true, iconColor: 'var(--color-text-tertiary)', color: 'var(--color-text-secondary)' }
+    ];
+    return { themeClass: dark ? 'dark' : '', swatches, syncFolders };
+  }
+}
+</script>
+</body>
+</html>

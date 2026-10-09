@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>MyMail — 컴포넌트 상태 시트</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:"Pretendard";src:url(/_blob/90b6419f48d00e757ad3a12ef030097e) format("woff2");font-weight:45 920;font-style:normal;font-display:swap}
+body{margin:0}
+.mm{
+--font-sans:"Pretendard",-apple-system,"Segoe UI","Malgun Gothic",sans-serif;
+--color-bg:#FFFFFF;--color-bg-subtle:#F7F7F8;--color-bg-hover:#EFEFF1;--color-bg-selected:#E8E8ED;
+--color-border:#E7E7EA;--color-border-strong:#D4D4D8;
+--color-text:#18181B;--color-text-secondary:#52525B;--color-text-tertiary:#6B6B74;
+--color-accent:#4F46E5;--color-accent-hover:#4338CA;--color-accent-text:#4F46E5;--color-accent-subtle:#EEEEFD;--color-on-accent:#FFFFFF;
+--color-danger:#DC2626;--color-danger-text:#B91C1C;--color-danger-subtle:#FEF0F0;--color-on-danger:#FFFFFF;
+--color-overlay:#18181B;--color-on-overlay:#FFFFFF;
+--focus-ring:0 0 0 1px var(--color-accent),0 0 0 4px var(--color-accent-subtle);
+--account-1:#2563EB;--on-account:#FFFFFF;
+}
+.mm.dark{
+--color-bg:#131316;--color-bg-subtle:#18181C;--color-bg-hover:#222227;--color-bg-selected:#2A2A31;
+--color-border:#26262C;--color-border-strong:#34343C;
+--color-text:#EDEDEF;--color-text-secondary:#A1A1AA;--color-text-tertiary:#8B8B94;
+--color-accent:#5E5CE6;--color-accent-hover:#6E6CF0;--color-accent-text:#A5A8FA;--color-accent-subtle:#23234A;--color-on-accent:#FFFFFF;
+--color-danger:#F87171;--color-danger-text:#FCA5A5;--color-danger-subtle:#3A1C1E;--color-on-danger:#131316;
+--color-overlay:#EDEDEF;--color-on-overlay:#131316;
+--account-1:#60A5FA;--on-account:#131316;
+}
+.mm button{font-family:inherit}
+.mm .c{display:flex;align-items:center;justify-content:center;padding:20px 12px;border-bottom:1px solid var(--color-border);min-height:72px}
+.mm .cs{background:var(--color-bg-subtle)}
+.mm .lab{display:flex;flex-direction:column;justify-content:center;padding:20px 16px 20px 0;border-bottom:1px solid var(--color-border)}
+.mm .lab b{font-size:14px;font-weight:600}
+.mm .lab span{font-size:12px;color:var(--color-text-tertiary)}
+.mm .av{position:relative;width:40px;height:40px;border-radius:50%;background:var(--account-1);color:var(--on-account);font:600 15px/40px var(--font-sans);text-align:center;box-shadow:0 0 0 2px var(--color-bg-subtle),0 0 0 4px var(--account-1)}
+.mm .fi{width:180px;height:32px;display:flex;align-items:center;gap:10px;padding:0 8px;box-sizing:border-box;border-radius:6px;color:var(--color-text-secondary);font-size:14px}
+.mm .row{width:220px;box-sizing:border-box;padding:10px 12px 10px 8px;border-radius:6px;display:flex;gap:6px;font-size:14px}
+.mm .row .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mm .bp{height:36px;padding:0 16px;border:0;border-radius:6px;background:var(--color-accent);color:var(--color-on-accent);font-size:14px;font-weight:600}
+.mm .bs{height:36px;padding:0 14px;border:1px solid var(--color-border-strong);border-radius:6px;background:var(--color-bg);color:var(--color-text);font-size:14px;font-weight:500}
+.mm .bi{width:32px;height:32px;border:0;border-radius:6px;background:transparent;color:var(--color-text-secondary);display:flex;align-items:center;justify-content:center}
+.mm .in{width:180px;height:36px;box-sizing:border-box;padding:0 12px;border-radius:6px;border:1px solid var(--color-border-strong);background:var(--color-bg);font:400 14px/1 var(--font-sans);color:var(--color-text);outline:none}
+.mm .chip{height:24px;display:inline-flex;align-items:center;gap:6px;padding:0 8px 0 3px;border-radius:999px;background:var(--color-bg-hover);font-size:12px;color:var(--color-text)}
+.mm .chip i{width:18px;height:18px;border-radius:50%;background:var(--color-bg-selected);color:var(--color-text-secondary);font:normal 600 10px/18px var(--font-sans);text-align:center}
+</style>
+</helmet>
+<div class="mm {{themeClass}}" style="width: 1440px; height: 1320px; box-sizing: border-box; padding: 40px 48px; background: var(--color-bg); color: var(--color-text); font-family: var(--font-sans); font-size: 14px; line-height: 1.5; letter-spacing: -0.005em">
+<h1 style="margin: 0 0 4px; font-size: 20px; font-weight: 700; letter-spacing: -0.015em">컴포넌트 상태 시트</h1>
+<p style="margin: 0 0 24px; color: var(--color-text-secondary)">호버 배경은 --color-bg-hover, 선택은 --color-bg-selected + 굵기 600, 비활성은 불투명도 40%, 오류는 --color-danger 계열만 씁니다. 키보드 포커스는 --focus-ring.</p>
+<div style="display: grid; grid-template-columns: 200px repeat(5, minmax(0, 1fr))">
+<div style="padding: 0 0 10px; border-bottom: 1px solid var(--color-border-strong); font-size: 12px; font-weight: 600; color: var(--color-text-tertiary)">컴포넌트</div>
+<div style="padding: 0 0 10px; border-bottom: 1px solid var(--color-border-strong); font-size: 12px; font-weight: 600; color: var(--color-text-tertiary); text-align: center">기본</div>
+<div style="padding: 0 0 10px; border-bottom: 1px solid var(--color-border-strong); font-size: 12px; font-weight: 600; color: var(--color-text-tertiary); text-align: center">호버</div>
+<div style="padding: 0 0 10px; border-bottom: 1px solid var(--color-border-strong); font-size: 12px; font-weight: 600; color: var(--color-text-tertiary); text-align: center">선택 · 포커스</div>
+<div style="padding: 0 0 10px; border-bottom: 1px solid var(--color-border-strong); font-size: 12px; font-weight: 600; color: var(--color-text-tertiary); text-align: center">비활성</div>
+<div style="padding: 0 0 10px; border-bottom: 1px solid var(--color-border-strong); font-size: 12px; font-weight: 600; color: var(--color-text-tertiary); text-align: center">오류</div>
+
+<!-- 계정 아바타 -->
+<div class="lab"><b>계정 아바타</b><span>40px · 계정색 링 2+2px</span></div>
+<div class="c cs"><span class="av">개<span style="position: absolute; right: -4px; bottom: -4px; width: 16px; height: 16px; border-radius: 50%; background: var(--color-bg); color: var(--color-text); font: 800 10px/16px var(--font-sans); box-shadow: 0 0 0 2px var(--color-bg-subtle)">G</span></span></div>
+<div class="c cs" style="flex-direction: column; gap: 10px"><span class="av" style="box-shadow: 0 0 0 2px var(--color-bg-subtle), 0 0 0 4px var(--account-1), 0 0 0 8px var(--color-bg-selected)">개</span><span style="padding: 3px 8px; border-radius: 6px; background: var(--color-overlay); color: var(--color-on-overlay); font-size: 12px; white-space: nowrap">junho.park@gmail.com</span></div>
+<div class="c cs" style="position: relative"><span style="position: absolute; left: 50%; margin-left: -44px; width: 3px; height: 24px; border-radius: 0 3px 3px 0; background: var(--color-text)"></span><span class="av">개</span></div>
+<div class="c cs"><span class="av" style="opacity: .4; filter: grayscale(1)">개</span></div>
+<div class="c cs"><span class="av" style="filter: saturate(.35); opacity: .75">개</span><span aria-hidden="true" style="position: relative; left: -12px; top: 14px; width: 18px; height: 18px; border-radius: 50%; background: var(--color-danger); color: #FFFFFF; font: 800 12px/18px var(--font-sans); text-align: center; box-shadow: 0 0 0 2px var(--color-bg-subtle)">!</span></div>
+
+<!-- 폴더 항목 -->
+<div class="lab"><b>폴더 항목</b><span>높이 32 · 아이콘 20 · 수 12px</span></div>
+<div class="c cs"><span class="fi"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path></svg><span style="flex: 1">임시보관함</span><span style="font-size: 12px; color: var(--color-text-tertiary)">2</span></span></div>
+<div class="c cs"><span class="fi" style="background: var(--color-bg-hover); color: var(--color-text)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path></svg><span style="flex: 1">임시보관함</span><span style="font-size: 12px; color: var(--color-text-tertiary)">2</span></span></div>
+<div class="c cs"><span class="fi" style="background: var(--color-bg-selected); color: var(--color-text); font-weight: 600"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path></svg><span style="flex: 1">임시보관함</span><span style="font-size: 12px">2</span></span></div>
+<div class="c cs"><span class="fi" style="opacity: .4" title="동기화 안 함"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path></svg><span style="flex: 1">오래된 메일</span><span style="font-size: 12px">동기화 안 함</span></span></div>
+<div class="c cs"><span class="fi" style="color: var(--color-text)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--color-text-secondary)"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path></svg><span style="flex: 1">연말정산</span><svg aria-label="동기화 실패" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-danger-text)"><circle cx="12" cy="12" r="10"></circle><path d="M12 8v4M12 16h.01"></path></svg></span></div>
+
+<!-- 목록 행 -->
+<div class="lab"><b>메일 목록 행</b><span>안 읽음 = 점 + 600 · 호버 시 체크박스·빠른 동작</span></div>
+<div class="c"><div class="row"><span style="width: 14px; flex: none; display: flex; justify-content: center; padding-top: 7px"><span style="width: 6px; height: 6px; border-radius: 50%; background: var(--color-accent)"></span></span><span style="flex: 1; min-width: 0"><span class="t" style="display: block; font-weight: 600">이서연</span><span class="t" style="display: block; font-weight: 600">이번 주 토요일 북한산 갈래?</span><span class="t" style="display: block; font-size: 12px; color: var(--color-text-tertiary)">날씨 괜찮으면 아침 8시에…</span></span></div></div>
+<div class="c"><div class="row" style="background: var(--color-bg-hover)"><span style="width: 14px; flex: none; padding-top: 3px"><input type="checkbox" aria-label="선택" style="width: 14px; height: 14px; margin: 0; accent-color: var(--color-accent)"></span><span style="flex: 1; min-width: 0"><span style="display: flex; align-items: center"><span class="t" style="flex: 1; font-weight: 600">이서연</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="보관" style="color: var(--color-text-secondary); margin-left: 6px"><rect width="20" height="5" x="2" y="3" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="M10 12h4"></path></svg><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="삭제" style="color: var(--color-text-secondary); margin-left: 8px"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg></span><span class="t" style="display: block; font-weight: 600">이번 주 토요일 북한산 갈래?</span><span class="t" style="display: block; font-size: 12px; color: var(--color-text-tertiary)">날씨 괜찮으면 아침 8시에…</span></span></div></div>
+<div class="c"><div class="row" style="background: var(--color-bg-selected)"><span style="width: 14px; flex: none"></span><span style="flex: 1; min-width: 0"><span class="t" style="display: block">김도윤</span><span class="t" style="display: block">10월 가족여행 일정표랑…</span><span class="t" style="display: block; font-size: 12px; color: var(--color-text-tertiary)">준호야, 항공권 예매 끝났어!</span></span></div></div>
+<div class="c"><div class="row" style="opacity: .4"><span style="width: 14px; flex: none"></span><span style="flex: 1; min-width: 0"><span class="t" style="display: block; color: var(--color-text-secondary)">엄마</span><span class="t" style="display: block; color: var(--color-text-secondary)">김치 보냈다</span><span class="t" style="display: block; font-size: 12px">보관함으로 옮기는 중…</span></span></div></div>
+<div class="c"><div class="row"><span style="width: 14px; flex: none"></span><span style="flex: 1; min-width: 0"><span style="display: flex; align-items: center; gap: 6px"><span class="t" style="flex: 1">한빛이사 상담팀</span><span style="height: 20px; display: inline-flex; align-items: center; padding: 0 6px; border-radius: 6px; background: var(--color-danger-subtle); color: var(--color-danger-text); font-size: 12px; font-weight: 600">발송 실패</span></span><span class="t" style="display: block">이사 견적 요청드립니다</span><span class="t" style="display: block; font-size: 12px; color: var(--color-danger-text)">첨부 용량 초과 · 다시 보내기</span></span></div></div>
+
+<!-- 기본 버튼 -->
+<div class="lab"><b>기본 버튼</b><span>강조 면 · 높이 36 · 모서리 6</span></div>
+<div class="c"><button class="bp">보내기</button></div>
+<div class="c"><button class="bp" style="background: var(--color-accent-hover)">보내기</button></div>
+<div class="c"><button class="bp" style="background: var(--color-accent-hover); box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent)">보내기</button></div>
+<div class="c"><button class="bp" disabled style="opacity: .4; cursor: not-allowed">보내기</button></div>
+<div class="c"><button class="bp" style="background: var(--color-danger); color: var(--color-on-danger)">계정 제거</button></div>
+
+<!-- 보조 버튼 -->
+<div class="lab"><b>보조 버튼</b><span>1px 테두리 · 배경 --color-bg</span></div>
+<div class="c"><button class="bs">이전</button></div>
+<div class="c"><button class="bs" style="background: var(--color-bg-hover)">이전</button></div>
+<div class="c"><button class="bs" aria-pressed="true" style="background: var(--color-bg-selected); font-weight: 600; box-shadow: var(--focus-ring); border-color: transparent">이전</button></div>
+<div class="c"><button class="bs" disabled style="opacity: .4; cursor: not-allowed">이전</button></div>
+<div class="c"><button class="bs" style="border-color: var(--color-danger); color: var(--color-danger-text)">다시 시도</button></div>
+
+<!-- 아이콘 버튼 -->
+<div class="lab"><b>아이콘 버튼</b><span>32px · 아이콘 20 · 배경 없음</span></div>
+<div class="c"><button class="bi" aria-label="보관"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="5" x="2" y="3" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="M10 12h4"></path></svg></button></div>
+<div class="c"><button class="bi" aria-label="보관" style="background: var(--color-bg-hover); color: var(--color-text)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="5" x="2" y="3" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="M10 12h4"></path></svg></button></div>
+<div class="c"><button class="bi" aria-label="굵게" aria-pressed="true" style="background: var(--color-bg-selected); color: var(--color-text)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8"></path></svg></button></div>
+<div class="c"><button class="bi" aria-label="보관" disabled style="opacity: .4; cursor: not-allowed"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="5" x="2" y="3" rx="1"></rect><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"></path><path d="M10 12h4"></path></svg></button></div>
+<div class="c"><button class="bi" aria-label="영구 삭제" style="background: var(--color-danger-subtle); color: var(--color-danger-text)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg></button></div>
+
+<!-- 입력창 -->
+<div class="lab"><b>입력창</b><span>높이 36–40 · 1px 테두리</span></div>
+<div class="c"><input class="in" placeholder="표시 이름" aria-label="기본"></div>
+<div class="c"><input class="in" value="개인 Gmail" aria-label="호버" style="border-color: var(--color-text-tertiary)"></div>
+<div class="c"><input class="in" value="개인 Gmail" aria-label="포커스" style="border-color: transparent; box-shadow: var(--focus-ring)"></div>
+<div class="c"><input class="in" value="junho.park@gmail.com" aria-label="비활성" disabled style="background: var(--color-bg-subtle); color: var(--color-text-tertiary); opacity: .7"></div>
+<div class="c" style="flex-direction: column; gap: 4px; align-items: center"><input class="in" value="junho_p" aria-label="오류" aria-invalid="true" style="border-color: var(--color-danger); box-shadow: 0 0 0 3px var(--color-danger-subtle)"><span style="width: 180px; font-size: 12px; color: var(--color-danger-text)">로그인하지 못했어요</span></div>
+
+<!-- 받는사람 칩 -->
+<div class="lab"><b>받는사람 칩</b><span>높이 24 · 완전 둥근 모서리</span></div>
+<div class="c"><span class="chip"><i>서</i>이서연</span></div>
+<div class="c"><span class="chip" style="background: var(--color-bg-selected)"><i>서</i>이서연<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" aria-label="삭제" style="color: var(--color-text-tertiary); margin-left: -2px"><path d="M18 6 6 18M6 6l12 12"></path></svg></span></div>
+<div class="c"><span class="chip" style="background: var(--color-accent); color: var(--color-on-accent)"><i style="background: rgba(255,255,255,.25); color: var(--color-on-accent)">서</i>이서연</span></div>
+<div class="c"><span class="chip" style="opacity: .4"><i>나</i>나 (숨은참조)</span></div>
+<div class="c"><span class="chip" style="background: var(--color-danger-subtle); color: var(--color-danger-text); padding-left: 8px; text-decoration: underline wavy; text-underline-offset: 3px">seoyeon@gmial.con</span></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":1320}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themeClass: (this.props.dark ?? false) ? 'dark' : '' };
+  }
+}
+</script>
+</body>
+</html>

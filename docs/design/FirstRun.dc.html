@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>MyMail — 첫 실행</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@font-face{font-family:"Pretendard";src:url(/_blob/90b6419f48d00e757ad3a12ef030097e) format("woff2");font-weight:45 920;font-style:normal;font-display:swap}
+body{margin:0}
+.mm{
+--font-sans:"Pretendard",-apple-system,"Segoe UI","Malgun Gothic",sans-serif;
+--color-bg:#FFFFFF;--color-bg-subtle:#F7F7F8;--color-bg-hover:#EFEFF1;--color-bg-selected:#E8E8ED;
+--color-border:#E7E7EA;--color-border-strong:#D4D4D8;
+--color-text:#18181B;--color-text-secondary:#52525B;--color-text-tertiary:#6B6B74;
+--color-accent:#4F46E5;--color-accent-text:#4F46E5;--color-accent-subtle:#EEEEFD;--color-on-accent:#FFFFFF;
+}
+.mm.dark{
+--color-bg:#131316;--color-bg-subtle:#18181C;--color-bg-hover:#222227;--color-bg-selected:#2A2A31;
+--color-border:#26262C;--color-border-strong:#34343C;
+--color-text:#EDEDEF;--color-text-secondary:#A1A1AA;--color-text-tertiary:#8B8B94;
+--color-accent:#5E5CE6;--color-accent-text:#A5A8FA;--color-accent-subtle:#23234A;--color-on-accent:#FFFFFF;
+}
+.mm button{font-family:inherit;cursor:pointer}
+.mm .ib:hover{background:var(--color-bg-hover)}
+.mm .opt:hover{border-color:var(--color-border-strong);background:var(--color-bg-subtle)}
+</style>
+</helmet>
+<div class="mm {{themeClass}}" style="width: 1440px; height: 900px; display: flex; flex-direction: column; overflow: hidden; background: var(--color-bg); color: var(--color-text); font-family: var(--font-sans); font-size: 14px; line-height: 1.5">
+<header style="height: 40px; flex: none; display: flex; align-items: center; background: var(--color-bg-subtle); border-bottom: 1px solid var(--color-border)">
+<div style="flex: 1; display: flex; align-items: center; gap: 8px; padding-left: 20px">
+<span style="width: 22px; height: 22px; border-radius: 6px; background: var(--color-accent); color: var(--color-on-accent); display: flex; align-items: center; justify-content: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9 6 9-6"></path><path d="M3 7v10h18V7"></path></svg></span>
+<span style="font-size: 14px; font-weight: 700">MyMail</span>
+</div>
+<button class="ib" aria-label="최소화" style="width: 46px; height: 40px; border: 0; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" aria-hidden="true"><path d="M6 12h12"></path></svg></button>
+<button class="ib" aria-label="최대화" style="width: 46px; height: 40px; border: 0; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1"></rect></svg></button>
+<button class="ib" aria-label="닫기" style="width: 46px; height: 40px; border: 0; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17"></path></svg></button>
+</header>
+<div style="flex: 1; min-height: 0; display: flex">
+<nav aria-label="계정" style="width: 64px; flex: none; display: flex; flex-direction: column; align-items: center; padding: 16px 0 12px; gap: 8px; background: var(--color-bg-subtle); border-right: 1px solid var(--color-border)">
+<button aria-label="계정 추가" style="width: 40px; height: 40px; border-radius: 50%; border: 1.5px solid var(--color-accent); background: var(--color-accent-subtle); color: var(--color-accent-text); display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg></button>
+<div style="flex: 1"></div>
+<button class="ib" aria-label="설정" style="width: 40px; height: 40px; border-radius: 10px; border: 0; background: transparent; color: var(--color-text-secondary); display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
+</nav>
+<main style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px">
+<div style="width: 440px; display: flex; flex-direction: column; align-items: center; text-align: center">
+<span style="width: 56px; height: 56px; border-radius: 10px; background: var(--color-accent); color: var(--color-on-accent); display: flex; align-items: center; justify-content: center; margin-bottom: 24px"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9 6 9-6"></path><path d="M3 7v10h18V7"></path></svg></span>
+<h1 style="margin: 0 0 8px; font-size: 24px; font-weight: 700; letter-spacing: -0.02em">MyMail에 오신 것을 환영해요</h1>
+<p style="margin: 0 0 32px; font-size: 14px; color: var(--color-text-secondary); line-height: 1.6">Gmail과 네이버 메일 계정을 추가하면<br>한 곳에서 모아 보고 바로 답장할 수 있어요.</p>
+<div style="width: 100%; display: flex; flex-direction: column; gap: 8px">
+<button class="opt" style="display: flex; align-items: center; gap: 14px; height: 64px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); text-align: left">
+<span style="width: 36px; height: 36px; flex: none; border-radius: 50%; background: var(--color-bg-hover); font: 800 15px/36px var(--font-sans); text-align: center">G</span>
+<span style="flex: 1; line-height: 1.35"><span style="display: block; font-size: 14px; font-weight: 600">Google 계정 추가</span><span style="display: block; font-size: 12px; color: var(--color-text-tertiary)">Gmail · 브라우저에서 로그인</span></span>
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--color-text-tertiary)"><path d="m9 18 6-6-6-6"></path></svg>
+</button>
+<button class="opt" style="display: flex; align-items: center; gap: 14px; height: 64px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); text-align: left">
+<span style="width: 36px; height: 36px; flex: none; border-radius: 50%; background: var(--color-bg-hover); font: 800 15px/36px var(--font-sans); text-align: center">N</span>
+<span style="flex: 1; line-height: 1.35"><span style="display: block; font-size: 14px; font-weight: 600">네이버 메일 추가</span><span style="display: block; font-size: 12px; color: var(--color-text-tertiary)">IMAP · 아이디와 비밀번호로 연결</span></span>
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: var(--color-text-tertiary)"><path d="m9 18 6-6-6-6"></path></svg>
+</button>
+</div>
+<p style="margin: 24px 0 0; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--color-text-tertiary)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>메일과 로그인 정보는 이 PC에만 저장돼요</p>
+</div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { themeClass: (this.props.dark ?? false) ? 'dark' : '' };
+  }
+}
+</script>
+</body>
+</html>
