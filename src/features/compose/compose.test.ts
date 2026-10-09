@@ -62,15 +62,30 @@ describe("서명", () => {
 });
 
 describe("답장·전달", () => {
-  it("답장: 보낸 사람에게, 제목은 Re: 한 번만, 원문은 > 로 인용한다", () => {
+  it("답장: 보낸 사람에게, 제목은 Re: 한 번만, 작성칸에는 서명만 있고 > 가 없다", () => {
     const d = startDraft({ mode: "reply", account, mail });
     expect(d.to).toEqual(["김도윤 <doyun@gmail.com>"]);
     expect(d.subject).toBe("Re: 제주 여행");
-    expect(d.body).toBe(
-      "\n\n-- \n박준호 드림\n\n어제 오전 9:12에 김도윤 <doyun@gmail.com>님이 작성:\n" +
-        "> 준호야,\n> 항공권 끝!\n>\n> 렌터카도 부탁해",
-    );
+    expect(d.body).toBe("\n\n-- \n박준호 드림");
+    expect(d.body).not.toContain(">\n");
     expect(d.accountId).toBe("a1");
+  });
+
+  it("답장·전체 답장: 인용 원문은 > 없이 따로 두고, 머리말은 한국어 한 줄이다", () => {
+    const at = new Date(2026, 9, 9, 15, 20).getTime() / 1000;
+    for (const mode of ["reply", "replyAll"] as const) {
+      const d = startDraft({ mode, account, mail: { ...mail, receivedAt: at } });
+      expect(d.body).not.toContain(">");
+      expect(d.quoteHeader).toBe("2026년 10월 9일 오후 3:20, 김도윤 <doyun@gmail.com>님이 작성:");
+      expect(d.quoteText).toBe("준호야,\n항공권 끝!\n\n렌터카도 부탁해");
+    }
+  });
+
+  it("답장 인용에 이미 있던 > 가 쌓이지 않게 깊은 단계는 접는다", () => {
+    const deep = "맨 위\n> 1단계\n> > 2단계\n> > > 3단계\n> > > > 4단계\n>>>>> 5단계\n끝";
+    const d = startDraft({ mode: "reply", account, mail: { ...mail, body: [deep] } });
+    // 발송 때 한 단계가 더 붙으므로 원문 인용은 2단계까지 남긴다
+    expect(d.quoteText).toBe("맨 위\n> 1단계\n> > 2단계\n> > ⋯\n끝");
   });
 
   it("전체 답장: 내 주소와 보낸 사람 중복을 뺀 나머지 받는사람이 따라온다", () => {
@@ -94,6 +109,16 @@ describe("답장·전달", () => {
     expect(d.body).toContain("---------- 전달된 메일 ----------");
     expect(d.body).toContain("보낸사람: 김도윤 <doyun@gmail.com>");
     expect(d.body).toContain("준호야,\n항공권 끝!\n\n렌터카도 부탁해");
+    expect(d.body).toContain("받는사람: me@gmail.com");
+    expect(d.body).not.toMatch(/^> /m);
+    expect(d.quoteText).toBe("");
+  });
+
+  it("전달: 원문에 있던 인용 줄은 그대로 두고, 3단계를 넘는 것만 접는다", () => {
+    const text = "답변\n> 1\n> > 2\n> > > 3\n> > > > 4\n> > > > > 5\n끝";
+    const d = startDraft({ mode: "forward", account, mail: { ...mail, body: [text] } });
+    expect(d.body).toContain("답변\n> 1\n> > 2\n> > > 3\n> > > ⋯\n끝");
+    expect(d.body).not.toContain("4");
   });
 });
 

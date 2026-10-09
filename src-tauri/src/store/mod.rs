@@ -35,6 +35,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/0003_dedupe_key.sql"),
     include_str!("migrations/0004_sync.sql"),
     include_str!("migrations/0005_compose.sql"),
+    include_str!("migrations/0006_compose_quote.sql"),
 ];
 
 const PREVIEW_CHARS: usize = 80;
