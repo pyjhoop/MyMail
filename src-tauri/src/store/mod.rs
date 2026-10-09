@@ -5,6 +5,8 @@ mod models;
 use std::path::Path;
 use std::sync::{Mutex, MutexGuard};
 
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine;
 use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::providers::{RemoteFolder, RemoteMessage};
@@ -21,7 +23,10 @@ pub enum StoreError {
 }
 
 /// 순서대로 적용한다. 스키마 변경은 여기에 파일을 추가하는 방식으로만 한다.
-const MIGRATIONS: &[&str] = &[include_str!("migrations/0001_init.sql")];
+const MIGRATIONS: &[&str] = &[
+    include_str!("migrations/0001_init.sql"),
+    include_str!("migrations/0002_html_body.sql"),
+];
 
 const PREVIEW_CHARS: usize = 80;
 
@@ -140,10 +145,17 @@ impl Store {
             let mut insert = tx.prepare_cached(
                 "INSERT INTO messages (id, account_id, folder_id, thread_id, sender, sender_email,
                      recipients, subject, preview, body, received_at, unread, starred,
-                     has_attachment, label_name, label_color)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
+                     has_attachment, label_name, label_color, html)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
                  ON CONFLICT(id) DO UPDATE SET unread = ?12, starred = ?13,
-                     label_name = ?15, label_color = ?16",
+                     label_name = ?15, label_color = ?16,
+                     preview = ?9, body = ?10, html = ?17, has_attachment = ?14",
+            )?;
+            let mut delete_inline =
+                tx.prepare_cached("DELETE FROM inline_images WHERE message_id = ?1")?;
+            let mut insert_inline = tx.prepare_cached(
+                "INSERT OR REPLACE INTO inline_images (message_id, content_id, mime, data)
+                 VALUES (?1, ?2, ?3, ?4)",
             )?;
             let mut delete_attachments =
                 tx.prepare_cached("DELETE FROM attachments WHERE message_id = ?1")?;
@@ -169,7 +181,12 @@ impl Store {
                     !m.attachments.is_empty(),
                     m.label.as_ref().map(|l| l.0.as_str()),
                     m.label.as_ref().map(|l| l.1),
+                    m.html,
                 ])?;
+                delete_inline.execute([&id])?;
+                for img in &m.inline_images {
+                    insert_inline.execute(params![id, img.content_id, img.mime, img.data])?;
+                }
                 delete_attachments.execute([&id])?;
                 for a in &m.attachments {
                     insert_attachment.execute(params![
@@ -262,14 +279,35 @@ impl Store {
                         m.label_name, m.label_color,
                         CASE WHEN m.thread_id IS NULL THEN 0
                              ELSE (SELECT COUNT(*) FROM messages t WHERE t.thread_id = m.thread_id) END,
-                        m.recipients, m.body, m.thread_id
+                        m.recipients, m.body, m.thread_id, m.html
                  FROM messages m WHERE m.id = ?1",
                 [id],
-                |r| Ok((summary_from_row(r)?, r.get::<_, String>(14)?, r.get::<_, String>(15)?, r.get::<_, Option<String>>(16)?)),
+                |r| {
+                    Ok((
+                        summary_from_row(r)?,
+                        r.get::<_, String>(14)?,
+                        r.get::<_, String>(15)?,
+                        r.get::<_, Option<String>>(16)?,
+                        r.get::<_, Option<String>>(17)?,
+                    ))
+                },
             )
             .optional()?;
-        let Some((summary, to, body, thread_id)) = head else {
+        let Some((summary, to, body, thread_id, html)) = head else {
             return Ok(None);
+        };
+
+        let html = match html {
+            Some(html) => {
+                let images: Vec<(String, String, Vec<u8>)> = conn
+                    .prepare(
+                        "SELECT content_id, mime, data FROM inline_images WHERE message_id = ?1",
+                    )?
+                    .query_map([id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+                    .collect::<Result<_, _>>()?;
+                Some(inline_cid_images(html, &images))
+            }
+            None => None,
         };
 
         let attachments = conn
@@ -307,6 +345,7 @@ impl Store {
             summary,
             to,
             body: body.split("\n\n").map(str::to_owned).collect(),
+            html,
             attachments,
             earlier,
         }))
@@ -373,6 +412,27 @@ fn summary_from_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<MailSummary> {
             .zip(label_color)
             .map(|(name, color_index)| LabelTag { name, color_index }),
     })
+}
+
+/// HTML의 `cid:` 참조를 저장해 둔 인라인 이미지의 `data:` URI로 바꾼다(대소문자 무시).
+/// 저장되지 않은 `cid:`는 그대로 두며, UI의 정제·CSP 단계에서 어차피 로드되지 않는다.
+fn inline_cid_images(mut html: String, images: &[(String, String, Vec<u8>)]) -> String {
+    for (content_id, mime, data) in images {
+        let needle = format!("cid:{}", content_id.to_ascii_lowercase());
+        let uri = format!("data:{mime};base64,{}", BASE64.encode(data));
+        // ASCII 소문자화는 바이트 위치를 바꾸지 않으므로 같은 인덱스로 원문을 자를 수 있다.
+        let lower = html.to_ascii_lowercase();
+        let mut out = String::with_capacity(html.len());
+        let mut last = 0;
+        for (at, _) in lower.match_indices(&needle) {
+            out.push_str(&html[last..at]);
+            out.push_str(&uri);
+            last = at + needle.len();
+        }
+        out.push_str(&html[last..]);
+        html = out;
+    }
+    html
 }
 
 fn make_preview(body: &str) -> String {

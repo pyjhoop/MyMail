@@ -28,8 +28,9 @@ async-trait = "0.1.92"
 tokio = { version = "1.53.2", features = ["rt", "rt-multi-thread", "macros"] }
 imap = "2.4.1"
 native-tls = "0.2.18"
-mail-parser = "0.11.9"
+mail-parser = { version = "0.11.9", features = ["full_encoding"] }
 keyring = "4.2.0"
+base64 = "0.22"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

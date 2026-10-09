@@ -64,6 +64,15 @@ pub struct RemoteAttachment {
     pub size: u64,
 }
 
+/// HTML 본문이 `cid:`로 가리키는 인라인 이미지. 첨부 목록에는 올리지 않는다.
+#[derive(Debug, Clone)]
+pub struct RemoteInlineImage {
+    /// 꺾쇠를 뗀 Content-ID
+    pub content_id: String,
+    pub mime: String,
+    pub data: Vec<u8>,
+}
+
 #[derive(Debug, Clone)]
 pub struct RemoteMessage {
     /// 폴더 안에서 유일한 서버 식별자 (IMAP UID 등)
@@ -73,13 +82,17 @@ pub struct RemoteMessage {
     pub sender_email: String,
     pub recipients: String,
     pub subject: String,
+    /// 미리보기·검색용 텍스트. HTML만 있는 메일은 태그·주석·스타일을 걷어낸 결과다.
     pub body: String,
+    /// 정제 전 원문 HTML. 표시할 때 UI가 DOMPurify로 정제한다.
+    pub html: Option<String>,
     /// 유닉스 시간(초)
     pub received_at: i64,
     pub unread: bool,
     pub starred: bool,
     pub label: Option<(String, u8)>,
     pub attachments: Vec<RemoteAttachment>,
+    pub inline_images: Vec<RemoteInlineImage>,
 }
 
 #[async_trait]

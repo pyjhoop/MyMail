@@ -86,6 +86,8 @@ pub struct MailDetail {
     pub to: String,
     /// 문단 배열
     pub body: Vec<String>,
+    /// 정제 전 원문 HTML(`cid:` 이미지는 `data:` URI로 바꿈). 없으면 텍스트 메일이다.
+    pub html: Option<String>,
     pub attachments: Vec<Attachment>,
     pub earlier: Vec<EarlierMail>,
 }

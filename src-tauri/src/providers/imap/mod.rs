@@ -1,5 +1,6 @@
 //! IMAP 공통 구현. 서비스별 차이는 `ImapConfig` 값으로만 주입한다.
 
+mod html_text;
 mod parse;
 pub mod utf7;
 

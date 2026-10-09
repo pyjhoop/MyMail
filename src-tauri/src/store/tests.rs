@@ -106,3 +106,88 @@ async fn 다시_저장해도_중복되지_않는다() {
         .unwrap();
     assert_eq!(store.list_mails(Some("a1"), "a1-inbox").unwrap().len(), 20);
 }
+
+fn html_message(body: &str, html: Option<&str>) -> crate::providers::RemoteMessage {
+    use crate::providers::{RemoteInlineImage, RemoteMessage};
+    RemoteMessage {
+        remote_id: "9".into(),
+        thread_id: None,
+        sender: "뉴스레터".into(),
+        sender_email: "news@example.com".into(),
+        recipients: "me@naver.com".into(),
+        subject: "소식".into(),
+        body: body.into(),
+        html: html.map(String::from),
+        received_at: 1_760_000_000,
+        unread: true,
+        starred: false,
+        label: None,
+        attachments: Vec::new(),
+        inline_images: vec![RemoteInlineImage {
+            content_id: "Logo@Mail".into(),
+            mime: "image/png".into(),
+            data: b"Hello".to_vec(),
+        }],
+    }
+}
+
+#[tokio::test]
+async fn html_본문을_텍스트와_별도로_보관하고_cid를_data_uri로_바꾼다() {
+    let store = seeded().await;
+    let html =
+        r#"<p>로고</p><img src="cid:logo@mail"><IMG SRC='CID:LOGO@MAIL'><img src="cid:없음">"#;
+    store
+        .save_messages("a1", "inbox", &[html_message("로고", Some(html))])
+        .unwrap();
+
+    let detail = store.get_mail("a1-inbox-9").unwrap().unwrap();
+    assert_eq!(detail.body, vec!["로고"]);
+    let out = detail.html.unwrap();
+    // "Hello"의 base64
+    assert_eq!(out.matches("data:image/png;base64,SGVsbG8=").count(), 2);
+    assert!(out.contains("cid:없음"));
+    assert!(out.contains("<IMG SRC="), "원문 구조는 건드리지 않는다");
+
+    // 텍스트 메일은 html이 없다
+    assert!(store
+        .get_mail("a1-inbox-0")
+        .unwrap()
+        .unwrap()
+        .html
+        .is_none());
+}
+
+#[tokio::test]
+async fn 다시_동기화하면_본문과_html을_서버_값으로_갱신한다() {
+    let store = seeded().await;
+    store
+        .save_messages(
+            "a1",
+            "inbox",
+            &[html_message("<!--[if mso]> 깨진 본문", None)],
+        )
+        .unwrap();
+    store
+        .save_messages(
+            "a1",
+            "inbox",
+            &[html_message("깨끗한 본문", Some("<p>HTML</p>"))],
+        )
+        .unwrap();
+
+    let detail = store.get_mail("a1-inbox-9").unwrap().unwrap();
+    assert_eq!(detail.body, vec!["깨끗한 본문"]);
+    assert_eq!(detail.html.as_deref(), Some("<p>HTML</p>"));
+    let preview: String = store
+        .lock()
+        .unwrap()
+        .query_row(
+            "SELECT preview FROM messages WHERE id = 'a1-inbox-9'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(preview, "깨끗한 본문");
+    assert_eq!(store.search_mails("a1", "깨끗한").unwrap().len(), 1);
+    assert!(store.search_mails("a1", "깨진").unwrap().is_empty());
+}

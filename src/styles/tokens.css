@@ -13,6 +13,11 @@
   --line-height-ui: 1.5;
   --line-height-reading: 1.7;
 
+  /* HTML 메일 본문 영역. 메일이 색을 직접 지정하므로 다크 모드에서도 밝은 바탕을 유지한다. */
+  --mail-paper-bg: #ffffff;
+  --mail-paper-text: #18181b;
+  --mail-paper-link: #4338ca;
+
   --color-bg: #ffffff;
   --color-bg-subtle: #f7f7f8;
   --color-bg-hover: #efeff1;
@@ -81,6 +86,7 @@
   --list-width-max: 520px;
   --reader-min-width: 480px;
   --reader-text-max-width: 680px;
+  --reader-html-max-width: 1000px;
   --resize-hit-area: 8px;
   --resize-line-hover: 2px;
   --toolbar-height: 48px;

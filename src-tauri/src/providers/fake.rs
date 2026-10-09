@@ -83,6 +83,8 @@ impl FakeProvider {
             recipients: "나".into(),
             subject: SUBJECTS[k].into(),
             body: body.into(),
+            html: None,
+            inline_images: Vec::new(),
             // 최근 두 건은 몇 시간 간격, 이후로는 하루 단위로 멀어진다.
             received_at: self.now - (i as i64) * 3 * 3600,
             unread: i.is_multiple_of(4),

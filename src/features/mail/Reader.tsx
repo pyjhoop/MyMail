@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { NoMailSelected, ReaderSkeleton } from "../../components/StateView";
 import type { MailDetail } from "../../lib/ipc";
+import { HtmlBody } from "./HtmlBody";
 import styles from "./Reader.module.css";
 
 interface Props {
@@ -72,7 +73,7 @@ export function Reader({ mail, loading, position, onPrev, onNext }: Props) {
       {!loading && !mail && <NoMailSelected />}
       {!loading && mail && (
         <div className={styles.scroll}>
-          <article className={styles.article}>
+          <article className={`${styles.article} ${mail.html ? styles.wide : ""}`}>
             <div className={styles.titleRow}>
               <h1>{mail.subject}</h1>
               {mail.label && (
@@ -109,11 +110,15 @@ export function Reader({ mail, loading, position, onPrev, onNext }: Props) {
               </div>
             </div>
 
-            <div className={styles.content}>
-              {mail.body.map((p) => (
-                <p key={p}>{p}</p>
-              ))}
-            </div>
+            {mail.html ? (
+              <HtmlBody key={mail.id} html={mail.html} />
+            ) : (
+              <div className={styles.content}>
+                {mail.body.map((p) => (
+                  <p key={p}>{p}</p>
+                ))}
+              </div>
+            )}
 
             {mail.attachments.length > 0 && (
               <div className={styles.attachments}>

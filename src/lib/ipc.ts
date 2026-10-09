@@ -1,6 +1,8 @@
 // 백엔드 호출 경계. 컴포넌트는 invoke를 직접 부르지 않고 이 파일의 함수만 쓴다.
 import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { formatFullTime, formatListTime, formatSize } from "./format";
+import { isOpenableLink } from "./mailHtml";
 
 export type Provider = "gmail" | "naver";
 
@@ -58,8 +60,10 @@ export interface MailAttachment {
 
 export interface MailDetail extends MailSummary {
   to: string;
-  /** 문단 배열 (M1은 일반 텍스트, HTML 렌더링은 이후 단계) */
+  /** 텍스트 본문 문단 배열. HTML이 없는 메일은 이것을 그대로 보여준다. */
   body: string[];
+  /** 정제 전 원문 HTML (`cid:` 이미지는 data URI로 바뀐 상태). 표시 전에 반드시 정제한다. */
+  html?: string;
   attachments: MailAttachment[];
   /** 본문 위에 접어 두는 이전 메일 */
   earlier: { sender: string; initial: string; preview: string; date: string }[];
@@ -74,6 +78,7 @@ export type RawMailSummary = Omit<MailSummary, "time"> & { receivedAt: number };
 export interface RawMailDetail extends RawMailSummary {
   to: string;
   body: string[];
+  html?: string | null;
   attachments: { name: string; size: number; ext: string }[];
   earlier: { sender: string; initial: string; preview: string; receivedAt: number }[];
 }
@@ -137,6 +142,7 @@ export async function getMail(id: string): Promise<MailDetail | null> {
     ...toSummary(raw),
     to: raw.to,
     body: raw.body,
+    html: raw.html ?? undefined,
     fullTime: formatFullTime(raw.receivedAt),
     attachments: raw.attachments.map((a) => ({ ...a, size: formatSize(a.size) })),
     earlier: raw.earlier.map((e) => ({
@@ -146,4 +152,10 @@ export async function getMail(id: string): Promise<MailDetail | null> {
       date: formatListTime(e.receivedAt),
     })),
   };
+}
+
+/** 링크를 기본 브라우저(메일 주소는 기본 메일 앱)로 연다. 앱 창 안에서는 이동하지 않는다. */
+export async function openExternal(url: string): Promise<void> {
+  if (!isOpenableLink(url)) return;
+  await openUrl(url.trim());
 }

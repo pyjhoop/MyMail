@@ -64,6 +64,10 @@
   margin: 0 auto;
 }
 
+.wide {
+  max-width: var(--reader-html-max-width);
+}
+
 .titleRow {
   display: flex;
   align-items: flex-start;
