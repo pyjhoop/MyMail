@@ -1,4 +1,5 @@
 // 작성기의 순수 로직: 새 메일·답장·전달 초안 만들기, 서명 넣기·바꾸기, 주소 다루기.
+import { formatQuoteTime } from "../../lib/format";
 import {
   formatRecipient,
   newDraftId,
@@ -41,13 +42,43 @@ function withPrefix(subject: string, prefix: string, existing: RegExp): string {
   return `${prefix}: ${subject.replace(existing, "")}`;
 }
 
-/** 답장·전달에 인용하는 원문. 줄마다 `> `를 붙인다. */
-function quoted(mail: MailDetail): string {
-  return mail.body
-    .join("\n\n")
-    .split("\n")
-    .map((line) => (line ? `> ${line}` : ">"))
-    .join("\n");
+/** 전달 본문에 남겨 두는 원문 인용의 최대 단계. 이보다 깊은 인용은 "⋯" 한 줄로 접는다. */
+export const MAX_QUOTE_DEPTH = 3;
+
+/** 줄 맨 앞의 `>` 개수(인용 단계). 사이의 공백은 무시한다. */
+function quoteDepth(line: string): number {
+  const lead = /^(?:[ \t]*>)+/.exec(line)?.[0] ?? "";
+  return lead.split(">").length - 1;
+}
+
+/**
+ * 원문에 이미 들어 있는 `>` 인용 중 maxDepth단계를 넘는 줄을 접는다.
+ * 이어지는 깊은 줄은 maxDepth단계의 "⋯" 한 줄로 바뀌어, `> > > >`가 끝없이 쌓이지 않는다.
+ */
+export function foldDeepQuotes(text: string, maxDepth: number = MAX_QUOTE_DEPTH): string {
+  const out: string[] = [];
+  let folding = false;
+  for (const line of text.split("\n")) {
+    if (quoteDepth(line) > maxDepth) {
+      if (!folding) out.push(`${"> ".repeat(maxDepth)}⋯`);
+      folding = true;
+    } else {
+      folding = false;
+      out.push(line);
+    }
+  }
+  return out.join("\n");
+}
+
+/** 원문 본문 전체(문단은 빈 줄로 잇는다) */
+function plainBody(mail: MailDetail): string {
+  return mail.body.join("\n\n");
+}
+
+/** 답장 인용 머리말: "2026년 10월 9일 오후 3:20, 홍길동 <a@b.com>님이 작성:" */
+function quoteHeaderOf(mail: MailDetail): string {
+  const when = mail.receivedAt != null ? formatQuoteTime(mail.receivedAt) : mail.fullTime;
+  return `${when}, ${senderOf(mail)}님이 작성:`;
 }
 
 /** 보낸 사람을 `이름 <주소>`로. 이름이 주소와 같으면 주소만 쓴다. */
@@ -82,7 +113,15 @@ export interface ComposeStart {
 
 /** 작성기를 열 때의 초기 내용. 아직 저장하지 않은 상태다. */
 export function startDraft({ mode, account, mail }: ComposeStart): DraftFields {
-  const base = { id: newDraftId(), accountId: account.id, to: [], cc: [], bcc: [] };
+  const base = {
+    id: newDraftId(),
+    accountId: account.id,
+    to: [],
+    cc: [],
+    bcc: [],
+    quoteHeader: "",
+    quoteText: "",
+  };
   const sig = signatureBlock(account.signature);
   const signed = sig ? `\n\n${sig}` : "";
 
@@ -90,7 +129,6 @@ export function startDraft({ mode, account, mail }: ComposeStart): DraftFields {
     return { ...base, subject: "", body: signed };
   }
 
-  const header = `${mail.fullTime}에 ${senderOf(mail)}님이 작성:`;
   if (mode === "forward") {
     const info = [
       "---------- 전달된 메일 ----------",
@@ -102,7 +140,8 @@ export function startDraft({ mode, account, mail }: ComposeStart): DraftFields {
     return {
       ...base,
       subject: withPrefix(mail.subject, "Fwd", FORWARD_PREFIX),
-      body: `${signed}\n\n${info}\n\n${mail.body.join("\n\n")}`,
+      // 전달은 `>` 없이 원문을 그대로 싣는다. 원문 속 깊은 인용만 접는다.
+      body: `${signed}\n\n${info}\n\n${foldDeepQuotes(plainBody(mail))}`,
     };
   }
 
@@ -112,7 +151,10 @@ export function startDraft({ mode, account, mail }: ComposeStart): DraftFields {
     ...base,
     to: [...to, ...extra],
     subject: withPrefix(mail.subject, "Re", REPLY_PREFIX),
-    body: `${signed}\n\n${header}\n${quoted(mail)}`,
+    // 인용은 본문에 섞지 않고 따로 둔다. 보낼 때 `> `가 붙으므로 원문 인용은 한 단계 덜 남긴다.
+    body: signed,
+    quoteHeader: quoteHeaderOf(mail),
+    quoteText: foldDeepQuotes(plainBody(mail), MAX_QUOTE_DEPTH - 1),
   };
 }
 

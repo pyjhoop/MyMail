@@ -1,6 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowUpDown, Paperclip, RefreshCw, Star, Trash2 } from "lucide-react";
-import { useMemo, useRef, useState, type MouseEvent } from "react";
+import { ArrowUpDown, Check, Paperclip, RefreshCw, Star, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import {
   AuthErrorState,
   EmptyFolder,
@@ -9,8 +9,9 @@ import {
   NoSearchResults,
   OfflineState,
 } from "../../components/StateView";
-import type { Account, LoadError, MailSummary } from "../../lib/ipc";
+import type { Account, LoadError, MailSort, MailSummary } from "../../lib/ipc";
 import styles from "./MailList.module.css";
+import { SORT_OPTIONS, sortLabel } from "./sort";
 
 export type ListStatus = "loading" | "ready" | "error";
 type Filter = "all" | "unread" | "starred";
@@ -34,7 +35,15 @@ interface Props {
   notice?: string;
   /** 검색 결과를 보여 주는 중이면 빈 목록 문구가 달라진다 */
   searching?: boolean;
+  /** 새로고침 = 서버 동기화. 오류 화면의 "다시 시도"도 같은 함수를 부른다 */
   onRefresh: () => void;
+  /** 동기화 중이면 버튼을 돌리고 비활성화한다 */
+  refreshing?: boolean;
+  /** 동기화 실패 안내 */
+  syncError?: string;
+  lastSyncedAt?: Date | null;
+  sort: MailSort;
+  onSortChange: (sort: MailSort) => void;
 }
 
 // 행 높이는 tokens.css의 --mail-row-height(84px)와 같아야 한다.
@@ -62,9 +71,41 @@ export function MailList({
   notice,
   searching = false,
   onRefresh,
+  refreshing = false,
+  syncError,
+  lastSyncedAt,
+  sort,
+  onSortChange,
 }: Props) {
   const [filter, setFilter] = useState<Filter>("all");
+  const [sortOpen, setSortOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const sortMenuRef = useRef<HTMLDivElement>(null);
+
+  // 메뉴 밖을 누르거나 Esc를 누르면 닫는다.
+  useEffect(() => {
+    if (!sortOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!sortMenuRef.current?.contains(e.target as Node)) setSortOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSortOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [sortOpen]);
+
+  /** 정렬을 바꾸면 스크롤을 맨 위로 돌린다. 선택·체크 상태는 그대로 둔다. */
+  const chooseSort = (next: MailSort) => {
+    setSortOpen(false);
+    if (next === sort) return;
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    onSortChange(next);
+  };
   /** Shift+클릭 범위의 시작점. 가상화로 행이 사라져도 id로 기억한다. */
   const anchorId = useRef<string | null>(null);
 
@@ -136,17 +177,58 @@ export function MailList({
           >
             <Trash2 size={16} strokeWidth={1.75} aria-hidden />
           </button>
-          <button type="button" className={`ib ${styles.sort}`} aria-label="정렬: 최신순">
-            <ArrowUpDown size={16} strokeWidth={1.75} aria-hidden />
-            최신순
-          </button>
+          <div className={styles.sortWrap} ref={sortMenuRef}>
+            <button
+              type="button"
+              className={`ib ${styles.sort}`}
+              aria-label={`정렬: ${sortLabel(sort)}`}
+              aria-haspopup="menu"
+              aria-expanded={sortOpen}
+              onClick={() => setSortOpen((open) => !open)}
+            >
+              <ArrowUpDown size={16} strokeWidth={1.75} aria-hidden />
+              {sortLabel(sort)}
+            </button>
+            {sortOpen && (
+              <div role="menu" aria-label="정렬 기준" className={styles.sortMenu}>
+                {SORT_OPTIONS.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={sort === o.id}
+                    className={`${styles.sortItem} ${sort === o.id ? styles.sortItemActive : ""}`}
+                    onClick={() => chooseSort(o.id)}
+                  >
+                    <Check size={16} strokeWidth={1.75} aria-hidden className={styles.sortCheck} />
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button
             type="button"
             className={`ib ${styles.refresh}`}
             aria-label="새로고침"
+            title={
+              lastSyncedAt
+                ? `새로고침 · 마지막 동기화 ${lastSyncedAt.toLocaleTimeString("ko-KR", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}`
+                : "새로고침"
+            }
+            aria-busy={refreshing}
+            disabled={refreshing}
             onClick={onRefresh}
           >
-            <RefreshCw size={16} strokeWidth={1.75} aria-hidden />
+            <RefreshCw
+              size={16}
+              strokeWidth={1.75}
+              aria-hidden
+              className={refreshing ? styles.spin : undefined}
+            />
           </button>
         </div>
       </div>
@@ -169,6 +251,12 @@ export function MailList({
       {notice && (
         <div className={styles.notice} role="alert">
           {notice}
+        </div>
+      )}
+
+      {syncError && (
+        <div className={styles.notice} role="alert">
+          {syncError}
         </div>
       )}
 

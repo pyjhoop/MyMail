@@ -1,5 +1,6 @@
 //! SQLite 저장소와 마이그레이션.
 
+mod attachments;
 mod compose;
 mod models;
 mod notify;
@@ -13,9 +14,11 @@ use base64::Engine;
 use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::providers::{RemoteFolder, RemoteMessage};
+pub use attachments::AttachmentRef;
 pub use compose::{split_address, AddressSuggestion, ComposeInput, ComposeMail};
 pub use models::{
-    Account, Attachment, EarlierMail, Folder, LabelTag, MailDetail, MailSummary, NewAccount,
+    Account, Attachment, EarlierMail, Folder, LabelTag, MailDetail, MailSort, MailSummary,
+    NewAccount,
 };
 pub use notify::NewMail;
 pub use sync_state::{folder_key, OpKind};
@@ -35,6 +38,8 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/0003_dedupe_key.sql"),
     include_str!("migrations/0004_sync.sql"),
     include_str!("migrations/0005_compose.sql"),
+    include_str!("migrations/0006_compose_quote.sql"),
+    include_str!("migrations/0007_attachment_part.sql"),
 ];
 
 const PREVIEW_CHARS: usize = 80;
@@ -181,7 +186,8 @@ impl Store {
             let mut delete_attachments =
                 tx.prepare_cached("DELETE FROM attachments WHERE message_id = ?1")?;
             let mut insert_attachment = tx.prepare_cached(
-                "INSERT INTO attachments (message_id, name, size, ext) VALUES (?1, ?2, ?3, ?4)",
+                "INSERT INTO attachments (message_id, name, size, ext, part_index, mime)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             )?;
             let mut stored_elsewhere = tx.prepare_cached(
                 "SELECT 1 FROM messages WHERE account_id = ?1 AND dedupe_key = ?2 AND id != ?3",
@@ -229,7 +235,9 @@ impl Store {
                         id,
                         a.name,
                         a.size as i64,
-                        extension(&a.name)
+                        extension(&a.name),
+                        a.part_index,
+                        a.mime
                     ])?;
                 }
             }
@@ -284,10 +292,21 @@ impl Store {
     }
 
     /// `account_id`가 없으면 모든 계정의 받은편지함(통합 받은편지함)을 돌려준다.
+    #[cfg(test)]
     pub fn list_mails(
         &self,
         account_id: Option<&str>,
         folder_id: &str,
+    ) -> Result<Vec<MailSummary>, StoreError> {
+        self.list_mails_sorted(account_id, folder_id, MailSort::default())
+    }
+
+    /// `list_mails`를 `sort` 순서로 돌려준다.
+    pub fn list_mails_sorted(
+        &self,
+        account_id: Option<&str>,
+        folder_id: &str,
+        sort: MailSort,
     ) -> Result<Vec<MailSummary>, StoreError> {
         let conn = self.lock()?;
         let (filter, args): (&str, Vec<&str>) = match account_id {
@@ -300,7 +319,8 @@ impl Store {
                     CASE WHEN m.thread_id IS NULL THEN 0
                          ELSE (SELECT COUNT(*) FROM messages t WHERE t.thread_id = m.thread_id) END
              FROM messages m JOIN folders f ON f.id = m.folder_id
-             WHERE {filter} ORDER BY m.received_at DESC, m.id"
+             WHERE {filter} ORDER BY {order}",
+            order = sort.order_by()
         );
         let mut stmt = conn.prepare(&sql)?;
         let rows = stmt.query_map(rusqlite::params_from_iter(args), summary_from_row)?;
@@ -318,7 +338,7 @@ impl Store {
                 .unwrap_or(false);
             if is_drafts {
                 mails.extend(compose::summaries(&conn, account_id, folder_id)?);
-                mails.sort_by_key(|m| std::cmp::Reverse(m.received_at));
+                sort.sort(&mut mails);
             }
         }
         Ok(mails)
@@ -365,12 +385,15 @@ impl Store {
         };
 
         let attachments = conn
-            .prepare("SELECT name, size, ext FROM attachments WHERE message_id = ?1 ORDER BY id")?
+            .prepare(
+                "SELECT id, name, size, ext FROM attachments WHERE message_id = ?1 ORDER BY id",
+            )?
             .query_map([id], |r| {
                 Ok(Attachment {
-                    name: r.get(0)?,
-                    size: r.get::<_, i64>(1)?.max(0) as u64,
-                    ext: r.get(2)?,
+                    id: r.get(0)?,
+                    name: r.get(1)?,
+                    size: r.get::<_, i64>(2)?.max(0) as u64,
+                    ext: r.get(3)?,
                 })
             })?
             .collect::<Result<_, _>>()?;
@@ -406,24 +429,37 @@ impl Store {
     }
 
     /// 제목·보낸사람·본문을 FTS5로 검색한다. `account_id`가 없으면 모든 계정에서 찾는다.
+    #[cfg(test)]
     pub fn search_mails(
         &self,
         account_id: Option<&str>,
         query: &str,
     ) -> Result<Vec<MailSummary>, StoreError> {
+        self.search_mails_sorted(account_id, query, MailSort::default())
+    }
+
+    /// `search_mails`를 `sort` 순서로 돌려준다.
+    pub fn search_mails_sorted(
+        &self,
+        account_id: Option<&str>,
+        query: &str,
+        sort: MailSort,
+    ) -> Result<Vec<MailSummary>, StoreError> {
         let Some(fts) = fts_query(query) else {
             return Ok(Vec::new());
         };
         let conn = self.lock()?;
-        let mut stmt = conn.prepare(
+        let sql = format!(
             "SELECT m.id, m.account_id, m.folder_id, m.sender, m.sender_email, m.subject, m.preview,
                     m.received_at, m.unread, m.starred, m.has_attachment, m.label_name, m.label_color,
                     CASE WHEN m.thread_id IS NULL THEN 0
                          ELSE (SELECT COUNT(*) FROM messages t WHERE t.thread_id = m.thread_id) END
              FROM messages_fts JOIN messages m ON m.rowid = messages_fts.rowid
              WHERE messages_fts MATCH ?1 AND (?2 IS NULL OR m.account_id = ?2)
-             ORDER BY m.received_at DESC, m.id",
-        )?;
+             ORDER BY {order}",
+            order = sort.order_by()
+        );
+        let mut stmt = conn.prepare(&sql)?;
         let rows = stmt.query_map(params![fts, account_id], summary_from_row)?;
         Ok(rows.collect::<Result<_, _>>()?)
     }

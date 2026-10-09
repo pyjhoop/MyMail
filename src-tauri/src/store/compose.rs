@@ -26,6 +26,12 @@ pub struct ComposeInput {
     pub bcc: Vec<String>,
     pub subject: String,
     pub body: String,
+    /// 답장 인용 머리말 한 줄. 인용이 없으면 빈 문자열
+    #[serde(default)]
+    pub quote_header: String,
+    /// 답장 인용 원문(`>` 없는 그대로). 보낼 때만 `>`를 붙인다
+    #[serde(default)]
+    pub quote_text: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -47,6 +53,8 @@ pub struct ComposeMail {
     pub bcc: Vec<String>,
     pub subject: String,
     pub body: String,
+    pub quote_header: String,
+    pub quote_text: String,
     /// `draft` | `failed`
     pub status: String,
     /// 보내기에 실패했을 때의 안내
@@ -151,10 +159,12 @@ impl Store {
     pub fn save_compose(&self, input: &ComposeInput) -> Result<(), StoreError> {
         self.lock()?.execute(
             "INSERT INTO compose_mails (id, account_id, to_addrs, cc_addrs, bcc_addrs, subject, body,
-                 status, error, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'draft', NULL, CAST(strftime('%s', 'now') AS INTEGER))
+                 quote_header, quote_text, status, error, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'draft', NULL,
+                 CAST(strftime('%s', 'now') AS INTEGER))
              ON CONFLICT(id) DO UPDATE SET account_id = ?2, to_addrs = ?3, cc_addrs = ?4,
-                 bcc_addrs = ?5, subject = ?6, body = ?7, status = 'draft', error = NULL,
+                 bcc_addrs = ?5, subject = ?6, body = ?7, quote_header = ?8, quote_text = ?9,
+                 status = 'draft', error = NULL,
                  updated_at = CAST(strftime('%s', 'now') AS INTEGER)",
             params![
                 input.id,
@@ -164,6 +174,8 @@ impl Store {
                 to_json(&input.bcc),
                 input.subject,
                 input.body,
+                input.quote_header,
+                input.quote_text,
             ],
         )?;
         Ok(())
@@ -173,7 +185,8 @@ impl Store {
         let conn = self.lock()?;
         let head = conn
             .query_row(
-                "SELECT account_id, to_addrs, cc_addrs, bcc_addrs, subject, body, status, error
+                "SELECT account_id, to_addrs, cc_addrs, bcc_addrs, subject, body, status, error,
+                        quote_header, quote_text
                  FROM compose_mails WHERE id = ?1",
                 [id],
                 |r| {
@@ -187,6 +200,8 @@ impl Store {
                         body: r.get(5)?,
                         status: r.get(6)?,
                         error: r.get(7)?,
+                        quote_header: r.get(8)?,
+                        quote_text: r.get(9)?,
                         attachments: Vec::new(),
                     })
                 },

@@ -3,7 +3,9 @@
 use mail_parser::{Address, Message, MessageParser, MessagePart, MimeHeaders};
 
 use super::html_text::html_to_text;
-use crate::providers::{RemoteAttachment, RemoteInlineImage, RemoteMessage};
+use crate::providers::{
+    AttachmentData, AttachmentTarget, RemoteAttachment, RemoteInlineImage, RemoteMessage,
+};
 
 /// 이보다 큰 인라인 이미지는 저장하지 않는다(DB 크기 보호).
 const MAX_INLINE_IMAGE: usize = 5 * 1024 * 1024;
@@ -66,10 +68,13 @@ pub fn parse_message(fetched: &FetchedMessage) -> RemoteMessage {
             .as_ref()
             .map(|m| {
                 m.attachments()
-                    .filter(|part| inline_image(part, html.as_deref()).is_none())
-                    .map(|part| RemoteAttachment {
-                        name: part.attachment_name().unwrap_or("첨부파일").to_string(),
+                    .enumerate()
+                    .filter(|(_, part)| inline_image(part, html.as_deref()).is_none())
+                    .map(|(i, part)| RemoteAttachment {
+                        name: attachment_name(part),
                         size: part.len() as u64,
+                        part_index: i as u32,
+                        mime: part_mime(part),
                     })
                     .collect()
             })
@@ -83,6 +88,52 @@ pub fn parse_message(fetched: &FetchedMessage) -> RemoteMessage {
             })
             .unwrap_or_default(),
     }
+}
+
+fn attachment_name(part: &MessagePart) -> String {
+    part.attachment_name().unwrap_or("첨부파일").to_string()
+}
+
+fn part_mime(part: &MessagePart) -> String {
+    match part.content_type() {
+        Some(ct) => match ct.subtype() {
+            Some(sub) => format!("{}/{}", ct.ctype(), sub).to_ascii_lowercase(),
+            None => ct.ctype().to_ascii_lowercase(),
+        },
+        None => "application/octet-stream".into(),
+    }
+}
+
+/// 원문에서 `targets`가 가리키는 첨부를 꺼낸다. `part_index`의 파트 이름이 저장된 이름과 다르거나
+/// 값이 없으면(옛 메일) 이름·크기가 같은 파트를 찾는다. 못 찾으면 해당 자리는 `None`.
+pub fn extract_attachments(
+    raw: &[u8],
+    targets: &[AttachmentTarget],
+) -> Vec<Option<AttachmentData>> {
+    let Some(m) = MessageParser::default().parse(raw) else {
+        return targets.iter().map(|_| None).collect();
+    };
+    let parts: Vec<&MessagePart> = m.attachments().collect();
+    targets
+        .iter()
+        .map(|t| {
+            let by_index = t
+                .part_index
+                .and_then(|i| parts.get(i as usize))
+                .filter(|p| attachment_name(p) == t.name);
+            let found = by_index.or_else(|| {
+                parts
+                    .iter()
+                    .find(|p| attachment_name(p) == t.name && p.len() as u64 == t.size)
+                    .or_else(|| parts.iter().find(|p| attachment_name(p) == t.name))
+            });
+            found.map(|p| AttachmentData {
+                name: attachment_name(p),
+                mime: part_mime(p),
+                data: p.contents().to_vec(),
+            })
+        })
+        .collect()
 }
 
 /// 미리보기·검색용 텍스트. HTML이 있으면 거기서 뽑는다. 서버가 만든 text/plain 대안에는
@@ -188,6 +239,58 @@ mod tests {
         assert_eq!(m.attachments.len(), 1);
         assert_eq!(m.attachments[0].name, "a.pdf");
         assert_eq!(m.attachments[0].size, 5);
+        assert_eq!(m.attachments[0].mime, "application/pdf");
+    }
+
+    fn two_attachments() -> String {
+        "From: a@b.com\r\nSubject: f\r\nMIME-Version: 1.0\r\n\
+         Content-Type: multipart/mixed; boundary=XX\r\n\r\n\
+         --XX\r\nContent-Type: text/plain\r\n\r\nhello\r\n\
+         --XX\r\nContent-Type: application/pdf; name=\"a.pdf\"\r\n\
+         Content-Disposition: attachment; filename=\"a.pdf\"\r\n\
+         Content-Transfer-Encoding: base64\r\n\r\nSGVsbG8=\r\n\
+         --XX\r\nContent-Type: application/pdf; name=\"a.pdf\"\r\n\
+         Content-Disposition: attachment; filename=\"a.pdf\"\r\n\
+         Content-Transfer-Encoding: base64\r\n\r\nV29ybGQh\r\n--XX--\r\n"
+            .into()
+    }
+
+    #[test]
+    fn 이름이_같은_첨부도_순서로_구분해_꺼낸다() {
+        let raw = two_attachments();
+        let m = parse_message(&fetch(&raw));
+        assert_eq!(m.attachments.len(), 2);
+        assert_eq!(m.attachments[1].part_index, 1);
+        let targets: Vec<_> = m
+            .attachments
+            .iter()
+            .map(|a| AttachmentTarget {
+                part_index: Some(a.part_index),
+                name: a.name.clone(),
+                size: a.size,
+            })
+            .collect();
+        let got = extract_attachments(raw.as_bytes(), &targets);
+        assert_eq!(got[0].as_ref().unwrap().data, b"Hello");
+        assert_eq!(got[1].as_ref().unwrap().data, b"World!");
+    }
+
+    #[test]
+    fn 순서_값이_없으면_이름과_크기로_찾는다() {
+        let raw = two_attachments();
+        let target = AttachmentTarget {
+            part_index: None,
+            name: "a.pdf".into(),
+            size: 6,
+        };
+        let got = extract_attachments(raw.as_bytes(), &[target]);
+        assert_eq!(got[0].as_ref().unwrap().data, b"World!");
+        let missing = AttachmentTarget {
+            part_index: Some(0),
+            name: "x.pdf".into(),
+            size: 1,
+        };
+        assert!(extract_attachments(raw.as_bytes(), &[missing])[0].is_none());
     }
 
     /// 실계정 테스트에서 미리보기가 깨졌던 모양: Outlook 조건부 주석 + style + 프리헤더 여백.

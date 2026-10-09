@@ -37,6 +37,8 @@ const draft = (patch: Partial<Draft> = {}): Draft => ({
   bcc: [],
   subject: "",
   body: "",
+  quoteHeader: "",
+  quoteText: "",
   status: "draft",
   error: null,
   attachments: [],
@@ -335,5 +337,55 @@ describe("작성기", () => {
 
     expect(onSignatureSaved).toHaveBeenCalledWith("a1", "Junho");
     expect(screen.getByRole("textbox", { name: "본문" })).toHaveValue("\n\n-- \nJunho");
+  });
+
+  describe("답장 인용", () => {
+    const quoted = () =>
+      draft({
+        to: ["doyun@gmail.com"],
+        subject: "Re: 안녕",
+        body: "\n\n-- \n박준호 드림",
+        quoteHeader: "2026년 10월 9일 오후 3:20, 김도윤 <doyun@gmail.com>님이 작성:",
+        quoteText: "점심 어때요?\n\n> 지난번 이야기",
+      });
+
+    it("인용은 작성칸에 나오지 않고 접힌 버튼만 보인다", () => {
+      setup({ draft: quoted() });
+      expect(screen.getByRole("textbox", { name: "본문" })).toHaveValue("\n\n-- \n박준호 드림");
+      expect(screen.queryByTestId("quote-block")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "인용 펼치기" })).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+    });
+
+    it("펼치면 머리말과 읽기 전용 인용이 보이고, 접어도 입력은 유지된다", async () => {
+      const user = userEvent.setup();
+      setup({ draft: quoted() });
+      await user.click(screen.getByRole("button", { name: "인용 펼치기" }));
+      const block = screen.getByTestId("quote-block");
+      expect(block).toHaveTextContent("김도윤 <doyun@gmail.com>님이 작성:");
+      expect(block).toHaveTextContent("점심 어때요?");
+
+      const body = screen.getByRole("textbox", { name: "본문" });
+      await user.type(body, "좋아요");
+      await user.click(screen.getByRole("button", { name: "인용 접기" }));
+      expect(screen.queryByTestId("quote-block")).not.toBeInTheDocument();
+      expect(body).toHaveValue("\n\n-- \n박준호 드림좋아요");
+    });
+
+    it("임시저장에는 본문과 인용 원문이 따로 실린다", async () => {
+      const user = userEvent.setup();
+      const { onClose } = setup({ draft: quoted() });
+      await user.type(screen.getByRole("textbox", { name: "본문" }), "x");
+      await user.click(screen.getByRole("button", { name: "작성 닫기" }));
+      await waitFor(() => expect(onClose).toHaveBeenCalledWith("kept"));
+      expect(saveDraft).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          body: expect.not.stringContaining(">") as string,
+          quoteText: "점심 어때요?\n\n> 지난번 이야기",
+        }),
+      );
+    });
   });
 });

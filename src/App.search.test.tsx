@@ -25,7 +25,7 @@ describe("검색", () => {
 
     fireEvent.change(box, { target: { value: "일정 1" } });
     expect(await screen.findByText("검색: 일정 1")).toBeInTheDocument();
-    expect(searchMails).toHaveBeenLastCalledWith(null, "일정 1");
+    expect(searchMails).toHaveBeenLastCalledWith(null, "일정 1", "newest");
     expect(await screen.findByText("제주 여행 일정 1")).toBeInTheDocument();
     expect(screen.queryByText("제주 여행 일정 0")).not.toBeInTheDocument();
 

@@ -1,4 +1,14 @@
-import { Maximize2, Minimize2, Minus, Paperclip, PenLine, Send, Trash2, X } from "lucide-react";
+import {
+  Ellipsis,
+  Maximize2,
+  Minimize2,
+  Minus,
+  Paperclip,
+  PenLine,
+  Send,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { formatListTime, formatSize } from "../../lib/format";
 import {
@@ -71,7 +81,10 @@ export function Composer({
     bcc: initial.bcc,
     subject: initial.subject,
     body: initial.body,
+    quoteHeader: initial.quoteHeader,
+    quoteText: initial.quoteText,
   });
+  const [quoteOpen, setQuoteOpen] = useState(false);
   const [texts, setTexts] = useState({ to: "", cc: "", bcc: "" });
   const [showCc, setShowCc] = useState(initial.cc.length > 0);
   const [showBcc, setShowBcc] = useState(initial.bcc.length > 0);
@@ -445,6 +458,27 @@ export function Composer({
           value={fields.body}
           onChange={(e) => update({ body: e.target.value })}
         />
+
+        {fields.quoteText && (
+          <div className={styles.quote}>
+            <button
+              type="button"
+              className={`ib ${styles.quoteToggle}`}
+              aria-expanded={quoteOpen}
+              aria-label={quoteOpen ? "인용 접기" : "인용 펼치기"}
+              title={quoteOpen ? "인용 접기" : "인용 펼치기"}
+              onClick={() => setQuoteOpen((v) => !v)}
+            >
+              <Ellipsis size={16} strokeWidth={1.75} aria-hidden />
+            </button>
+            {quoteOpen && (
+              <blockquote className={styles.quoteBlock} data-testid="quote-block">
+                {fields.quoteHeader && <p className={styles.quoteHeader}>{fields.quoteHeader}</p>}
+                <div className={styles.quoteText}>{fields.quoteText}</div>
+              </blockquote>
+            )}
+          </div>
+        )}
 
         {(attachments.length > 0 || attachError) && (
           <div className={styles.attachments}>

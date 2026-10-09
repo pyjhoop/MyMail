@@ -65,6 +65,8 @@ pub struct MailSummary {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Attachment {
+    /// 내려받을 때 가리키는 번호. 이름이 같은 첨부도 구분한다.
+    pub id: i64,
     pub name: String,
     /// 바이트
     pub size: u64,
@@ -92,4 +94,65 @@ pub struct MailDetail {
     pub html: Option<String>,
     pub attachments: Vec<Attachment>,
     pub earlier: Vec<EarlierMail>,
+}
+
+/// 메일 목록 정렬. UI가 보내는 문자열은 `parse`로만 받아들이고, SQL에는 고정된 `ORDER BY` 문구만 쓴다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MailSort {
+    #[default]
+    Newest,
+    Oldest,
+    Sender,
+    Subject,
+    Unread,
+}
+
+impl MailSort {
+    /// 허용된 값만 받는다. 그 밖의 문자열은 `None`.
+    pub fn parse(s: &str) -> Option<Self> {
+        Some(match s {
+            "newest" => Self::Newest,
+            "oldest" => Self::Oldest,
+            "sender" => Self::Sender,
+            "subject" => Self::Subject,
+            "unread" => Self::Unread,
+            _ => return None,
+        })
+    }
+
+    /// `messages`를 `m`으로 부른 쿼리에 붙이는 `ORDER BY` 식. 같은 값끼리는 `m.id`로 순서를 고정한다.
+    pub(super) fn order_by(self) -> &'static str {
+        match self {
+            Self::Newest => "m.received_at DESC, m.id",
+            Self::Oldest => "m.received_at ASC, m.id",
+            Self::Sender => "m.sender COLLATE NOCASE ASC, m.received_at DESC, m.id",
+            Self::Subject => "m.subject COLLATE NOCASE ASC, m.received_at DESC, m.id",
+            Self::Unread => "m.unread DESC, m.received_at DESC, m.id",
+        }
+    }
+
+    /// 작성 중 메일을 섞은 목록을 `order_by`와 같은 기준으로 다시 정렬한다.
+    pub(super) fn sort(self, mails: &mut [MailSummary]) {
+        use std::cmp::Reverse;
+        match self {
+            Self::Newest => mails.sort_by_cached_key(|m| (Reverse(m.received_at), m.id.clone())),
+            Self::Oldest => mails.sort_by_cached_key(|m| (m.received_at, m.id.clone())),
+            Self::Sender => mails.sort_by_cached_key(|m| {
+                (
+                    m.sender.to_lowercase(),
+                    Reverse(m.received_at),
+                    m.id.clone(),
+                )
+            }),
+            Self::Subject => mails.sort_by_cached_key(|m| {
+                (
+                    m.subject.to_lowercase(),
+                    Reverse(m.received_at),
+                    m.id.clone(),
+                )
+            }),
+            Self::Unread => mails
+                .sort_by_cached_key(|m| (Reverse(m.unread), Reverse(m.received_at), m.id.clone())),
+        }
+    }
 }

@@ -76,6 +76,31 @@ pub fn add_attachment(
     Ok(store.add_compose_attachment(mail_id, name, mime, data)?)
 }
 
+/// 보낼 본문. 사용자가 쓴 글 뒤에 인용 머리말과 `> `를 붙인 원문을 잇는다.
+/// 인용은 작성 중에는 `>` 없이 따로 두고, 여기서만 붙인다.
+pub fn outgoing_body(body: &str, quote_header: &str, quote_text: &str) -> String {
+    if quote_text.trim().is_empty() {
+        return body.to_string();
+    }
+    let quoted = quote_text
+        .lines()
+        .map(|line| {
+            if line.is_empty() {
+                ">".to_string()
+            } else {
+                format!("> {line}")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let header = if quote_header.trim().is_empty() {
+        String::new()
+    } else {
+        format!("{quote_header}\n")
+    };
+    format!("{}\n\n{header}{quoted}", body.trim_end())
+}
+
 /// 작성 중인 메일을 보낸다. 성공하면 지우고, 실패하면 `failed`로 표시해 남긴다.
 pub async fn send(
     store: &Store,
@@ -100,7 +125,7 @@ pub async fn send(
         cc: mail.cc,
         bcc: mail.bcc,
         subject: mail.subject,
-        body: mail.body,
+        body: outgoing_body(&mail.body, &mail.quote_header, &mail.quote_text),
         attachments: store
             .compose_attachment_data(mail_id)?
             .into_iter()

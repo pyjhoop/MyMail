@@ -1,6 +1,7 @@
 // 백엔드 호출 경계. 컴포넌트는 invoke를 직접 부르지 않고 이 파일의 함수만 쓴다.
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { formatFullTime, formatListTime, formatSize } from "./format";
 import { isOpenableLink } from "./mailHtml";
@@ -56,6 +57,8 @@ export interface MailSummary {
 }
 
 export interface MailAttachment {
+  /** 저장할 때 가리키는 번호. 이름이 같은 첨부도 구분한다. */
+  id: number;
   name: string;
   size: string;
   ext: string;
@@ -71,6 +74,8 @@ export interface MailDetail extends MailSummary {
   /** 본문 위에 접어 두는 이전 메일 */
   earlier: { sender: string; initial: string; preview: string; date: string }[];
   fullTime: string;
+  /** 받은 시각(유닉스 초). 답장 인용 머리말에 쓴다 */
+  receivedAt?: number;
 }
 
 export type LoadError = { kind: "network" | "auth" | "unknown"; message: string };
@@ -82,7 +87,7 @@ export interface RawMailDetail extends RawMailSummary {
   to: string;
   body: string[];
   html?: string | null;
-  attachments: { name: string; size: number; ext: string }[];
+  attachments: { id: number; name: string; size: number; ext: string }[];
   earlier: { sender: string; initial: string; preview: string; receivedAt: number }[];
 }
 
@@ -116,7 +121,10 @@ export function addAccount(input: {
   provider: Provider;
   email: string;
   password: string;
+  /** 표시 이름. 비우면 메일 주소 */
   name?: string;
+  /** 계정 색 1~8. 비우면 계정 수에 따라 자동 */
+  colorIndex?: number;
 }): Promise<Account> {
   return call("add_account", input);
 }
@@ -129,18 +137,26 @@ export function listFolders(accountId: string): Promise<Folder[]> {
   return call("list_folders", { accountId });
 }
 
+/** 메일 목록 정렬. 백엔드가 이 값만 받아들인다(그 밖의 값은 거절). */
+export type MailSort = "newest" | "oldest" | "sender" | "subject" | "unread";
+
 /** accountId가 null이면 통합 받은편지함 */
 export async function listMails(
   accountId: string | null,
   folderId: string,
+  sort: MailSort = "newest",
 ): Promise<MailSummary[]> {
-  const mails = await call<RawMailSummary[]>("list_mails", { accountId, folderId });
+  const mails = await call<RawMailSummary[]>("list_mails", { accountId, folderId, sort });
   return mails.map(toSummary);
 }
 
 /** 제목·보낸사람·본문 검색. accountId가 null이면 모든 계정. */
-export async function searchMails(accountId: string | null, query: string): Promise<MailSummary[]> {
-  const mails = await call<RawMailSummary[]>("search_mails", { accountId, query });
+export async function searchMails(
+  accountId: string | null,
+  query: string,
+  sort: MailSort = "newest",
+): Promise<MailSummary[]> {
+  const mails = await call<RawMailSummary[]>("search_mails", { accountId, query, sort });
   return mails.map(toSummary);
 }
 
@@ -153,6 +169,7 @@ export async function getMail(id: string): Promise<MailDetail | null> {
     body: raw.body,
     html: raw.html ?? undefined,
     fullTime: formatFullTime(raw.receivedAt),
+    receivedAt: raw.receivedAt,
     attachments: raw.attachments.map((a) => ({ ...a, size: formatSize(a.size) })),
     earlier: raw.earlier.map((e) => ({
       sender: e.sender,
@@ -161,6 +178,24 @@ export async function getMail(id: string): Promise<MailDetail | null> {
       date: formatListTime(e.receivedAt),
     })),
   };
+}
+
+/** 저장 대화상자를 닫으면 `cancelled`(오류 아님). */
+export type SaveResult = { status: "cancelled" } | { status: "saved"; count: number };
+
+/** 첨부 하나를 저장한다. 저장 위치는 백엔드가 파일 저장 대화상자로 묻는다. */
+export function saveAttachment(mailId: string, attachmentId: number): Promise<SaveResult> {
+  return call("save_attachment", { mailId, attachmentId });
+}
+
+/** 메일의 첨부를 모두 저장한다. 폴더를 고르는 대화상자가 열린다. */
+export function saveAllAttachments(mailId: string): Promise<SaveResult> {
+  return call("save_all_attachments", { mailId });
+}
+
+/** 방금 저장한 첨부를 탐색기에서 보여 준다. attachmentId를 생략하면 "모두 저장"한 폴더. */
+export function revealSavedAttachment(mailId: string, attachmentId?: number): Promise<void> {
+  return call("reveal_saved_attachment", { mailId, attachmentId: attachmentId ?? null });
 }
 
 /** 읽음 표시를 바꾼다. 로컬에 바로 반영되고 서버에는 백그라운드로 보낸다(오프라인이면 연결 뒤에). */
@@ -186,6 +221,26 @@ export function moveMail(id: string, folderId: string): Promise<void> {
 export async function openExternal(url: string): Promise<void> {
   if (!isOpenableLink(url)) return;
   await openUrl(url.trim());
+}
+
+/**
+ * 지금 서버와 동기화하고 끝나면 돌아온다. accountId가 null이면 모든 계정.
+ * openFolderId(지금 보는 폴더)는 가장 먼저 맞추고 이후 더 자주 맞춘다.
+ * 이미 동기화 중이면 그것이 끝나길 기다리고, 연달아 불러도 한 번만 돈다.
+ */
+export function syncNow(accountId: string | null, openFolderId?: string): Promise<void> {
+  return call("sync_now", { accountId, openFolderId: openFolderId ?? null });
+}
+
+/** 창이 포커스를 얻을 때(트레이에서 다시 열 때 포함)를 구독한다. 브라우저(pnpm dev)·테스트에서는 아무 일도 하지 않는다. */
+export function onWindowFocus(callback: () => void): () => void {
+  if (typeof window === "undefined" || !("__TAURI_INTERNALS__" in window)) return () => undefined;
+  const unlisten = getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+    if (focused) callback();
+  });
+  return () => {
+    void unlisten.then((fn) => fn());
+  };
 }
 
 /** 백그라운드 동기화 진행 상황 (받을 메일 수 단위. 받을 게 없으면 done === total === 0) */
@@ -247,6 +302,10 @@ export interface Draft {
   bcc: string[];
   subject: string;
   body: string;
+  /** 답장 인용 머리말 한 줄. 인용이 없으면 빈 문자열 */
+  quoteHeader: string;
+  /** 답장 인용 원문. `>` 없이 그대로 두고, 보낼 때 백엔드가 `> `를 붙인다 */
+  quoteText: string;
   /** failed: 보내기에 실패해 임시보관함에 남은 메일 */
   status: "draft" | "failed";
   error: string | null;

@@ -262,6 +262,23 @@ async fn 전체_동기화는_모든_폴더의_메일을_받고_진행률을_알�
 }
 
 #[tokio::test]
+async fn 진행률은_처음_받은_30통을_빼고_남은_수만_센다() {
+    let (store, fake) = added(40).await;
+    assert_eq!(inbox_count(&store), 30);
+
+    let reports = sync_all(&store, &fake).await;
+
+    // 받은편지함 10통 + 보낸·임시·스팸·휴지통 3통씩 + 라벨 셋과 폴더 둘 2통씩
+    let total = 10 + 12 + 10;
+    let all = reports.0.borrow();
+    assert!(all.iter().all(|p| p.total == total));
+    assert_eq!((all[0].done, all[0].total), (0, total));
+    let last = all.last().unwrap();
+    assert_eq!((last.done, last.total), (total, total));
+    assert_eq!(inbox_count(&store), 40);
+}
+
+#[tokio::test]
 async fn 각_폴더의_최신_메일을_먼저_받는다() {
     let (store, fake) = added(1000).await;
     let flaky = Flaky::new(fake, 0);
@@ -654,7 +671,7 @@ async fn 지우는_중인_메일은_동기화가_다시_받지_않는다() {
 async fn 푸시를_못_쓰는_서버는_unsupported로_알려_준다() {
     let failing = Failing { verify: None };
     let err = failing
-        .wait_for_changes("INBOX", Duration::from_secs(1))
+        .wait_for_changes("INBOX", Duration::from_secs(1), None)
         .await
         .unwrap_err();
     assert!(matches!(err, ProviderError::Unsupported(_)));

@@ -6,12 +6,15 @@ use tauri_plugin_autostart::ManagerExt;
 
 use std::sync::Arc;
 
+use tauri_plugin_dialog::DialogExt;
+
+use crate::attachments::{self, AttachmentError, SaveOutcome, SavedFiles};
 use crate::auth::CredentialStore;
 use crate::compose::{self, ComposeError};
 use crate::providers::{self, MailProvider, ProviderError};
 use crate::store::{
-    Account, AddressSuggestion, ComposeInput, ComposeMail, Folder, MailDetail, MailSummary,
-    NewAccount, Store, StoreError,
+    Account, AddressSuggestion, ComposeInput, ComposeMail, Folder, MailDetail, MailSort,
+    MailSummary, NewAccount, Store, StoreError,
 };
 use crate::sync::manager::SyncManager;
 use crate::sync::{self, actions, SyncError};
@@ -63,6 +66,15 @@ impl From<ComposeError> for CommandError {
     }
 }
 
+impl From<AttachmentError> for CommandError {
+    fn from(e: AttachmentError) -> Self {
+        Self {
+            kind: e.kind(),
+            message: e.user_message(),
+        }
+    }
+}
+
 type CommandResult<T> = Result<T, CommandError>;
 
 #[tauri::command]
@@ -84,8 +96,10 @@ pub async fn list_mails(
     store: State<'_, Store>,
     account_id: Option<String>,
     folder_id: String,
+    sort: Option<String>,
 ) -> CommandResult<Vec<MailSummary>> {
-    Ok(store.list_mails(account_id.as_deref(), &folder_id)?)
+    let sort = parse_sort(sort.as_deref())?;
+    Ok(store.list_mails_sorted(account_id.as_deref(), &folder_id, sort)?)
 }
 
 /// 제목·보낸사람·본문 검색. `account_id`가 없으면 모든 계정.
@@ -94,8 +108,10 @@ pub async fn search_mails(
     store: State<'_, Store>,
     account_id: Option<String>,
     query: String,
+    sort: Option<String>,
 ) -> CommandResult<Vec<MailSummary>> {
-    Ok(store.search_mails(account_id.as_deref(), &query)?)
+    let sort = parse_sort(sort.as_deref())?;
+    Ok(store.search_mails_sorted(account_id.as_deref(), &query, sort)?)
 }
 
 #[tauri::command]
@@ -103,8 +119,91 @@ pub async fn get_mail(store: State<'_, Store>, id: String) -> CommandResult<Opti
     Ok(store.get_mail(&id)?)
 }
 
+fn provider_for(manager: &SyncManager, account_id: &str) -> CommandResult<Arc<dyn MailProvider>> {
+    manager.provider(account_id).ok_or_else(|| CommandError {
+        kind: "auth",
+        message: "이 계정에 연결할 수 없어요. 앱 비밀번호를 확인해 주세요.".into(),
+    })
+}
+
+/// 첨부 하나를 저장한다. 저장 위치는 파일 저장 대화상자로 고르며, 닫으면 `cancelled`다.
+#[tauri::command]
+pub async fn save_attachment(
+    app: AppHandle,
+    store: State<'_, Store>,
+    manager: State<'_, SyncManager>,
+    saved: State<'_, SavedFiles>,
+    mail_id: String,
+    attachment_id: i64,
+) -> CommandResult<SaveOutcome> {
+    let att = store
+        .attachment_ref(&mail_id, attachment_id)?
+        .ok_or(AttachmentError::NotFound)?;
+    let provider = provider_for(&manager, &att.mail.account_id)?;
+    let (outcome, path) = attachments::save_one(
+        &store,
+        &*provider,
+        &mail_id,
+        attachment_id,
+        |default_name| {
+            app.dialog()
+                .file()
+                .set_file_name(default_name)
+                .blocking_save_file()
+                .and_then(|p| p.into_path().ok())
+        },
+    )
+    .await?;
+    if let Some(path) = path {
+        saved.remember(attachments::saved_key(&mail_id, Some(attachment_id)), path);
+    }
+    Ok(outcome)
+}
+
+/// 메일의 첨부를 모두 저장한다. 폴더를 고르는 대화상자를 연다.
+#[tauri::command]
+pub async fn save_all_attachments(
+    app: AppHandle,
+    store: State<'_, Store>,
+    manager: State<'_, SyncManager>,
+    saved: State<'_, SavedFiles>,
+    mail_id: String,
+) -> CommandResult<SaveOutcome> {
+    let first = store
+        .attachment_refs(&mail_id)?
+        .into_iter()
+        .next()
+        .ok_or(AttachmentError::NotFound)?;
+    let provider = provider_for(&manager, &first.mail.account_id)?;
+    let (outcome, path) = attachments::save_all(&store, &*provider, &mail_id, || {
+        app.dialog()
+            .file()
+            .blocking_pick_folder()
+            .and_then(|p| p.into_path().ok())
+    })
+    .await?;
+    if let Some(path) = path {
+        saved.remember(attachments::saved_key(&mail_id, None), path);
+    }
+    Ok(outcome)
+}
+
+/// 방금 저장한 첨부를 탐색기에서 보여 준다. `attachment_id`가 없으면 "모두 저장"한 폴더다.
+#[tauri::command]
+pub async fn reveal_saved_attachment(
+    saved: State<'_, SavedFiles>,
+    mail_id: String,
+    attachment_id: Option<i64>,
+) -> CommandResult<()> {
+    let path = saved
+        .get(&attachments::saved_key(&mail_id, attachment_id))
+        .ok_or_else(|| invalid("저장한 파일 위치를 찾을 수 없어요."))?;
+    tauri_plugin_opener::reveal_item_in_dir(path).map_err(|_| invalid("폴더를 열지 못했어요."))
+}
+
 /// 접속을 확인하고 계정을 추가한다. 성공하면 추가된 계정을 돌려준다.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)] // command 인자는 UI가 넘기는 값과 1:1이다
 pub async fn add_account(
     app: AppHandle,
     store: State<'_, Store>,
@@ -113,6 +212,7 @@ pub async fn add_account(
     email: String,
     password: String,
     name: Option<String>,
+    color_index: Option<u8>,
 ) -> CommandResult<Account> {
     let email = email.trim().to_string();
     let password = password.trim().to_string();
@@ -134,7 +234,10 @@ pub async fn add_account(
             .unwrap_or_else(|| email.clone()),
         email,
         provider,
-        color_index: (store.account_count()? % 8) as u8 + 1,
+        color_index: match color_index {
+            Some(c) if (1..=8).contains(&c) => c,
+            _ => (store.account_count()? % 8) as u8 + 1,
+        },
     };
     let id = account.id.clone();
     sync::add_account(
@@ -301,11 +404,58 @@ pub async fn move_mail(
     Ok(())
 }
 
+/// 정렬 값이 없으면 최신순, 허용되지 않은 값이면 오류.
+fn parse_sort(sort: Option<&str>) -> CommandResult<MailSort> {
+    match sort {
+        None => Ok(MailSort::default()),
+        Some(s) => MailSort::parse(s).ok_or_else(|| invalid("지원하지 않는 정렬이에요.")),
+    }
+}
+
 fn invalid(message: &str) -> CommandError {
     CommandError {
         kind: "unknown",
         message: message.into(),
     }
+}
+
+/// 지금 서버와 동기화한다. 끝나면 돌아온다(진행은 `sync-progress` 이벤트로도 알린다).
+/// `account_id`가 없으면 모든 계정. `open_folder_id`는 사용자가 보는 폴더로, 먼저 맞추고 이후 더 자주 맞춘다.
+/// 같은 계정이 이미 동기화 중이면 새로 시작하지 않고 끝나길 기다리며, 연달아 불러도 한 번만 돈다.
+#[tauri::command]
+pub async fn sync_now(
+    app: AppHandle,
+    store: State<'_, Store>,
+    account_id: Option<String>,
+    open_folder_id: Option<String>,
+) -> CommandResult<()> {
+    let ids = match account_id {
+        Some(id) => vec![id],
+        None => store.list_accounts()?.into_iter().map(|a| a.id).collect(),
+    };
+    let single = ids.len() == 1;
+    let tasks: Vec<_> = ids
+        .into_iter()
+        .map(|id| {
+            let (app, open) = (app.clone(), open_folder_id.clone());
+            tauri::async_runtime::spawn(async move {
+                app.state::<SyncManager>()
+                    .sync_now(&app, &id, open.as_deref())
+                    .await
+            })
+        })
+        .collect();
+    let mut first_error = None;
+    for task in tasks {
+        match task.await {
+            Ok(Err(SyncError::NotConnected)) if !single => {}
+            Ok(Err(e)) => {
+                first_error.get_or_insert(e);
+            }
+            _ => {}
+        }
+    }
+    first_error.map_or(Ok(()), |e| Err(e.into()))
 }
 
 /// Windows 시작 시 실행 여부.

@@ -7,6 +7,7 @@ pub mod gmail;
 pub mod imap;
 pub mod naver;
 
+use std::collections::HashMap;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -72,6 +73,26 @@ pub struct RemoteFolder {
 pub struct RemoteAttachment {
     pub name: String,
     pub size: u64,
+    /// 메일 원문에서 첨부를 센 순서(0부터). 내려받을 때 어느 파트인지 가리킨다.
+    pub part_index: u32,
+    pub mime: String,
+}
+
+/// 내려받을 첨부를 가리키는 값. 저장해 둔 `part_index`가 없는 옛 메일은 이름·크기로 찾는다.
+#[derive(Debug, Clone)]
+pub struct AttachmentTarget {
+    pub part_index: Option<u32>,
+    pub name: String,
+    pub size: u64,
+}
+
+/// 내려받은 첨부 내용
+#[derive(Debug, Clone)]
+pub struct AttachmentData {
+    pub name: String,
+    #[allow(dead_code)] // 이미지·PDF 미리보기(후속)에서 쓴다
+    pub mime: String,
+    pub data: Vec<u8>,
 }
 
 /// HTML 본문이 `cid:`로 가리키는 인라인 이미지. 첨부 목록에는 올리지 않는다.
@@ -121,6 +142,27 @@ pub struct FolderSnapshot {
     /// IMAP UIDVALIDITY. 이전과 다르면 저장해 둔 UID는 모두 무효다. 모르면 `None`.
     pub uid_validity: Option<u32>,
     pub messages: Vec<RemoteFlags>,
+}
+
+/// 폴더의 요약 상태(IMAP STATUS). 이 값이 그대로면 UID·플래그 전체를 다시 받지 않아도 된다.
+/// 별표처럼 개수에 드러나지 않는 변화는 잡지 못하므로 가끔은 전체 대조를 따로 해야 한다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FolderStatus {
+    pub uid_validity: Option<u32>,
+    pub uid_next: Option<u32>,
+    /// 폴더의 메일 수
+    pub messages: u32,
+    /// 안 읽은 메일 수
+    pub unseen: u32,
+}
+
+/// `wait_for_changes`가 돌아온 이유
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WakeReason {
+    /// 서버가 변화를 알렸거나, 기다리기 시작할 때 이미 바뀌어 있었다.
+    Changed,
+    /// 변화 없이 시간이 지났다.
+    TimedOut,
 }
 
 #[derive(Debug, Clone)]
@@ -212,18 +254,53 @@ pub trait MailProvider: Send + Sync {
         unsupported("메일 삭제")
     }
 
+    /// 첨부 하나의 내용을 받는다. `\Seen`이 달리지 않아야 한다(읽음 상태를 바꾸지 않는다).
+    async fn fetch_attachment(
+        &self,
+        _folder_key: &str,
+        _remote_id: &str,
+        _target: &AttachmentTarget,
+    ) -> Result<AttachmentData, ProviderError> {
+        unsupported("첨부 받기")
+    }
+
+    /// 같은 메일의 첨부 여러 개를 받는다. 구현체가 메일을 한 번만 받도록 오버라이드할 수 있다.
+    async fn fetch_attachments(
+        &self,
+        folder_key: &str,
+        remote_id: &str,
+        targets: &[AttachmentTarget],
+    ) -> Result<Vec<AttachmentData>, ProviderError> {
+        let mut out = Vec::with_capacity(targets.len());
+        for t in targets {
+            out.push(self.fetch_attachment(folder_key, remote_id, t).await?);
+        }
+        Ok(out)
+    }
+
     /// 메일을 보낸다(SMTP). 서버가 보낸편지함에 사본을 남기는지는 서비스에 따른다.
     async fn send(&self, _mail: &OutgoingMail) -> Result<(), ProviderError> {
         unsupported("메일 보내기")
     }
 
+    /// 여러 폴더의 요약 상태를 연결 하나로 조회한다. 조회하지 못한 폴더는 결과에서 빠진다.
+    async fn folder_statuses(
+        &self,
+        _folder_keys: &[String],
+    ) -> Result<HashMap<String, FolderStatus>, ProviderError> {
+        unsupported("폴더 요약 조회")
+    }
+
     /// 폴더에 변화가 생기거나 `timeout`이 지날 때까지 기다린다(IMAP IDLE).
+    /// `since`는 마지막으로 맞춘 시점의 상태다. 기다리기 시작할 때 이미 달라져 있으면(동기화 끝과 IDLE 시작 사이의 변화)
+    /// 기다리지 않고 `Changed`로 돌아온다.
     /// 서버가 푸시를 지원하지 않으면 `Unsupported`를 돌려주고, 호출한 쪽이 주기적으로 조회한다.
     async fn wait_for_changes(
         &self,
         _folder_key: &str,
         _timeout: Duration,
-    ) -> Result<(), ProviderError> {
+        _since: Option<&FolderStatus>,
+    ) -> Result<WakeReason, ProviderError> {
         unsupported("새 메일 알림")
     }
 }
