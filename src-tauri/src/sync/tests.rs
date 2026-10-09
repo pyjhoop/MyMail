@@ -654,7 +654,7 @@ async fn 지우는_중인_메일은_동기화가_다시_받지_않는다() {
 async fn 푸시를_못_쓰는_서버는_unsupported로_알려_준다() {
     let failing = Failing { verify: None };
     let err = failing
-        .wait_for_changes("INBOX", Duration::from_secs(1))
+        .wait_for_changes("INBOX", Duration::from_secs(1), None)
         .await
         .unwrap_err();
     assert!(matches!(err, ProviderError::Unsupported(_)));

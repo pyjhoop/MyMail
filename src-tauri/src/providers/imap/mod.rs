@@ -14,8 +14,8 @@ use async_trait::async_trait;
 use native_tls::{TlsConnector, TlsStream};
 
 use super::{
-    FolderKind, FolderSnapshot, MailProvider, OutgoingMail, ProviderError, RemoteFlags,
-    RemoteFolder, RemoteMessage,
+    FolderKind, FolderSnapshot, FolderStatus, MailProvider, OutgoingMail, ProviderError,
+    RemoteFlags, RemoteFolder, RemoteMessage, WakeReason,
 };
 use gmail_ext::GmailAttrs;
 use parse::{parse_message, FetchedMessage};
@@ -342,9 +342,45 @@ impl ImapProvider {
         self.with_folder(folder_key, |s| expunge_uid(s, &uid))
     }
 
-    fn wait_blocking(&self, folder_key: &str, timeout: Duration) -> Result<(), ProviderError> {
+    /// 연결 하나로 여러 폴더의 STATUS를 조회한다. 폴더 하나가 실패해도 나머지는 계속한다.
+    fn statuses_blocking(
+        &self,
+        folder_keys: &[String],
+    ) -> Result<HashMap<String, FolderStatus>, ProviderError> {
         let mut session = self.connect()?;
-        session.examine(folder_key).map_err(map_imap_error)?;
+        let mut result = HashMap::new();
+        for key in folder_keys {
+            if let Some(status) = status_of(&mut session, key) {
+                result.insert(key.clone(), status);
+            }
+        }
+        let _ = session.logout();
+        Ok(result)
+    }
+
+    fn wait_blocking(
+        &self,
+        folder_key: &str,
+        timeout: Duration,
+        since: Option<&FolderStatus>,
+    ) -> Result<WakeReason, ProviderError> {
+        let mut session = self.connect()?;
+        // 동기화가 끝난 뒤 IDLE을 걸기까지 생긴 변화는 서버가 알려 주지 않는다. 걸기 전에 한 번 비교한다.
+        if let (Some(since), Some(now)) = (since, status_of(&mut session, folder_key)) {
+            if *since != now {
+                let _ = session.logout();
+                return Ok(WakeReason::Changed);
+            }
+        }
+        let mailbox = session.examine(folder_key).map_err(map_imap_error)?;
+        if let Some(since) = since {
+            if mailbox.exists != since.messages
+                || since.uid_next.is_some_and(|n| mailbox.uid_next != Some(n))
+            {
+                let _ = session.logout();
+                return Ok(WakeReason::Changed);
+            }
+        }
         let caps = session.capabilities().map_err(map_imap_error)?;
         if !caps.has_str("IDLE") {
             return Err(ProviderError::Unsupported("IDLE".into()));
@@ -353,11 +389,49 @@ impl ImapProvider {
             .idle()
             .map_err(map_imap_error)?
             .wait_with_timeout(timeout)
-            .map(|_| ())
+            .map(|o| match o {
+                imap::extensions::idle::WaitOutcome::MailboxChanged => WakeReason::Changed,
+                imap::extensions::idle::WaitOutcome::TimedOut => WakeReason::TimedOut,
+            })
             .map_err(map_imap_error);
         let _ = session.logout();
         outcome
     }
+}
+
+/// STATUS로 폴더의 요약 상태를 읽는다. 서버가 거절하거나 응답에 빠지면 `None`이다.
+/// `imap` 크레이트는 STATUS 응답을 반환값이 아니라 `unsolicited_responses`로 흘린다.
+fn status_of(session: &mut Session, folder_key: &str) -> Option<FolderStatus> {
+    use imap::types::{StatusAttribute, UnsolicitedResponse};
+    while session.unsolicited_responses.try_recv().is_ok() {}
+    session
+        .status(folder_key, "(MESSAGES UIDNEXT UIDVALIDITY UNSEEN)")
+        .ok()?;
+    let mut status = FolderStatus {
+        uid_validity: None,
+        uid_next: None,
+        messages: 0,
+        unseen: 0,
+    };
+    let mut seen_messages = false;
+    while let Ok(response) = session.unsolicited_responses.try_recv() {
+        let UnsolicitedResponse::Status { attributes, .. } = response else {
+            continue;
+        };
+        for attribute in attributes {
+            match attribute {
+                StatusAttribute::Messages(n) => {
+                    status.messages = n;
+                    seen_messages = true;
+                }
+                StatusAttribute::UidNext(n) => status.uid_next = Some(n),
+                StatusAttribute::UidValidity(n) => status.uid_validity = Some(n),
+                StatusAttribute::Unseen(n) => status.unseen = n,
+                _ => {}
+            }
+        }
+    }
+    seen_messages.then_some(status)
 }
 
 /// 원본에 `\Deleted`를 달아 지운다. UID로 지정해 같은 폴더의 다른 `\Deleted` 메일은 건드리지 않는다.
@@ -460,13 +534,23 @@ impl MailProvider for ImapProvider {
             .await
     }
 
+    async fn folder_statuses(
+        &self,
+        folder_keys: &[String],
+    ) -> Result<HashMap<String, FolderStatus>, ProviderError> {
+        let keys = folder_keys.to_vec();
+        self.blocking(move |this| this.statuses_blocking(&keys))
+            .await
+    }
+
     async fn wait_for_changes(
         &self,
         folder_key: &str,
         timeout: Duration,
-    ) -> Result<(), ProviderError> {
-        let key = folder_key.to_string();
-        self.blocking(move |this| this.wait_blocking(&key, timeout))
+        since: Option<&FolderStatus>,
+    ) -> Result<WakeReason, ProviderError> {
+        let (key, since) = (folder_key.to_string(), since.cloned());
+        self.blocking(move |this| this.wait_blocking(&key, timeout, since.as_ref()))
             .await
     }
 

@@ -7,8 +7,8 @@ use std::time::Duration;
 use async_trait::async_trait;
 
 use super::{
-    FolderKind, FolderSnapshot, MailProvider, OutgoingMail, ProviderError, RemoteAttachment,
-    RemoteFlags, RemoteFolder, RemoteMessage,
+    FolderKind, FolderSnapshot, FolderStatus, MailProvider, OutgoingMail, ProviderError,
+    RemoteAttachment, RemoteFlags, RemoteFolder, RemoteMessage, WakeReason,
 };
 
 const SENDERS: [(&str, &str); 6] = [
@@ -412,12 +412,48 @@ impl MailProvider for FakeProvider {
         Ok(())
     }
 
+    async fn folder_statuses(
+        &self,
+        folder_keys: &[String],
+    ) -> Result<HashMap<String, FolderStatus>, ProviderError> {
+        let mut server = self.server();
+        if server.offline {
+            return Err(ProviderError::Network("연결 끊김".into()));
+        }
+        server.ops.push("statuses".into());
+        Ok(folder_keys
+            .iter()
+            .filter_map(|key| Some((key.clone(), status_of(server.folders.get(key)?))))
+            .collect())
+    }
+
     async fn wait_for_changes(
         &self,
-        _folder_key: &str,
+        folder_key: &str,
         _timeout: Duration,
-    ) -> Result<(), ProviderError> {
-        self.check_online()
+        since: Option<&FolderStatus>,
+    ) -> Result<WakeReason, ProviderError> {
+        self.check_online()?;
+        let changed = since.is_some_and(|since| {
+            self.server()
+                .folders
+                .get(folder_key)
+                .is_some_and(|f| status_of(f) != *since)
+        });
+        Ok(if changed {
+            WakeReason::Changed
+        } else {
+            WakeReason::TimedOut
+        })
+    }
+}
+
+fn status_of(folder: &FakeFolder) -> FolderStatus {
+    FolderStatus {
+        uid_validity: Some(folder.uid_validity),
+        uid_next: Some(folder.next_uid),
+        messages: folder.messages.len() as u32,
+        unseen: folder.messages.iter().filter(|m| m.unread).count() as u32,
     }
 }
 

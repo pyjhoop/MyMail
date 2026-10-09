@@ -28,8 +28,10 @@ import {
   listMails,
   onSyncProgress,
   onTrayCompose,
+  onWindowFocus,
   searchMails,
   setRead,
+  syncNow,
   toLoadError,
   type Account,
   type Folder,
@@ -286,6 +288,15 @@ function App() {
     startComposeRef.current = startCompose;
   });
   useEffect(() => onTrayCompose(() => startComposeRef.current("new")), []);
+
+  // 창이 다시 포커스를 얻으면(트레이에서 열 때 포함) 서버와 바로 맞춘다. 결과는 sync-progress 이벤트로 반영된다.
+  const focusSyncRef = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    focusSyncRef.current = () => {
+      syncNow(selection === "all" ? null : selection, folderId || undefined).catch(() => undefined);
+    };
+  });
+  useEffect(() => onWindowFocus(() => focusSyncRef.current()), []);
 
   const openDraft = async (id: string) => {
     if (compose?.draft.id === id) return;
