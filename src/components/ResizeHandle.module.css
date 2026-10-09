@@ -1,0 +1,40 @@
+.handle {
+  position: relative;
+  flex: none;
+  width: 1px;
+  background: var(--color-border);
+  cursor: col-resize;
+  z-index: 1;
+}
+
+/* 경계 양쪽으로 투명 히트 영역 */
+.handle::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--resize-hit-area) / -2);
+  width: var(--resize-hit-area);
+}
+
+.handle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc((1px - var(--resize-line-hover)) / 2);
+  width: var(--resize-line-hover);
+  background: var(--color-accent);
+  opacity: 0;
+  transition: opacity var(--duration-fast);
+}
+
+.handle:hover::after,
+.handle:focus-visible::after,
+.dragging::after {
+  opacity: 1;
+}
+
+.handle:focus-visible {
+  box-shadow: none;
+}

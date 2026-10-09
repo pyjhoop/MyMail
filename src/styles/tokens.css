@@ -1,0 +1,145 @@
+/* 디자인 토큰 — docs/design/Tokens.dc.html 기준. 다크는 [data-theme="dark"] 또는 시스템 설정. */
+:root {
+  --font-sans: "Pretendard", -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-ui: 1.5;
+  --line-height-reading: 1.7;
+
+  --color-bg: #ffffff;
+  --color-bg-subtle: #f7f7f8;
+  --color-bg-hover: #efeff1;
+  --color-bg-selected: #e8e8ed;
+  --color-border: #e7e7ea;
+  --color-border-strong: #d4d4d8;
+  --color-text: #18181b;
+  --color-text-secondary: #52525b;
+  --color-text-tertiary: #6b6b74;
+  --color-accent: #4f46e5;
+  --color-accent-hover: #4338ca;
+  --color-accent-text: #4f46e5;
+  --color-accent-subtle: #eeeefd;
+  --color-on-accent: #ffffff;
+  --color-badge-bg: #18181b;
+  --color-badge-text: #ffffff;
+  --color-star: #d97706;
+  --color-danger: #dc2626;
+  --color-overlay: #18181b;
+  --color-on-overlay: #ffffff;
+  --color-overlay-accent: #a5a8fa;
+  --color-danger-text: #b91c1c;
+  --color-danger-subtle: #fef0f0;
+  --color-on-danger: #ffffff;
+  --color-warning-text: #b45309;
+  --color-warning-subtle: #fff7e6;
+  --color-success: #15803d;
+  --color-highlight-bg: #fde68a;
+  --color-scrim: rgba(24, 24, 27, 0.32);
+
+  --account-1: #2563eb;
+  --account-2: #15803d;
+  --account-3: #c2410c;
+  --account-4: #7c3aed;
+  --account-5: #be185d;
+  --account-6: #0f766e;
+  --account-7: #a16207;
+  --account-8: #b91c1c;
+  --on-account: #ffffff;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  --radius-xs: 4px;
+  --radius-control: 6px;
+  --radius-card: 10px;
+  --radius-full: 999px;
+
+  --titlebar-height: 40px;
+  --window-button-width: 46px;
+  --rail-width: 64px;
+  --avatar-size: 40px;
+  --folder-width: 220px;
+  --folder-width-min: 180px;
+  --folder-width-max: 320px;
+  --folder-width-collapsed: 56px;
+  --list-width: 360px;
+  --list-width-min: 300px;
+  --list-width-max: 520px;
+  --reader-min-width: 480px;
+  --reader-text-max-width: 680px;
+  --resize-hit-area: 8px;
+  --resize-line-hover: 2px;
+  --toolbar-height: 48px;
+  --folder-item-height: 32px;
+  --folder-item-height-account: 44px;
+  --mail-row-height: 84px;
+  --icon-size: 20px;
+  --icon-size-dense: 16px;
+  --icon-stroke: 1.75;
+  --control-height: 28px;
+  --control-height-lg: 32px;
+  --search-width: 480px;
+
+  --shadow-popup: 0 8px 24px rgba(24, 24, 27, 0.1), 0 0 0 1px rgba(24, 24, 27, 0.06);
+  --shadow-modal: 0 24px 64px rgba(24, 24, 27, 0.18);
+  --focus-ring: 0 0 0 1px var(--color-accent), 0 0 0 4px var(--color-accent-subtle);
+  --duration-fast: 120ms ease-out;
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #131316;
+  --color-bg-subtle: #18181c;
+  --color-bg-hover: #222227;
+  --color-bg-selected: #2a2a31;
+  --color-border: #26262c;
+  --color-border-strong: #34343c;
+  --color-text: #ededef;
+  --color-text-secondary: #a1a1aa;
+  --color-text-tertiary: #8b8b94;
+  --color-accent: #5e5ce6;
+  --color-accent-hover: #6e6cf0;
+  --color-accent-text: #a5a8fa;
+  --color-accent-subtle: #23234a;
+  --color-badge-bg: #ededef;
+  --color-badge-text: #131316;
+  --color-star: #f5b83d;
+  --color-danger: #f87171;
+  --color-overlay: #ededef;
+  --color-on-overlay: #131316;
+  --color-overlay-accent: #4f46e5;
+  --color-danger-text: #fca5a5;
+  --color-danger-subtle: #3a1c1e;
+  --color-on-danger: #131316;
+  --color-warning-text: #fbbf24;
+  --color-warning-subtle: #2e2410;
+  --color-success: #4ade80;
+  --color-highlight-bg: #6b5410;
+  --color-scrim: rgba(0, 0, 0, 0.55);
+
+  --account-1: #60a5fa;
+  --account-2: #4ade80;
+  --account-3: #fb923c;
+  --account-4: #a78bfa;
+  --account-5: #f472b6;
+  --account-6: #2dd4bf;
+  --account-7: #facc15;
+  --account-8: #f87171;
+  --on-account: #131316;
+
+  --shadow-popup: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --shadow-modal: 0 24px 64px rgba(0, 0, 0, 0.6);
+}

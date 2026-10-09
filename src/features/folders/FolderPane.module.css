@@ -1,0 +1,204 @@
+.pane {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  width: var(--folder-width);
+  padding: var(--space-4) var(--space-2) var(--space-3);
+  overflow-y: auto;
+  background: var(--color-bg-subtle);
+}
+
+.collapsed {
+  width: var(--folder-width-collapsed);
+  align-items: center;
+  padding-inline: var(--space-2);
+}
+
+.head {
+  padding: 0 var(--space-2) var(--space-3);
+}
+
+.title {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.4;
+}
+
+.sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+  color: var(--color-text-tertiary);
+}
+
+.compose {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 36px;
+  margin: 0 var(--space-1) var(--space-4);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  transition: background var(--duration-fast);
+}
+
+.compose:hover {
+  background: var(--color-accent-hover);
+}
+
+.collapsed .compose {
+  width: 36px;
+  margin-inline: 0;
+  padding: 0;
+  justify-content: center;
+}
+
+.composeText {
+  flex: 1;
+  text-align: left;
+}
+
+.compose kbd {
+  font-family: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  opacity: 0.75;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 10px;
+  height: var(--folder-item-height);
+  padding: 0 var(--space-2) 0 var(--indent, var(--space-2));
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text-secondary);
+  text-align: left;
+  transition: background var(--duration-fast);
+}
+
+.collapsed .item {
+  width: 40px;
+  padding: 0;
+  justify-content: center;
+}
+
+.item:hover {
+  background: var(--color-bg-hover);
+}
+
+.selected,
+.selected:hover {
+  background: var(--color-bg-selected);
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.count {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+}
+
+.countStrong {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.sectionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-5) var(--space-2) 6px;
+}
+
+.section {
+  padding: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-tertiary);
+}
+
+.head + .compose + .section,
+.compose + .section {
+  padding: 0 var(--space-2) 6px;
+}
+
+.addLabel {
+  width: 20px;
+  height: 20px;
+  color: var(--color-text-tertiary);
+}
+
+.dotWrap {
+  display: flex;
+  justify-content: center;
+  width: var(--icon-size);
+}
+
+.dot {
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-full);
+}
+
+/* 통합 보기: 계정별 받은편지함 */
+.accountItem {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 10px;
+  height: var(--folder-item-height-account);
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  text-align: left;
+}
+
+.collapsed .accountItem {
+  width: 40px;
+  padding: 0;
+  justify-content: center;
+}
+
+.accountItem:hover {
+  background: var(--color-bg-hover);
+}
+
+.accountDot {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  color: var(--on-account);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: 28px;
+  text-align: center;
+}
+
+.accountText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}

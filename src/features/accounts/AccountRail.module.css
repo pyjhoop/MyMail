@@ -1,0 +1,117 @@
+.rail {
+  position: relative;
+  z-index: 2;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  width: var(--rail-width);
+  padding: var(--space-3) 0;
+  background: var(--color-bg-subtle);
+  border-right: 1px solid var(--color-border);
+}
+
+.slot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--rail-width);
+  height: calc(var(--avatar-size) + var(--space-3));
+}
+
+.indicator {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: var(--space-6);
+  transform: translateY(-50%);
+  border-radius: 0 3px 3px 0;
+  background: var(--color-text);
+}
+
+.divider {
+  width: var(--space-6);
+  height: 1px;
+  margin: 2px 0 var(--space-2);
+  background: var(--color-border-strong);
+}
+
+.all {
+  position: relative;
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  border-radius: var(--radius-card);
+}
+
+.avatar {
+  position: relative;
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--ring);
+  color: var(--on-account);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--avatar-size);
+  box-shadow:
+    0 0 0 2px var(--color-bg-subtle),
+    0 0 0 4px var(--ring);
+}
+
+.badge {
+  position: absolute;
+  top: -7px;
+  right: -9px;
+  height: 18px;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--color-badge-bg);
+  color: var(--color-badge-text);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  line-height: 18px;
+  box-shadow: 0 0 0 2px var(--color-bg-subtle);
+}
+
+.allBadge {
+  top: -4px;
+  right: -10px;
+}
+
+.provider {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 16px;
+  box-shadow: 0 0 0 2px var(--color-bg-subtle);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.add {
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-full);
+}
+
+.settings {
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  border-radius: var(--radius-card);
+}

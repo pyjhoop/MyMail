@@ -1,0 +1,94 @@
+.state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-8);
+  color: var(--color-text-tertiary);
+  text-align: center;
+}
+
+.danger {
+  color: var(--color-danger-text);
+}
+
+.title {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.desc {
+  font-size: var(--font-size-sm);
+}
+
+.button {
+  height: var(--control-height-lg);
+  margin-top: var(--space-2);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-bg);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.button:hover {
+  background: var(--color-bg-hover);
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 var(--space-2);
+}
+
+.skelRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  height: var(--mail-row-height);
+  padding: 14px var(--space-3) 0 var(--space-5);
+}
+
+.readerSkeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: var(--reader-text-max-width);
+  margin: var(--space-3) auto 0;
+  padding: 0 var(--space-12);
+}
+
+.bar {
+  display: block;
+  height: var(--space-3);
+  border-radius: var(--radius-xs);
+  background: var(--color-bg-hover);
+  animation: mm-pulse 1.4s ease-in-out infinite;
+}
+
+.title20 {
+  width: 70%;
+  height: var(--space-5);
+}
+
+.w40 {
+  width: 40%;
+}
+
+.w60 {
+  width: 60%;
+}
+
+.w75 {
+  width: 75%;
+}
+
+.w90 {
+  width: 90%;
+}
