@@ -185,3 +185,189 @@
 .provider:has(input:focus-visible) {
   outline: 2px solid var(--color-accent);
 }
+.steps {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.stepText,
+.hint {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+}
+
+.stepBars {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.stepOn,
+.stepOff {
+  width: var(--space-6);
+  height: var(--space-1);
+  border-radius: var(--radius-xs);
+}
+
+.stepOn {
+  background: var(--color-accent);
+}
+
+.stepOff {
+  background: var(--color-bg-selected);
+}
+
+.grow {
+  flex: 1;
+}
+
+.colors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.colors legend {
+  padding: 0;
+  margin-bottom: var(--space-2);
+}
+
+.swatches {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.swatch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height-lg);
+  height: var(--control-height-lg);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  color: var(--on-account);
+  cursor: pointer;
+}
+
+.swatchUsed {
+  box-shadow:
+    0 0 0 2px var(--color-bg),
+    0 0 0 3px var(--color-border-strong);
+}
+
+.swatch[aria-pressed="true"] {
+  box-shadow:
+    0 0 0 2px var(--color-bg),
+    0 0 0 var(--space-1) var(--color-text);
+}
+
+.swatch:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: var(--space-1);
+}
+
+.preview {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-card);
+  background: var(--color-bg-subtle);
+}
+
+.previewAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  border-radius: var(--radius-full);
+  color: var(--on-account);
+  font-weight: var(--font-weight-semibold);
+}
+
+.previewText {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--space-1) 0 var(--space-1) var(--space-3);
+}
+
+.previewBar {
+  position: absolute;
+  top: var(--space-1);
+  bottom: var(--space-1);
+  left: 0;
+  width: 3px;
+  border-radius: var(--radius-xs);
+}
+
+.previewName {
+  font-weight: var(--font-weight-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.previewMail {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.checking {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+}
+
+.counts {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.big {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+}
+
+.total {
+  color: var(--color-text-tertiary);
+}
+
+.bar {
+  height: var(--space-2);
+  border-radius: var(--radius-xs);
+  background: var(--color-bg-selected);
+  overflow: hidden;
+}
+
+.barFill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-xs);
+  transition: width 0.2s;
+}
+
+.noticeRow {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.notice b {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
