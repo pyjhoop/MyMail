@@ -7,9 +7,18 @@ interface Props {
   /** 0~1. 있으면 제목 표시줄 아래에 진행률 막대를 보여 준다 */
   syncProgress?: number;
   onOpenSettings: () => void;
+  /** 검색창 입력값 (제어 컴포넌트). Esc로 지운다. */
+  search: string;
+  onSearchChange: (value: string) => void;
 }
 
-export function TitleBar({ syncLabel, syncProgress, onOpenSettings }: Props) {
+export function TitleBar({
+  syncLabel,
+  syncProgress,
+  onOpenSettings,
+  search,
+  onSearchChange,
+}: Props) {
   return (
     <header className={styles.bar} data-tauri-drag-region>
       <div className={styles.brand} data-tauri-drag-region>
@@ -20,7 +29,16 @@ export function TitleBar({ syncLabel, syncProgress, onOpenSettings }: Props) {
       </div>
       <label className={styles.search}>
         <Search size={16} strokeWidth={2} aria-hidden />
-        <input type="search" placeholder="메일 검색" aria-label="메일 검색" />
+        <input
+          type="search"
+          placeholder="메일 검색"
+          aria-label="메일 검색"
+          value={search}
+          onChange={(e) => onSearchChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") onSearchChange("");
+          }}
+        />
       </label>
       <div className={styles.right} data-tauri-drag-region>
         <span className={styles.sync}>

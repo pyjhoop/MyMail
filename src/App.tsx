@@ -20,6 +20,7 @@ import {
   listFolders,
   listMails,
   onSyncProgress,
+  searchMails,
   setRead,
   toLoadError,
   type Account,
@@ -36,6 +37,8 @@ const EMPTY_FOLDERS: Folder[] = [];
 const EMPTY_IDS: ReadonlySet<string> = new Set();
 /** 방향키로 훑을 때 읽음 처리되지 않도록 본문을 연 뒤 이만큼 기다린다. */
 const READ_DELAY_MS = 1000;
+/** 검색어를 입력하는 동안 매 글자마다 검색하지 않도록 기다리는 시간. */
+const SEARCH_DELAY_MS = 300;
 
 function App() {
   useSystemTheme();
@@ -54,6 +57,9 @@ function App() {
   const [deleting, setDeleting] = useState(false);
   const [notice, setNotice] = useState<string>();
   const [compose, setCompose] = useState<ComposeInit | null>(null);
+  const [search, setSearch] = useState("");
+  // 입력이 잠깐 멈추면 검색한다. 비어 있으면 평소 목록으로 돌아간다.
+  const [term, setTerm] = useState("");
 
   // 비동기 결과는 "어떤 요청의 결과인지"(key)와 함께 저장하고, 현재 요청과 같을 때만 ready로 본다.
   // effect 안에서 loading을 동기적으로 setState하지 않기 위한 구조.
@@ -85,7 +91,7 @@ function App() {
       : (folders.find((f) => f.kind === "inbox")?.id ?? "");
   const folderPending = selection !== "all" && folderId === "";
 
-  const mailsScope = `${selection}|${folderId}`;
+  const mailsScope = term ? `search|${selection}|${term}` : `${selection}|${folderId}`;
   const mailsReady = mailsResult?.scope === mailsScope;
   const status: ListStatus = !mailsReady ? "loading" : mailsResult.error ? "error" : "ready";
   const mails = mailsReady ? mailsResult.mails : EMPTY_MAILS;
@@ -99,6 +105,11 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const timer = setTimeout(() => setTerm(search.trim()), SEARCH_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
     if (selection === "all") return;
     let cancelled = false;
     listFolders(selection).then((result) => {
@@ -110,9 +121,10 @@ function App() {
   }, [selection, foldersReloadKey]);
 
   useEffect(() => {
-    if (folderPending) return;
+    if (folderPending && !term) return;
     let cancelled = false;
-    listMails(selection === "all" ? null : selection, folderId)
+    const accountArg = selection === "all" ? null : selection;
+    (term ? searchMails(accountArg, term) : listMails(accountArg, folderId))
       .then((result) => {
         if (!cancelled) setMailsResult({ scope: mailsScope, mails: result });
       })
@@ -127,7 +139,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [selection, folderId, folderPending, mailsScope, reloadKey]);
+  }, [selection, folderId, folderPending, term, mailsScope, reloadKey]);
 
   useEffect(() => {
     if (!mailId) return;
@@ -191,6 +203,8 @@ function App() {
   }, []);
 
   const selectFolder = useCallback((id: string, accountId: string) => {
+    setSearch("");
+    setTerm("");
     setSelection(accountId);
     setFolderId(id);
     setMailId(null);
@@ -276,9 +290,10 @@ function App() {
   };
 
   const title = useMemo(() => {
+    if (term) return `검색: ${term}`;
     if (selection === "all") return "통합 받은편지함";
     return folders.find((f) => f.id === folderId)?.name ?? "받은편지함";
-  }, [selection, folders, folderId]);
+  }, [term, selection, folders, folderId]);
 
   const running = Object.values(syncs).filter((s) => s.error === null && s.done < s.total);
   const failed = Object.values(syncs).find((s) => s.error !== null);
@@ -302,6 +317,8 @@ function App() {
       <TitleBar
         syncLabel={syncLabel}
         syncProgress={running.length > 0 ? syncDone / syncTotal : undefined}
+        search={search}
+        onSearchChange={setSearch}
         onOpenSettings={() => undefined}
       />
       <div className={styles.body}>
@@ -343,9 +360,10 @@ function App() {
             onSelect={selectMail}
             checkedIds={checked}
             onCheckedChange={setCheckedIds}
-            onDelete={() => (inTrash ? setConfirmingDelete(true) : void deleteChecked())}
+            onDelete={() => (inTrash || term ? setConfirmingDelete(true) : void deleteChecked())}
             deleting={deleting}
             notice={notice}
+            searching={term !== ""}
             onRefresh={() => setReloadKey((k) => k + 1)}
           />
         </div>
@@ -380,9 +398,13 @@ function App() {
       </div>
       {confirmingDelete && (
         <ConfirmDialog
-          title="메일을 완전히 삭제할까요?"
-          message={`선택한 메일 ${checked.size}통이 휴지통에서 완전히 지워져요. 되돌릴 수 없어요.`}
-          confirmLabel="완전히 삭제"
+          title={term ? "메일을 삭제할까요?" : "메일을 완전히 삭제할까요?"}
+          message={
+            term
+              ? `선택한 메일 ${checked.size}통을 삭제해요. 휴지통에 있던 메일은 완전히 지워지고 되돌릴 수 없어요.`
+              : `선택한 메일 ${checked.size}통이 휴지통에서 완전히 지워져요. 되돌릴 수 없어요.`
+          }
+          confirmLabel={term ? "삭제" : "완전히 삭제"}
           onConfirm={() => void deleteChecked()}
           onCancel={() => setConfirmingDelete(false)}
         />

@@ -403,11 +403,10 @@ impl Store {
         }))
     }
 
-    #[allow(dead_code)] // M7에서 UI에 연결
-    /// 계정 안에서 제목·보낸사람·본문을 FTS5로 검색한다 (M7에서 UI에 연결).
+    /// 제목·보낸사람·본문을 FTS5로 검색한다. `account_id`가 없으면 모든 계정에서 찾는다.
     pub fn search_mails(
         &self,
-        account_id: &str,
+        account_id: Option<&str>,
         query: &str,
     ) -> Result<Vec<MailSummary>, StoreError> {
         let Some(fts) = fts_query(query) else {
@@ -420,7 +419,7 @@ impl Store {
                     CASE WHEN m.thread_id IS NULL THEN 0
                          ELSE (SELECT COUNT(*) FROM messages t WHERE t.thread_id = m.thread_id) END
              FROM messages_fts JOIN messages m ON m.rowid = messages_fts.rowid
-             WHERE messages_fts MATCH ?1 AND m.account_id = ?2
+             WHERE messages_fts MATCH ?1 AND (?2 IS NULL OR m.account_id = ?2)
              ORDER BY m.received_at DESC, m.id",
         )?;
         let rows = stmt.query_map(params![fts, account_id], summary_from_row)?;
@@ -499,7 +498,6 @@ fn extension(name: &str) -> String {
 }
 
 /// 사용자 입력을 FTS5 접두 검색식으로 바꾼다. 따옴표로 감싸 연산자 해석을 막는다.
-#[allow(dead_code)] // M7에서 UI에 연결
 fn fts_query(input: &str) -> Option<String> {
     let terms: Vec<String> = input
         .split_whitespace()

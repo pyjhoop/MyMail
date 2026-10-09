@@ -86,6 +86,16 @@ pub async fn list_mails(
     Ok(store.list_mails(account_id.as_deref(), &folder_id)?)
 }
 
+/// 제목·보낸사람·본문 검색. `account_id`가 없으면 모든 계정.
+#[tauri::command]
+pub async fn search_mails(
+    store: State<'_, Store>,
+    account_id: Option<String>,
+    query: String,
+) -> CommandResult<Vec<MailSummary>> {
+    Ok(store.search_mails(account_id.as_deref(), &query)?)
+}
+
 #[tauri::command]
 pub async fn get_mail(store: State<'_, Store>, id: String) -> CommandResult<Option<MailDetail>> {
     Ok(store.get_mail(&id)?)

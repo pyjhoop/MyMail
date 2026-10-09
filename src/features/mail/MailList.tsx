@@ -6,6 +6,7 @@ import {
   EmptyFolder,
   ListSkeleton,
   LoadErrorState,
+  NoSearchResults,
   OfflineState,
 } from "../../components/StateView";
 import type { Account, LoadError, MailSummary } from "../../lib/ipc";
@@ -31,6 +32,8 @@ interface Props {
   deleting?: boolean;
   /** 삭제 결과 등 목록 위에 보여줄 안내 */
   notice?: string;
+  /** 검색 결과를 보여 주는 중이면 빈 목록 문구가 달라진다 */
+  searching?: boolean;
   onRefresh: () => void;
 }
 
@@ -57,6 +60,7 @@ export function MailList({
   onDelete,
   deleting = false,
   notice,
+  searching = false,
   onRefresh,
 }: Props) {
   const [filter, setFilter] = useState<Filter>("all");
@@ -177,7 +181,9 @@ export function MailList({
           onRetry={onRefresh}
         />
       )}
-      {status === "ready" && visible.length === 0 && <EmptyFolder />}
+      {status === "ready" &&
+        visible.length === 0 &&
+        (searching ? <NoSearchResults /> : <EmptyFolder />)}
       {status === "ready" && visible.length > 0 && (
         <div ref={scrollRef} className={styles.scroll}>
           <div className={styles.inner} style={{ height: virtualizer.getTotalSize() }}>

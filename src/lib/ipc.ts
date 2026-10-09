@@ -138,6 +138,12 @@ export async function listMails(
   return mails.map(toSummary);
 }
 
+/** 제목·보낸사람·본문 검색. accountId가 null이면 모든 계정. */
+export async function searchMails(accountId: string | null, query: string): Promise<MailSummary[]> {
+  const mails = await call<RawMailSummary[]>("search_mails", { accountId, query });
+  return mails.map(toSummary);
+}
+
 export async function getMail(id: string): Promise<MailDetail | null> {
   const raw = await call<RawMailDetail | null>("get_mail", { id });
   if (!raw) return null;

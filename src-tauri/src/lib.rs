@@ -36,6 +36,7 @@ pub fn run() {
             commands::list_accounts,
             commands::list_folders,
             commands::list_mails,
+            commands::search_mails,
             commands::get_mail,
             commands::add_account,
             commands::set_read,

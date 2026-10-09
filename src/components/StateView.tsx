@@ -1,4 +1,4 @@
-import { CloudOff, Inbox, MailOpen, TriangleAlert, type LucideIcon } from "lucide-react";
+import { CloudOff, Inbox, MailOpen, SearchX, TriangleAlert, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import styles from "./StateView.module.css";
 
@@ -23,6 +23,14 @@ export function StateView({ icon: Icon, title, description, action, tone = "defa
 
 export const EmptyFolder = () => (
   <StateView icon={Inbox} title="빈 폴더" description="이 폴더에는 메일이 없어요." />
+);
+
+export const NoSearchResults = () => (
+  <StateView
+    icon={SearchX}
+    title="검색 결과가 없어요"
+    description="다른 단어로 다시 검색해 보세요."
+  />
 );
 
 export const NoMailSelected = () => (

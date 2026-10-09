@@ -84,11 +84,20 @@ async fn 상세는_본문_첨부_이전메일을_담는다() {
 #[tokio::test]
 async fn 한글_검색이_접두어로_동작한다() {
     let store = seeded().await;
-    assert!(!store.search_mails("a1", "견적").unwrap().is_empty());
-    assert!(!store.search_mails("a1", "토스").unwrap().is_empty());
-    assert!(store.search_mails("a1", "\"").unwrap().is_empty());
+    assert!(!store.search_mails(Some("a1"), "견적").unwrap().is_empty());
+    assert!(!store.search_mails(Some("a1"), "토스").unwrap().is_empty());
+    assert!(store.search_mails(Some("a1"), "\"").unwrap().is_empty());
+    // 계정을 지정하지 않으면 모든 계정에서 찾고, 다른 계정만 지정하면 나오지 않는다.
+    assert_eq!(
+        store.search_mails(None, "견적").unwrap().len(),
+        store.search_mails(Some("a1"), "견적").unwrap().len()
+    );
     assert!(store
-        .search_mails("a1", "존재하지않는단어")
+        .search_mails(Some("없는계정"), "견적")
+        .unwrap()
+        .is_empty());
+    assert!(store
+        .search_mails(Some("a1"), "존재하지않는단어")
         .unwrap()
         .is_empty());
 }
@@ -189,8 +198,8 @@ async fn 다시_동기화하면_본문과_html을_서버_값으로_갱신한다(
         )
         .unwrap();
     assert_eq!(preview, "깨끗한 본문");
-    assert_eq!(store.search_mails("a1", "깨끗한").unwrap().len(), 1);
-    assert!(store.search_mails("a1", "깨진").unwrap().is_empty());
+    assert_eq!(store.search_mails(Some("a1"), "깨끗한").unwrap().len(), 1);
+    assert!(store.search_mails(Some("a1"), "깨진").unwrap().is_empty());
 }
 
 #[tokio::test]
