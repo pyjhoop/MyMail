@@ -63,9 +63,28 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
                 show_main(tray.app_handle());
             }
         });
+    // 창·트레이가 같은 앱 아이콘(tauri.conf.json bundle.icon에서 만든 기본 창 아이콘)을 쓴다.
     if let Some(icon) = app.default_window_icon() {
         builder = builder.icon(icon.clone());
     }
     builder.build(app)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    /// 트레이·창 아이콘의 원본인 icon.ico에 작은 크기(16·32px)가 들어 있어야 또렷하게 보인다.
+    #[test]
+    fn app_icon_has_small_sizes() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let ico = std::fs::read(root.join("icons/icon.ico")).unwrap();
+        let count = u16::from_le_bytes([ico[4], ico[5]]) as usize;
+        let sizes: Vec<u8> = (0..count).map(|i| ico[6 + i * 16]).collect();
+        assert!(sizes.contains(&16) && sizes.contains(&32), "{sizes:?}");
+
+        let conf = std::fs::read_to_string(root.join("tauri.conf.json")).unwrap();
+        assert!(conf.contains("icons/32x32.png") && conf.contains("icons/icon.ico"));
+    }
 }
