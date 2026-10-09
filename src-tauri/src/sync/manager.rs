@@ -8,8 +8,9 @@ use std::time::{Duration, Instant};
 use tauri::async_runtime::JoinHandle;
 use tauri::{AppHandle, Emitter, Manager};
 
+use super::outbox::{Outbox, KICK_DELAY, MAX_TRIES, RETRY_DELAY};
 use super::scheduler::{open_folder_key, AccountSync};
-use super::{flush_pending, sync_account, Progress, Scope, SyncError};
+use super::{sync_account, Progress, Scope, SyncError};
 use crate::auth::CredentialStore;
 use crate::providers::{self, MailProvider, ProviderError, WakeReason};
 use crate::store::{NewMail, Store};
@@ -29,6 +30,7 @@ const RETRY_MAX: Duration = Duration::from_secs(15 * 60);
 struct Entry {
     provider: Arc<dyn MailProvider>,
     sync: Arc<AccountSync>,
+    outbox: Arc<Outbox>,
     task: JoinHandle<()>,
 }
 
@@ -83,6 +85,7 @@ impl SyncManager {
                 Entry {
                     provider,
                     sync,
+                    outbox: Arc::new(Outbox::default()),
                     task,
                 },
             )
@@ -157,21 +160,25 @@ impl SyncManager {
         });
     }
 
-    /// 로컬에 반영한 사용자 조작을 서버에 보낸다. 이동한 메일은 대상 폴더를 바로 맞춘다.
-    /// 연결이 없어 실패하면 큐에 남고, 다음 동기화 때 다시 보낸다.
+    /// 로컬에 반영한 사용자 조작을 서버에 보낸다. 연달아 부르면 0.3초 모아 계정마다 한 번에 하나씩 보내고,
+    /// 이동한 메일은 대상 폴더를 바로 맞춘다. 연결이 없어 실패하면 큐에 남고, 짧게 다시 시도한 뒤 다음 동기화 때 보낸다.
     pub fn kick(&self, app: &AppHandle, account_id: &str) {
-        let Some(provider) = self
-            .entries
-            .lock()
-            .ok()
-            .and_then(|e| e.get(account_id).map(|entry| entry.provider.clone()))
-        else {
+        let Some((provider, outbox)) = self.entries.lock().ok().and_then(|e| {
+            e.get(account_id)
+                .map(|entry| (entry.provider.clone(), entry.outbox.clone()))
+        }) else {
             return;
         };
+        if !outbox.claim() {
+            return;
+        }
         let (app, id) = (app.clone(), account_id.to_string());
         tauri::async_runtime::spawn(async move {
             let store = app.state::<Store>();
-            let Ok(moved) = flush_pending(&store, &*provider, &id).await else {
+            let Ok(moved) = outbox
+                .run(&store, &*provider, &id, KICK_DELAY, RETRY_DELAY, MAX_TRIES)
+                .await
+            else {
                 return;
             };
             if !moved.is_empty() {

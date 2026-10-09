@@ -3,6 +3,7 @@
 
 pub mod actions;
 pub mod manager;
+pub mod outbox;
 pub mod scheduler;
 
 use std::cmp::Reverse;

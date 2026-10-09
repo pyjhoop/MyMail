@@ -45,8 +45,6 @@ import styles from "./App.module.css";
 const EMPTY_MAILS: MailSummary[] = [];
 const EMPTY_FOLDERS: Folder[] = [];
 const EMPTY_IDS: ReadonlySet<string> = new Set();
-/** 방향키로 훑을 때 읽음 처리되지 않도록 본문을 연 뒤 이만큼 기다린다. */
-const READ_DELAY_MS = 1000;
 /** 검색어를 입력하는 동안 매 글자마다 검색하지 않도록 기다리는 시간. */
 const SEARCH_DELAY_MS = 300;
 
@@ -61,7 +59,6 @@ function App() {
   const [adding, setAdding] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
-  const [foldersReloadKey, setFoldersReloadKey] = useState(0);
   const [mailId, setMailId] = useState<string | null>(null);
   const [syncs, setSyncs] = useState<Record<string, SyncProgress>>({});
   const [checkedIds, setCheckedIds] = useState<ReadonlySet<string>>(EMPTY_IDS);
@@ -93,6 +90,11 @@ function App() {
   const folderPaneRef = useRef<HTMLDivElement>(null);
   const listPaneRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  // 안 읽은 수를 다시 읽는 요청 번호. 가장 마지막 요청의 응답만 화면에 반영한다.
+  const countsSeq = useRef(0);
+  const selectionRef = useRef<AccountSelection>(selection);
+  // 읽음 처리를 보낸 메일. 화면이 다시 그려지기 전에 같은 메일을 두 번 보내지 않는다.
+  const readInFlight = useRef(new Set<string>());
 
   const account = selection === "all" ? null : (accounts.find((a) => a.id === selection) ?? null);
 
@@ -116,24 +118,32 @@ function App() {
   const detail = mailId !== null && detailResult?.key === mailId ? detailResult.mail : null;
 
   useEffect(() => {
-    listAccounts().then(setAccounts);
+    selectionRef.current = selection;
+  }, [selection]);
+
+  // 계정·폴더의 안 읽은 수를 로컬 DB에서 다시 읽는 유일한 경로.
+  // 요청마다 번호를 매겨 가장 마지막 요청의 응답만 반영하므로, 늦게 도착한 옛 응답이 새 값을 덮지 않는다.
+  const refreshCounts = useCallback(() => {
+    const seq = ++countsSeq.current;
+    const sel = selectionRef.current;
+    Promise.all([listAccounts(), sel === "all" ? null : listFolders(sel)])
+      .then(([nextAccounts, nextFolders]) => {
+        if (seq !== countsSeq.current) return;
+        setAccounts(nextAccounts);
+        if (nextFolders) setFoldersResult({ key: sel, folders: nextFolders });
+      })
+      .catch(() => undefined);
   }, []);
+
+  // 처음과 계정을 바꿀 때: 계정 목록과 그 계정의 폴더 목록을 읽는다.
+  useEffect(() => {
+    refreshCounts();
+  }, [selection, refreshCounts]);
 
   useEffect(() => {
     const timer = setTimeout(() => setTerm(search.trim()), SEARCH_DELAY_MS);
     return () => clearTimeout(timer);
   }, [search]);
-
-  useEffect(() => {
-    if (selection === "all") return;
-    let cancelled = false;
-    listFolders(selection).then((result) => {
-      if (!cancelled) setFoldersResult({ key: selection, folders: result });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [selection, foldersReloadKey]);
 
   useEffect(() => {
     if (folderPending && !term) return;
@@ -167,35 +177,69 @@ function App() {
     };
   }, [mailId]);
 
-  // 본문이 열린 채 1초가 지나면 읽음 처리한다. 다른 메일을 고르거나 선택을 풀면 cleanup이 취소한다.
-  const detailUnread = detail?.unread === true;
-  useEffect(() => {
-    if (!mailId || !detailUnread) return;
-    const timer = setTimeout(() => {
-      setRead(mailId, true)
-        .then(() => {
-          setDetailResult((prev) =>
-            prev?.key === mailId && prev.mail
-              ? { key: mailId, mail: { ...prev.mail, unread: false } }
-              : prev,
-          );
-          // 목록은 다시 불러오지 않고(스켈레톤이 깜빡인다) 해당 행만 제자리에서 바꾼다.
-          setMailsResult((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  mails: prev.mails.map((m) => (m.id === mailId ? { ...m, unread: false } : m)),
-                }
-              : prev,
-          );
-          // 안 읽은 수는 이전 값을 유지한 채 새 값이 오면 바뀐다.
-          setFoldersReloadKey((k) => k + 1);
-          listAccounts().then(setAccounts);
-        })
-        .catch(() => undefined);
-    }, READ_DELAY_MS);
-    return () => clearTimeout(timer);
-  }, [mailId, detailUnread]);
+  // 메일의 안 읽은 수를 화면에서 먼저 바꾼다(낙관적 갱신). 받은편지함이 아닌 폴더는 계정 합계에 들지 않는다.
+  // 폴더 종류를 알 수 없는 경우(검색 결과 등)는 건드리지 않고 `refreshCounts`가 맞춘다.
+  const adjustUnread = (mail: MailSummary, delta: number) => {
+    countsSeq.current += 1; // 이미 날아간 옛 응답이 이 변경을 덮지 못하게 한다
+    const bump = (n: number) => Math.max(0, n + delta);
+    let inbox = false;
+    if (selection === "all") {
+      inbox = term === "";
+    } else if (mail.accountId === selection) {
+      const folder = folders.find((f) => f.id === mail.folderId);
+      if (folder) {
+        inbox = folder.kind === "inbox";
+        setFoldersResult((prev) =>
+          prev?.key === selection
+            ? {
+                ...prev,
+                folders: prev.folders.map((f) =>
+                  f.id === folder.id ? { ...f, unread: bump(f.unread) } : f,
+                ),
+              }
+            : prev,
+        );
+      }
+    }
+    if (inbox) {
+      setAccounts((prev) =>
+        prev.map((a) => (a.id === mail.accountId ? { ...a, unread: bump(a.unread) } : a)),
+      );
+    }
+  };
+
+  // 목록 행과 열린 본문의 읽음 표시를 제자리에서 바꾼다(목록을 다시 불러오면 스켈레톤이 깜빡인다).
+  const patchUnread = (id: string, unread: boolean) => {
+    setMailsResult((prev) =>
+      prev ? { ...prev, mails: prev.mails.map((m) => (m.id === id ? { ...m, unread } : m)) } : prev,
+    );
+    setDetailResult((prev) =>
+      prev?.key === id && prev.mail ? { key: id, mail: { ...prev.mail, unread } } : prev,
+    );
+  };
+
+  // 읽음 표시를 바꾼다. 화면을 먼저 바꾸고 백엔드에 알리며(서버 반영은 백엔드 큐가 맡는다), 실패하면 되돌린다.
+  const changeRead = (id: string, read: boolean) => {
+    const row = mails.find((m) => m.id === id);
+    if (!row || row.unread === !read || readInFlight.current.has(id)) return;
+    readInFlight.current.add(id);
+    patchUnread(id, !read);
+    adjustUnread(row, read ? -1 : 1);
+    setRead(id, read)
+      .catch(() => {
+        patchUnread(id, read);
+        adjustUnread(row, read ? 1 : -1);
+      })
+      .finally(() => {
+        readInFlight.current.delete(id);
+        refreshCounts();
+      });
+  };
+  // 메일을 열면 곧바로 `markRead`로 읽음 처리한다. `markUnread`는 "읽지 않음으로 표시"(Reader 더보기 메뉴)가 쓴다.
+  const readActions = {
+    markRead: (id: string) => changeRead(id, true),
+    markUnread: (id: string) => changeRead(id, false),
+  };
 
   // 백그라운드 동기화가 폴더를 하나 끝낼 때마다 목록과 안 읽은 수를 다시 읽는다.
   useEffect(
@@ -203,10 +247,9 @@ function App() {
       onSyncProgress((progress) => {
         setSyncs((prev) => ({ ...prev, [progress.accountId]: progress }));
         setReloadKey((k) => k + 1);
-        setFoldersReloadKey((k) => k + 1);
-        listAccounts().then(setAccounts);
+        refreshCounts();
       }),
-    [],
+    [refreshCounts],
   );
 
   const selectAccount = useCallback((next: AccountSelection) => {
@@ -244,8 +287,10 @@ function App() {
     let failed = 0;
     // 같은 계정의 IMAP 연결을 번갈아 쓰지 않도록 하나씩 처리한다.
     for (const id of ids) {
+      const row = mails.find((m) => m.id === id);
       try {
         await deleteMail(id);
+        if (row?.unread) adjustUnread(row, -1);
       } catch {
         failed += 1;
       }
@@ -255,8 +300,7 @@ function App() {
     if (mailId && ids.includes(mailId)) setMailId(null);
     if (failed > 0) setNotice(`메일 ${failed}통을 삭제하지 못했어요. 잠시 후 다시 시도해 주세요.`);
     setReloadKey((k) => k + 1);
-    setFoldersReloadKey((k) => k + 1);
-    listAccounts().then(setAccounts);
+    refreshCounts();
   };
 
   // 휴지통 안이거나 검색 결과면(휴지통 여부를 모른다) 확인을 받고, 아니면 바로 지운다.
@@ -311,19 +355,22 @@ function App() {
     }
     setCompose(null);
     setMailId(id);
+    readActions.markRead(id);
   };
 
   const finishCompose = (result: ComposeResult) => {
     setCompose(null);
     if (result === "sent") setNotice("메일을 보냈어요.");
     setReloadKey((k) => k + 1);
-    setFoldersReloadKey((k) => k + 1);
+    refreshCounts();
   };
 
   const index = mailId ? mails.findIndex((m) => m.id === mailId) : -1;
   const move = (delta: number) => {
     const next = mails[index + delta];
-    if (next) setMailId(next.id);
+    if (!next) return;
+    setMailId(next.id);
+    readActions.markRead(next.id);
   };
 
   // 작성기가 열려 있으면 메일 조작 단축키는 쉬고(작성 내용을 덮어쓰지 않게) 계정 전환만 쓴다.
