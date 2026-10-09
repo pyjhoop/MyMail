@@ -14,6 +14,7 @@ import {
   listFolders,
   listMails,
   onSyncProgress,
+  setRead,
   toLoadError,
   type Account,
   type Folder,
@@ -26,6 +27,8 @@ import styles from "./App.module.css";
 
 const EMPTY_MAILS: MailSummary[] = [];
 const EMPTY_FOLDERS: Folder[] = [];
+/** 방향키로 훑을 때 읽음 처리되지 않도록 본문을 연 뒤 이만큼 기다린다. */
+const READ_DELAY_MS = 1000;
 
 function App() {
   useSystemTheme();
@@ -36,6 +39,7 @@ function App() {
   const [selectedFolderId, setFolderId] = useState("");
   const [adding, setAdding] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [foldersReloadKey, setFoldersReloadKey] = useState(0);
   const [mailId, setMailId] = useState<string | null>(null);
   const [syncs, setSyncs] = useState<Record<string, SyncProgress>>({});
 
@@ -90,7 +94,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [selection]);
+  }, [selection, foldersReloadKey]);
 
   useEffect(() => {
     if (folderPending) return;
@@ -123,12 +127,43 @@ function App() {
     };
   }, [mailId]);
 
+  // 본문이 열린 채 1초가 지나면 읽음 처리한다. 다른 메일을 고르거나 선택을 풀면 cleanup이 취소한다.
+  const detailUnread = detail?.unread === true;
+  useEffect(() => {
+    if (!mailId || !detailUnread) return;
+    const timer = setTimeout(() => {
+      setRead(mailId, true)
+        .then(() => {
+          setDetailResult((prev) =>
+            prev?.key === mailId && prev.mail
+              ? { key: mailId, mail: { ...prev.mail, unread: false } }
+              : prev,
+          );
+          // 목록은 다시 불러오지 않고(스켈레톤이 깜빡인다) 해당 행만 제자리에서 바꾼다.
+          setMailsResult((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  mails: prev.mails.map((m) => (m.id === mailId ? { ...m, unread: false } : m)),
+                }
+              : prev,
+          );
+          // 안 읽은 수는 이전 값을 유지한 채 새 값이 오면 바뀐다.
+          setFoldersReloadKey((k) => k + 1);
+          listAccounts().then(setAccounts);
+        })
+        .catch(() => undefined);
+    }, READ_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [mailId, detailUnread]);
+
   // 백그라운드 동기화가 폴더를 하나 끝낼 때마다 목록과 안 읽은 수를 다시 읽는다.
   useEffect(
     () =>
       onSyncProgress((progress) => {
         setSyncs((prev) => ({ ...prev, [progress.accountId]: progress }));
         setReloadKey((k) => k + 1);
+        setFoldersReloadKey((k) => k + 1);
         listAccounts().then(setAccounts);
       }),
     [],
