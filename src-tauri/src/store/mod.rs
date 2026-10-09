@@ -1,5 +1,6 @@
 //! SQLite 저장소와 마이그레이션.
 
+mod attachments;
 mod compose;
 mod models;
 mod notify;
@@ -13,6 +14,7 @@ use base64::Engine;
 use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::providers::{RemoteFolder, RemoteMessage};
+pub use attachments::AttachmentRef;
 pub use compose::{split_address, AddressSuggestion, ComposeInput, ComposeMail};
 pub use models::{
     Account, Attachment, EarlierMail, Folder, LabelTag, MailDetail, MailSummary, NewAccount,
@@ -35,6 +37,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/0003_dedupe_key.sql"),
     include_str!("migrations/0004_sync.sql"),
     include_str!("migrations/0005_compose.sql"),
+    include_str!("migrations/0007_attachment_part.sql"),
 ];
 
 const PREVIEW_CHARS: usize = 80;
@@ -181,7 +184,8 @@ impl Store {
             let mut delete_attachments =
                 tx.prepare_cached("DELETE FROM attachments WHERE message_id = ?1")?;
             let mut insert_attachment = tx.prepare_cached(
-                "INSERT INTO attachments (message_id, name, size, ext) VALUES (?1, ?2, ?3, ?4)",
+                "INSERT INTO attachments (message_id, name, size, ext, part_index, mime)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             )?;
             let mut stored_elsewhere = tx.prepare_cached(
                 "SELECT 1 FROM messages WHERE account_id = ?1 AND dedupe_key = ?2 AND id != ?3",
@@ -229,7 +233,9 @@ impl Store {
                         id,
                         a.name,
                         a.size as i64,
-                        extension(&a.name)
+                        extension(&a.name),
+                        a.part_index,
+                        a.mime
                     ])?;
                 }
             }
@@ -365,12 +371,15 @@ impl Store {
         };
 
         let attachments = conn
-            .prepare("SELECT name, size, ext FROM attachments WHERE message_id = ?1 ORDER BY id")?
+            .prepare(
+                "SELECT id, name, size, ext FROM attachments WHERE message_id = ?1 ORDER BY id",
+            )?
             .query_map([id], |r| {
                 Ok(Attachment {
-                    name: r.get(0)?,
-                    size: r.get::<_, i64>(1)?.max(0) as u64,
-                    ext: r.get(2)?,
+                    id: r.get(0)?,
+                    name: r.get(1)?,
+                    size: r.get::<_, i64>(2)?.max(0) as u64,
+                    ext: r.get(3)?,
                 })
             })?
             .collect::<Result<_, _>>()?;

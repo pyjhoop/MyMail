@@ -1,0 +1,129 @@
+.wrap {
+  margin: var(--space-5) 0 0 48px;
+}
+
+.allRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.allButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--control-height);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  transition: background var(--duration-fast);
+}
+
+.allButton:hover:not(:disabled) {
+  background: var(--color-bg-hover);
+}
+
+.allButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.attachments {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.attachment {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+}
+
+.ext {
+  flex: none;
+  width: var(--space-8);
+  height: var(--space-8);
+  border-radius: var(--radius-control);
+  background: var(--color-bg-hover);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--space-8);
+  text-align: center;
+}
+
+.attachText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.attachName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.size {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+}
+
+.ok,
+.error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+}
+
+.ok {
+  color: var(--color-success);
+}
+
+.error {
+  color: var(--color-danger-text);
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-accent-text);
+  font-size: var(--font-size-xs);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.save {
+  flex: none;
+  width: var(--control-height);
+  height: var(--control-height);
+}
+
+.spin {
+  animation: attachment-spin 1s linear infinite;
+}
+
+@keyframes attachment-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

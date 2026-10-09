@@ -2,7 +2,6 @@ import {
   Archive,
   ChevronDown,
   ChevronUp,
-  Download,
   Forward,
   MoreHorizontal,
   Reply,
@@ -11,6 +10,7 @@ import {
 } from "lucide-react";
 import { NoMailSelected, ReaderSkeleton } from "../../components/StateView";
 import type { MailDetail } from "../../lib/ipc";
+import { AttachmentList } from "./AttachmentList";
 import { HtmlBody } from "./HtmlBody";
 import styles from "./Reader.module.css";
 
@@ -137,24 +137,7 @@ export function Reader({ mail, loading, position, onPrev, onNext, onCompose }: P
             )}
 
             {mail.attachments.length > 0 && (
-              <div className={styles.attachments}>
-                {mail.attachments.map((a) => (
-                  <div className={styles.attachment} key={a.name}>
-                    <span className={styles.ext}>{a.ext}</span>
-                    <span className={styles.attachText}>
-                      <span className={styles.attachName}>{a.name}</span>
-                      <span className={styles.date}>{a.size}</span>
-                    </span>
-                    <button
-                      type="button"
-                      className={`ib ${styles.save}`}
-                      aria-label={`${a.name} 저장`}
-                    >
-                      <Download size={16} strokeWidth={1.75} aria-hidden />
-                    </button>
-                  </div>
-                ))}
-              </div>
+              <AttachmentList key={mail.id} mailId={mail.id} attachments={mail.attachments} />
             )}
           </article>
         </div>

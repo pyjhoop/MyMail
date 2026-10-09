@@ -14,11 +14,14 @@ use async_trait::async_trait;
 use native_tls::{TlsConnector, TlsStream};
 
 use super::{
-    FolderKind, FolderSnapshot, MailProvider, OutgoingMail, ProviderError, RemoteFlags,
-    RemoteFolder, RemoteMessage,
+    AttachmentData, AttachmentTarget, FolderKind, FolderSnapshot, MailProvider, OutgoingMail,
+    ProviderError, RemoteFlags, RemoteFolder, RemoteMessage,
 };
 use gmail_ext::GmailAttrs;
-use parse::{parse_message, FetchedMessage};
+use parse::{extract_attachments, parse_message, FetchedMessage};
+
+/// 첨부를 받을 때 쓰는 FETCH 항목. 반드시 PEEK여야 메일이 읽음으로 바뀌지 않는다.
+const ATTACHMENT_FETCH_QUERY: &str = "BODY.PEEK[]";
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 const IO_TIMEOUT: Duration = Duration::from_secs(60);
@@ -292,6 +295,33 @@ impl ImapProvider {
         Ok(messages)
     }
 
+    /// 메일 원문을 한 번 받아 `targets`의 첨부를 꺼낸다. 읽기 전용으로 열고 PEEK로 받아
+    /// `\Seen`이 달리지 않는다. 파트만 받는 BODYSTRUCTURE 방식은 후속(지금은 메일 전체를 메모리에 받는다).
+    fn fetch_attachments_blocking(
+        &self,
+        folder_key: &str,
+        remote_id: &str,
+        targets: &[AttachmentTarget],
+    ) -> Result<Vec<AttachmentData>, ProviderError> {
+        let uid = parse_uid(remote_id)?;
+        let mut session = self.connect()?;
+        session.examine(folder_key).map_err(map_imap_error)?;
+        let fetches = session
+            .uid_fetch(uid.to_string(), ATTACHMENT_FETCH_QUERY)
+            .map_err(map_imap_error)?;
+        let raw = fetches
+            .iter()
+            .find_map(|f| f.body().map(<[u8]>::to_vec))
+            .ok_or_else(|| ProviderError::NotFound(format!("메일 {remote_id}")))?;
+        drop(fetches);
+        let _ = session.logout();
+        extract_attachments(&raw, targets)
+            .into_iter()
+            .zip(targets)
+            .map(|(data, t)| data.ok_or_else(|| ProviderError::NotFound(t.name.clone())))
+            .collect()
+    }
+
     /// 읽기·쓰기로 폴더를 열고 `work`를 실행한다. 서버가 거절하면 `Rejected`다.
     fn with_folder<T>(
         &self,
@@ -414,6 +444,34 @@ impl MailProvider for ImapProvider {
     ) -> Result<Vec<RemoteMessage>, ProviderError> {
         let (key, ids) = (folder_key.to_string(), ids.to_vec());
         self.blocking(move |this| this.fetch_by_ids_blocking(&key, &ids))
+            .await
+    }
+
+    async fn fetch_attachment(
+        &self,
+        folder_key: &str,
+        remote_id: &str,
+        target: &AttachmentTarget,
+    ) -> Result<AttachmentData, ProviderError> {
+        let mut all = self
+            .fetch_attachments(folder_key, remote_id, std::slice::from_ref(target))
+            .await?;
+        all.pop()
+            .ok_or_else(|| ProviderError::NotFound(target.name.clone()))
+    }
+
+    async fn fetch_attachments(
+        &self,
+        folder_key: &str,
+        remote_id: &str,
+        targets: &[AttachmentTarget],
+    ) -> Result<Vec<AttachmentData>, ProviderError> {
+        let (key, id, targets) = (
+            folder_key.to_string(),
+            remote_id.to_string(),
+            targets.to_vec(),
+        );
+        self.blocking(move |this| this.fetch_attachments_blocking(&key, &id, &targets))
             .await
     }
 
@@ -594,5 +652,10 @@ mod tests {
         assert!(parent.expandable);
         assert_eq!((parent.depth, child.depth), (0, 1));
         assert!(!child.expandable);
+    }
+
+    #[test]
+    fn 첨부는_읽음_표시를_바꾸지_않는_peek로_받는다() {
+        assert!(ATTACHMENT_FETCH_QUERY.contains("PEEK"));
     }
 }

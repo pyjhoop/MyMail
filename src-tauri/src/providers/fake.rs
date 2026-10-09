@@ -7,8 +7,8 @@ use std::time::Duration;
 use async_trait::async_trait;
 
 use super::{
-    FolderKind, FolderSnapshot, MailProvider, OutgoingMail, ProviderError, RemoteAttachment,
-    RemoteFlags, RemoteFolder, RemoteMessage,
+    AttachmentData, AttachmentTarget, FolderKind, FolderSnapshot, MailProvider, OutgoingMail,
+    ProviderError, RemoteAttachment, RemoteFlags, RemoteFolder, RemoteMessage,
 };
 
 const SENDERS: [(&str, &str); 6] = [
@@ -257,9 +257,12 @@ impl FakeProvider {
             attachments: if has_attachment {
                 ATTACHMENTS
                     .iter()
-                    .map(|(name, size)| RemoteAttachment {
+                    .enumerate()
+                    .map(|(i, (name, size))| RemoteAttachment {
                         name: (*name).into(),
                         size: *size,
+                        part_index: i as u32,
+                        mime: "application/octet-stream".into(),
                     })
                     .collect()
             } else {
@@ -322,6 +325,39 @@ impl MailProvider for FakeProvider {
                 .cloned()
                 .collect())
         })
+    }
+
+    async fn fetch_attachment(
+        &self,
+        folder_key: &str,
+        remote_id: &str,
+        target: &AttachmentTarget,
+    ) -> Result<AttachmentData, ProviderError> {
+        // PEEK처럼 읽음 상태는 건드리지 않는다.
+        self.with_folder(
+            folder_key,
+            format!(
+                "attachment:{folder_key}:{remote_id}:{}",
+                target.part_index.map_or("-".to_string(), |i| i.to_string())
+            ),
+            |f| {
+                let m = find(f, remote_id)?;
+                let (i, a) = m
+                    .attachments
+                    .iter()
+                    .enumerate()
+                    .find(|(i, a)| match target.part_index {
+                        Some(p) => *i as u32 == p && a.name == target.name,
+                        None => a.name == target.name && a.size == target.size,
+                    })
+                    .ok_or_else(|| ProviderError::NotFound(target.name.clone()))?;
+                Ok(AttachmentData {
+                    name: a.name.clone(),
+                    mime: a.mime.clone(),
+                    data: attachment_bytes(&a.name, i as u32),
+                })
+            },
+        )
     }
 
     async fn set_seen(
@@ -419,6 +455,11 @@ impl MailProvider for FakeProvider {
     ) -> Result<(), ProviderError> {
         self.check_online()
     }
+}
+
+/// 가짜 서버가 첨부로 돌려주는 내용. 이름과 순서가 같으면 항상 같다.
+pub fn attachment_bytes(name: &str, part_index: u32) -> Vec<u8> {
+    format!("가짜 첨부 {part_index}: {name}").into_bytes()
 }
 
 fn find<'a>(

@@ -6,6 +6,9 @@ use tauri_plugin_autostart::ManagerExt;
 
 use std::sync::Arc;
 
+use tauri_plugin_dialog::DialogExt;
+
+use crate::attachments::{self, AttachmentError, SaveOutcome, SavedFiles};
 use crate::auth::CredentialStore;
 use crate::compose::{self, ComposeError};
 use crate::providers::{self, MailProvider, ProviderError};
@@ -63,6 +66,15 @@ impl From<ComposeError> for CommandError {
     }
 }
 
+impl From<AttachmentError> for CommandError {
+    fn from(e: AttachmentError) -> Self {
+        Self {
+            kind: e.kind(),
+            message: e.user_message(),
+        }
+    }
+}
+
 type CommandResult<T> = Result<T, CommandError>;
 
 #[tauri::command]
@@ -101,6 +113,88 @@ pub async fn search_mails(
 #[tauri::command]
 pub async fn get_mail(store: State<'_, Store>, id: String) -> CommandResult<Option<MailDetail>> {
     Ok(store.get_mail(&id)?)
+}
+
+fn provider_for(manager: &SyncManager, account_id: &str) -> CommandResult<Arc<dyn MailProvider>> {
+    manager.provider(account_id).ok_or_else(|| CommandError {
+        kind: "auth",
+        message: "이 계정에 연결할 수 없어요. 앱 비밀번호를 확인해 주세요.".into(),
+    })
+}
+
+/// 첨부 하나를 저장한다. 저장 위치는 파일 저장 대화상자로 고르며, 닫으면 `cancelled`다.
+#[tauri::command]
+pub async fn save_attachment(
+    app: AppHandle,
+    store: State<'_, Store>,
+    manager: State<'_, SyncManager>,
+    saved: State<'_, SavedFiles>,
+    mail_id: String,
+    attachment_id: i64,
+) -> CommandResult<SaveOutcome> {
+    let att = store
+        .attachment_ref(&mail_id, attachment_id)?
+        .ok_or(AttachmentError::NotFound)?;
+    let provider = provider_for(&manager, &att.mail.account_id)?;
+    let (outcome, path) = attachments::save_one(
+        &store,
+        &*provider,
+        &mail_id,
+        attachment_id,
+        |default_name| {
+            app.dialog()
+                .file()
+                .set_file_name(default_name)
+                .blocking_save_file()
+                .and_then(|p| p.into_path().ok())
+        },
+    )
+    .await?;
+    if let Some(path) = path {
+        saved.remember(attachments::saved_key(&mail_id, Some(attachment_id)), path);
+    }
+    Ok(outcome)
+}
+
+/// 메일의 첨부를 모두 저장한다. 폴더를 고르는 대화상자를 연다.
+#[tauri::command]
+pub async fn save_all_attachments(
+    app: AppHandle,
+    store: State<'_, Store>,
+    manager: State<'_, SyncManager>,
+    saved: State<'_, SavedFiles>,
+    mail_id: String,
+) -> CommandResult<SaveOutcome> {
+    let first = store
+        .attachment_refs(&mail_id)?
+        .into_iter()
+        .next()
+        .ok_or(AttachmentError::NotFound)?;
+    let provider = provider_for(&manager, &first.mail.account_id)?;
+    let (outcome, path) = attachments::save_all(&store, &*provider, &mail_id, || {
+        app.dialog()
+            .file()
+            .blocking_pick_folder()
+            .and_then(|p| p.into_path().ok())
+    })
+    .await?;
+    if let Some(path) = path {
+        saved.remember(attachments::saved_key(&mail_id, None), path);
+    }
+    Ok(outcome)
+}
+
+/// 방금 저장한 첨부를 탐색기에서 보여 준다. `attachment_id`가 없으면 "모두 저장"한 폴더다.
+#[tauri::command]
+pub async fn reveal_saved_attachment(
+    saved: State<'_, SavedFiles>,
+    mail_id: String,
+    attachment_id: Option<i64>,
+) -> CommandResult<()> {
+    let path = saved
+        .get(&attachments::saved_key(&mail_id, attachment_id))
+        .ok_or_else(|| invalid("저장한 파일 위치를 찾을 수 없어요."))?;
+    tauri_plugin_opener::reveal_item_in_dir(path).map_err(|_| invalid("폴더를 열지 못했어요."))
 }
 
 /// 접속을 확인하고 계정을 추가한다. 성공하면 추가된 계정을 돌려준다.
