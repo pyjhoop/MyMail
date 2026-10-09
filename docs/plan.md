@@ -9,9 +9,9 @@
 - [ ] Claude Design 결과물 확정 → `docs/design/`에 저장
 - [ ] Rust 설치 (rustup + Visual Studio C++ 빌드 도구)
 - [ ] pnpm 활성화 (`corepack enable pnpm`)
-- [ ] Google Cloud: 프로젝트 생성, Gmail API 활성화, OAuth 클라이언트(데스크톱 앱) 발급, 동의 화면 '프로덕션' 게시
+- [ ] Gmail: Google 계정 2단계 인증 켜기 → 앱 비밀번호 만들기 (개발용 테스트 계정 권장)
 - [ ] 네이버: IMAP 사용 켜기, 애플리케이션 비밀번호 발급 (개발용 테스트 계정 권장)
-- [ ] `.env.example`을 복사해 `.env` 작성
+- [ ] 실서버 테스트용으로 `.env.example`을 복사해 `.env` 작성 (앱 자체는 비밀번호를 keyring에 저장)
 
 ## M0. 프로젝트 뼈대
 
@@ -39,15 +39,16 @@
 - [ ] 로그인·keyring 저장, 실패 안내(IMAP 꺼짐·앱 비밀번호)
 - [ ] 폴더 목록(한글 디코딩), 메일 헤더·본문 조회
 
-## M4. Gmail
+## M4. Gmail (IMAP/SMTP + 앱 비밀번호)
 
-- [ ] OAuth 2.0 PKCE(시스템 브라우저 + 루프백), 토큰 갱신
-- [ ] 라벨·메일 조회
+- [ ] imap.gmail.com·smtp.gmail.com 연결, M3의 IMAP 코드 재사용, 실패 안내(2단계 인증·앱 비밀번호)
+- [ ] 라벨(X-GM-LABELS)·스레드(X-GM-THRID), `[Gmail]` 특수 폴더는 SPECIAL-USE로 식별
+- [ ] 전체보관함·라벨 폴더 중복을 X-GM-MSGID로 한 번만 저장
 
 ## M5. 동기화 엔진
 
 - [ ] 전체 동기화(최근부터, 이어받기, 진행률)
-- [ ] 새 메일 감지(Gmail 변경 내역 조회, 네이버 IDLE/주기 조회)
+- [ ] 새 메일 감지(IMAP IDLE, 미지원 시 주기 조회)
 - [ ] 읽음·삭제·이동 양방향 반영, 오프라인 큐
 
 ## M6. 작성·발송
