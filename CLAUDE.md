@@ -9,11 +9,11 @@ Windows용 개인 메일 클라이언트(Gmail 개인 계정 + 네이버 메일)
 - 결정 로그: `docs/decisions.md`
 - 디자인: `docs/design/` (Claude Design 캔버스 링크는 `docs/README.md`)
 
-## 명령어 (M0에서 확정 후 갱신)
+## 명령어
 
 - 개발 실행: `pnpm tauri dev`
-- 프론트 검사: `pnpm typecheck && pnpm lint && pnpm test --run`
-- Rust 검사: `cd src-tauri && cargo clippy --all-targets -- -D warnings && cargo test`
+- 프론트 검사: `pnpm typecheck && pnpm lint && pnpm test --run` (포맷: `pnpm format`)
+- Rust 검사: `cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test`
 - 전체 검증: `/verify`
 
 ## 아키텍처 규칙

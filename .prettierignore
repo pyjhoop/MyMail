@@ -1,0 +1,6 @@
+dist
+src-tauri
+docs
+pnpm-lock.yaml
+.claude
+.vscode

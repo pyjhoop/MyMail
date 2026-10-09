@@ -1,24 +1,24 @@
 # MyMail 개발 계획
 
-현재 단계: **사전 준비** (디자인 확정 대기)
+현재 단계: **M1. UI 셸**
 
 규칙: 한 세션에 작업 하나. 끝나면 체크하고, 커밋하고, `/clear`.
 
 ## 사전 준비 (사용자)
 
 - [ ] Claude Design 결과물 확정 → `docs/design/`에 저장
-- [ ] Rust 설치 (rustup + Visual Studio C++ 빌드 도구)
-- [ ] pnpm 활성화 (`corepack enable pnpm`)
+- [x] Rust 설치 (rustup + Visual Studio C++ 빌드 도구)
+- [x] pnpm 활성화 (`corepack enable pnpm`)
 - [ ] Gmail: Google 계정 2단계 인증 켜기 → 앱 비밀번호 만들기 (개발용 테스트 계정 권장)
 - [ ] 네이버: IMAP 사용 켜기, 애플리케이션 비밀번호 발급 (개발용 테스트 계정 권장)
 - [ ] 실서버 테스트용으로 `.env.example`을 복사해 `.env` 작성 (앱 자체는 비밀번호를 keyring에 저장)
 
 ## M0. 프로젝트 뼈대
 
-- [ ] create-tauri-app(React + TS + Vite)을 임시 폴더에 생성 후 이 폴더로 병합 (기존 CLAUDE.md·docs·.claude 유지)
-- [ ] 린트(ESLint)·포맷(Prettier)·테스트(Vitest), `pnpm typecheck` 스크립트
-- [ ] Rust: clippy·rustfmt 설정, 모듈 폴더 생성
-- [ ] `/verify` 통과, CLAUDE.md 명령어 갱신
+- [x] create-tauri-app(React + TS + Vite)을 임시 폴더에 생성 후 이 폴더로 병합 (기존 CLAUDE.md·docs·.claude 유지)
+- [x] 린트(ESLint)·포맷(Prettier)·테스트(Vitest), `pnpm typecheck` 스크립트
+- [x] Rust: clippy·rustfmt 설정, 모듈 폴더 생성
+- [x] `/verify` 통과, CLAUDE.md 명령어 갱신
 
 ## M1. UI 셸 (가짜 데이터)
 
