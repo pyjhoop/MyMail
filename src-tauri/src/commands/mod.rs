@@ -10,8 +10,8 @@ use crate::auth::CredentialStore;
 use crate::compose::{self, ComposeError};
 use crate::providers::{self, MailProvider, ProviderError};
 use crate::store::{
-    Account, AddressSuggestion, ComposeInput, ComposeMail, Folder, MailDetail, MailSummary,
-    NewAccount, Store, StoreError,
+    Account, AddressSuggestion, ComposeInput, ComposeMail, Folder, MailDetail, MailSort,
+    MailSummary, NewAccount, Store, StoreError,
 };
 use crate::sync::manager::SyncManager;
 use crate::sync::{self, actions, SyncError};
@@ -84,8 +84,10 @@ pub async fn list_mails(
     store: State<'_, Store>,
     account_id: Option<String>,
     folder_id: String,
+    sort: Option<String>,
 ) -> CommandResult<Vec<MailSummary>> {
-    Ok(store.list_mails(account_id.as_deref(), &folder_id)?)
+    let sort = parse_sort(sort.as_deref())?;
+    Ok(store.list_mails_sorted(account_id.as_deref(), &folder_id, sort)?)
 }
 
 /// 제목·보낸사람·본문 검색. `account_id`가 없으면 모든 계정.
@@ -94,8 +96,10 @@ pub async fn search_mails(
     store: State<'_, Store>,
     account_id: Option<String>,
     query: String,
+    sort: Option<String>,
 ) -> CommandResult<Vec<MailSummary>> {
-    Ok(store.search_mails(account_id.as_deref(), &query)?)
+    let sort = parse_sort(sort.as_deref())?;
+    Ok(store.search_mails_sorted(account_id.as_deref(), &query, sort)?)
 }
 
 #[tauri::command]
@@ -304,6 +308,14 @@ pub async fn move_mail(
     let account_id = actions::move_mail(&store, &id, &folder_id)?;
     manager.kick(&app, &account_id);
     Ok(())
+}
+
+/// 정렬 값이 없으면 최신순, 허용되지 않은 값이면 오류.
+fn parse_sort(sort: Option<&str>) -> CommandResult<MailSort> {
+    match sort {
+        None => Ok(MailSort::default()),
+        Some(s) => MailSort::parse(s).ok_or_else(|| invalid("지원하지 않는 정렬이에요.")),
+    }
 }
 
 fn invalid(message: &str) -> CommandError {

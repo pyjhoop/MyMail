@@ -10,6 +10,7 @@ export const SHORTCUTS: { keys: string; label: string }[] = [
   { keys: "/", label: "검색" },
   { keys: "j", label: "다음 메일" },
   { keys: "k", label: "이전 메일" },
+  { keys: "F5 / Ctrl + R", label: "새로고침 (서버와 바로 동기화)" },
   { keys: "Ctrl + 1~9", label: "계정 전환 (1은 통합 받은편지함)" },
   { keys: "Ctrl + Enter", label: "메일 보내기" },
   { keys: "Esc", label: "설정·검색 닫기" },
@@ -24,6 +25,8 @@ export interface ShortcutHandlers {
   search: () => void;
   next: () => void;
   prev: () => void;
+  /** F5·Ctrl+R. 웹뷰 새로고침 대신 앱의 동기화로 연결한다 */
+  refresh: () => void;
   /** 1부터 시작. 1은 통합 받은편지함, 2부터는 계정 순서대로 */
   switchAccount: (n: number) => void;
 }
@@ -55,6 +58,17 @@ export function useShortcuts(handlers: ShortcutHandlers, enabled: boolean) {
       if (e.ctrlKey && !e.altKey && !e.shiftKey && /^[1-9]$/.test(e.key)) {
         e.preventDefault();
         h.switchAccount(Number(e.key));
+        return;
+      }
+      // 웹뷰가 페이지를 통째로 다시 불러오지 않게 막고, 입력 중이어도 동기화로 연결한다.
+      if (
+        !e.altKey &&
+        !e.shiftKey &&
+        ((e.key === "F5" && !e.ctrlKey && !e.metaKey) ||
+          ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "r"))
+      ) {
+        e.preventDefault();
+        h.refresh();
         return;
       }
       if (e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target)) return;

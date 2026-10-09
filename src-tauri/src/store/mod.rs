@@ -15,7 +15,8 @@ use rusqlite::{params, Connection, OptionalExtension};
 use crate::providers::{RemoteFolder, RemoteMessage};
 pub use compose::{split_address, AddressSuggestion, ComposeInput, ComposeMail};
 pub use models::{
-    Account, Attachment, EarlierMail, Folder, LabelTag, MailDetail, MailSummary, NewAccount,
+    Account, Attachment, EarlierMail, Folder, LabelTag, MailDetail, MailSort, MailSummary,
+    NewAccount,
 };
 pub use notify::NewMail;
 pub use sync_state::{folder_key, OpKind};
@@ -285,10 +286,21 @@ impl Store {
     }
 
     /// `account_id`가 없으면 모든 계정의 받은편지함(통합 받은편지함)을 돌려준다.
+    #[cfg(test)]
     pub fn list_mails(
         &self,
         account_id: Option<&str>,
         folder_id: &str,
+    ) -> Result<Vec<MailSummary>, StoreError> {
+        self.list_mails_sorted(account_id, folder_id, MailSort::default())
+    }
+
+    /// `list_mails`를 `sort` 순서로 돌려준다.
+    pub fn list_mails_sorted(
+        &self,
+        account_id: Option<&str>,
+        folder_id: &str,
+        sort: MailSort,
     ) -> Result<Vec<MailSummary>, StoreError> {
         let conn = self.lock()?;
         let (filter, args): (&str, Vec<&str>) = match account_id {
@@ -301,7 +313,8 @@ impl Store {
                     CASE WHEN m.thread_id IS NULL THEN 0
                          ELSE (SELECT COUNT(*) FROM messages t WHERE t.thread_id = m.thread_id) END
              FROM messages m JOIN folders f ON f.id = m.folder_id
-             WHERE {filter} ORDER BY m.received_at DESC, m.id"
+             WHERE {filter} ORDER BY {order}",
+            order = sort.order_by()
         );
         let mut stmt = conn.prepare(&sql)?;
         let rows = stmt.query_map(rusqlite::params_from_iter(args), summary_from_row)?;
@@ -319,7 +332,7 @@ impl Store {
                 .unwrap_or(false);
             if is_drafts {
                 mails.extend(compose::summaries(&conn, account_id, folder_id)?);
-                mails.sort_by_key(|m| std::cmp::Reverse(m.received_at));
+                sort.sort(&mut mails);
             }
         }
         Ok(mails)
@@ -407,24 +420,37 @@ impl Store {
     }
 
     /// 제목·보낸사람·본문을 FTS5로 검색한다. `account_id`가 없으면 모든 계정에서 찾는다.
+    #[cfg(test)]
     pub fn search_mails(
         &self,
         account_id: Option<&str>,
         query: &str,
     ) -> Result<Vec<MailSummary>, StoreError> {
+        self.search_mails_sorted(account_id, query, MailSort::default())
+    }
+
+    /// `search_mails`를 `sort` 순서로 돌려준다.
+    pub fn search_mails_sorted(
+        &self,
+        account_id: Option<&str>,
+        query: &str,
+        sort: MailSort,
+    ) -> Result<Vec<MailSummary>, StoreError> {
         let Some(fts) = fts_query(query) else {
             return Ok(Vec::new());
         };
         let conn = self.lock()?;
-        let mut stmt = conn.prepare(
+        let sql = format!(
             "SELECT m.id, m.account_id, m.folder_id, m.sender, m.sender_email, m.subject, m.preview,
                     m.received_at, m.unread, m.starred, m.has_attachment, m.label_name, m.label_color,
                     CASE WHEN m.thread_id IS NULL THEN 0
                          ELSE (SELECT COUNT(*) FROM messages t WHERE t.thread_id = m.thread_id) END
              FROM messages_fts JOIN messages m ON m.rowid = messages_fts.rowid
              WHERE messages_fts MATCH ?1 AND (?2 IS NULL OR m.account_id = ?2)
-             ORDER BY m.received_at DESC, m.id",
-        )?;
+             ORDER BY {order}",
+            order = sort.order_by()
+        );
+        let mut stmt = conn.prepare(&sql)?;
         let rows = stmt.query_map(params![fts, account_id], summary_from_row)?;
         Ok(rows.collect::<Result<_, _>>()?)
     }

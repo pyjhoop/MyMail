@@ -62,6 +62,99 @@ async fn 메일_목록은_최신순이고_스레드_수를_센다() {
     assert_eq!(mails[3].thread_count, None);
 }
 
+fn ids(mails: &[MailSummary]) -> Vec<String> {
+    mails.iter().map(|m| m.id.clone()).collect()
+}
+
+#[test]
+fn 정렬_값은_허용된_것만_받는다() {
+    for ok in ["newest", "oldest", "sender", "subject", "unread"] {
+        assert!(MailSort::parse(ok).is_some(), "{ok}");
+    }
+    for bad in [
+        "",
+        "NEWEST",
+        "received_at",
+        "m.id; DROP TABLE messages",
+        "newest, id",
+    ] {
+        assert!(MailSort::parse(bad).is_none(), "{bad}");
+    }
+}
+
+#[tokio::test]
+async fn 정렬_인자별로_순서가_바뀐다() {
+    let store = seeded().await;
+    let list = |s| store.list_mails_sorted(Some("a1"), "a1-inbox", s).unwrap();
+
+    let newest = list(MailSort::Newest);
+    assert_eq!(
+        ids(&newest),
+        ids(&store.list_mails(Some("a1"), "a1-inbox").unwrap())
+    );
+
+    let oldest = list(MailSort::Oldest);
+    assert_eq!(oldest.len(), newest.len());
+    assert!(oldest
+        .windows(2)
+        .all(|w| w[0].received_at <= w[1].received_at));
+
+    let sender = list(MailSort::Sender);
+    assert!(sender
+        .windows(2)
+        .all(|w| w[0].sender.to_lowercase() <= w[1].sender.to_lowercase()));
+
+    let subject = list(MailSort::Subject);
+    assert!(subject
+        .windows(2)
+        .all(|w| w[0].subject.to_lowercase() <= w[1].subject.to_lowercase()));
+
+    let unread = list(MailSort::Unread);
+    let first_read = unread.iter().position(|m| !m.unread).unwrap();
+    assert!(first_read > 0);
+    assert!(unread[..first_read].iter().all(|m| m.unread));
+    assert!(unread[first_read..].iter().all(|m| !m.unread));
+    // 안 읽음끼리는 최신순
+    assert!(unread[..first_read]
+        .windows(2)
+        .all(|w| w[0].received_at >= w[1].received_at));
+}
+
+#[tokio::test]
+async fn 정렬_값이_같으면_순서가_고정된다() {
+    let store = seeded().await;
+    for sort in [MailSort::Sender, MailSort::Subject, MailSort::Unread] {
+        let a = store.list_mails_sorted(None, "", sort).unwrap();
+        let b = store.list_mails_sorted(None, "", sort).unwrap();
+        assert_eq!(ids(&a), ids(&b));
+    }
+    // 보낸사람이 같은 메일은 최신순, 시각까지 같으면 id 순이다.
+    let sender = store.list_mails_sorted(None, "", MailSort::Sender).unwrap();
+    for w in sender.windows(2).filter(|w| w[0].sender == w[1].sender) {
+        assert!(w[0].received_at >= w[1].received_at);
+    }
+}
+
+#[tokio::test]
+async fn 검색_결과도_정렬된다() {
+    let store = seeded().await;
+    let newest = store
+        .search_mails_sorted(Some("a1"), "견적", MailSort::Newest)
+        .unwrap();
+    let oldest = store
+        .search_mails_sorted(Some("a1"), "견적", MailSort::Oldest)
+        .unwrap();
+    assert!(newest.len() > 1);
+    assert_eq!(newest.len(), oldest.len());
+    assert!(oldest
+        .windows(2)
+        .all(|w| w[0].received_at <= w[1].received_at));
+    assert_eq!(
+        ids(&newest),
+        ids(&store.search_mails(Some("a1"), "견적").unwrap())
+    );
+}
+
 #[tokio::test]
 async fn 통합_받은편지함은_받은편지함만_모은다() {
     let store = seeded().await;

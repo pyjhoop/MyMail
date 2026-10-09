@@ -135,18 +135,26 @@ export function listFolders(accountId: string): Promise<Folder[]> {
   return call("list_folders", { accountId });
 }
 
+/** 메일 목록 정렬. 백엔드가 이 값만 받아들인다(그 밖의 값은 거절). */
+export type MailSort = "newest" | "oldest" | "sender" | "subject" | "unread";
+
 /** accountId가 null이면 통합 받은편지함 */
 export async function listMails(
   accountId: string | null,
   folderId: string,
+  sort: MailSort = "newest",
 ): Promise<MailSummary[]> {
-  const mails = await call<RawMailSummary[]>("list_mails", { accountId, folderId });
+  const mails = await call<RawMailSummary[]>("list_mails", { accountId, folderId, sort });
   return mails.map(toSummary);
 }
 
 /** 제목·보낸사람·본문 검색. accountId가 null이면 모든 계정. */
-export async function searchMails(accountId: string | null, query: string): Promise<MailSummary[]> {
-  const mails = await call<RawMailSummary[]>("search_mails", { accountId, query });
+export async function searchMails(
+  accountId: string | null,
+  query: string,
+  sort: MailSort = "newest",
+): Promise<MailSummary[]> {
+  const mails = await call<RawMailSummary[]>("search_mails", { accountId, query, sort });
   return mails.map(toSummary);
 }
 

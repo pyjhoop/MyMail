@@ -29,6 +29,8 @@ const renderList = (status: ListStatus, error?: LoadError) =>
       onCheckedChange={vi.fn()}
       onDelete={vi.fn()}
       onRefresh={vi.fn()}
+      sort="newest"
+      onSortChange={vi.fn()}
     />,
   );
 
@@ -87,6 +89,8 @@ function Harness({ onSelect, onDelete }: { onSelect: (id: string) => void; onDel
       onCheckedChange={setChecked}
       onDelete={onDelete}
       onRefresh={vi.fn()}
+      sort="newest"
+      onSortChange={vi.fn()}
     />
   );
 }
