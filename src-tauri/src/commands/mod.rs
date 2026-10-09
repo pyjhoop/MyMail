@@ -404,6 +404,24 @@ pub async fn move_mail(
     Ok(())
 }
 
+/// 메일을 보관한다(Gmail은 전체보관함, 네이버는 "보관함" 폴더). 폴더가 없으면 서버에 만든다.
+#[tauri::command]
+pub async fn archive_mail(
+    app: AppHandle,
+    store: State<'_, Store>,
+    manager: State<'_, SyncManager>,
+    id: String,
+) -> CommandResult<()> {
+    let account_id = store
+        .mail_ref(&id)?
+        .ok_or(SyncError::MailNotFound)?
+        .account_id;
+    let provider = manager.provider(&account_id);
+    actions::archive_mail(&store, provider.as_deref(), &id).await?;
+    manager.kick(&app, &account_id);
+    Ok(())
+}
+
 /// 정렬 값이 없으면 최신순, 허용되지 않은 값이면 오류.
 fn parse_sort(sort: Option<&str>) -> CommandResult<MailSort> {
     match sort {

@@ -17,6 +17,7 @@ pub const CONFIG: ImapConfig = ImapConfig {
         ("drafts", FolderKind::Drafts),
         ("임시보관함", FolderKind::Drafts),
         ("임시보관", FolderKind::Drafts),
+        ("보관함", FolderKind::Archive),
         ("junk", FolderKind::Spam),
         ("스팸메일함", FolderKind::Spam),
         ("스팸메일", FolderKind::Spam),
@@ -26,4 +27,5 @@ pub const CONFIG: ImapConfig = ImapConfig {
     ],
     hidden_special_use: &[],
     gmail_extensions: false,
+    archive_folder_name: Some("보관함"),
 };

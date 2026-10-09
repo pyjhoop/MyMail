@@ -14,4 +14,5 @@ pub const CONFIG: ImapConfig = ImapConfig {
     // [Gmail]/별표편지함(\Flagged)·중요(\Important)는 다른 메일의 사본이라 목록에서 뺀다.
     hidden_special_use: &[r"\flagged", r"\important"],
     gmail_extensions: true,
+    archive_folder_name: None,
 };

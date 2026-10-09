@@ -24,6 +24,10 @@ pub enum SyncError {
     NoTrash,
     #[error("옮길 폴더를 찾을 수 없어요")]
     FolderNotFound,
+    #[error("이미 보관된 메일이에요")]
+    AlreadyArchived,
+    #[error("이 계정에서는 보관 폴더를 만들 수 없어요. 서비스 설정을 확인해 주세요.")]
+    ArchiveUnavailable,
     #[error("이 계정은 아직 서버에 연결되지 않았어요")]
     NotConnected,
     #[error(transparent)]

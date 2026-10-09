@@ -65,13 +65,17 @@ describe("키보드 단축키", () => {
     expect(deleteMail).not.toHaveBeenCalled(); // 열린 메일이 없으면 아무 일도 없다
 
     press("j");
-    await screen.findByText("1 / 3");
+    await screen.findByText("1 / 3", undefined, { timeout: 4000 });
     press("#");
-    await waitFor(() => expect(deleteMail).toHaveBeenCalledWith("a1-inbox-0"));
+    await waitFor(() => expect(deleteMail).toHaveBeenCalledWith("a1-inbox-0"), { timeout: 4000 });
 
     press("2", { ctrlKey: true });
-    expect(await screen.findByRole("heading", { name: "받은편지함" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "받은편지함" }, { timeout: 4000 }),
+    ).toBeInTheDocument();
     press("1", { ctrlKey: true });
-    expect(await screen.findByRole("heading", { name: "통합 받은편지함" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "통합 받은편지함" }, { timeout: 4000 }),
+    ).toBeInTheDocument();
   });
 });

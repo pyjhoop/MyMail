@@ -61,6 +61,8 @@ struct FakeServer {
     ops: Vec<String>,
     /// 서버가 받아 보낸 메일
     sent: Vec<OutgoingMail>,
+    /// 처음 목록에 없던 폴더(`add_folder`·`create_folder`로 늘어난 것)
+    extra_folders: Vec<RemoteFolder>,
 }
 
 /// 메모리 안의 가짜 서버. 처음 상태는 항상 같고, 조작(읽음·이동·삭제)이 상태에 반영된다.
@@ -108,6 +110,23 @@ impl FakeProvider {
     /// 연결이 끊긴 상태를 흉내 낸다.
     pub fn set_offline(&self, offline: bool) {
         self.server().offline = offline;
+    }
+
+    /// 서버에 폴더가 하나 더 있는 것처럼 만든다. 이미 있으면 그대로 둔다.
+    pub fn add_folder(&self, key: &str, name: &str, kind: FolderKind) {
+        let mut server = self.server();
+        if server.folders.contains_key(key) {
+            return;
+        }
+        server.folders.insert(
+            key.into(),
+            FakeFolder {
+                uid_validity: 1,
+                next_uid: 0,
+                messages: Vec::new(),
+            },
+        );
+        server.extra_folders.push(Self::folder(key, name, kind));
     }
 
     /// 서버가 받은 조작 기록
@@ -217,6 +236,7 @@ impl FakeProvider {
                 ..Self::folder("f-contract", "계약·서류", FolderKind::Folder)
             });
         }
+        folders.extend(self.server().extra_folders.clone());
         folders
     }
 
@@ -393,6 +413,17 @@ impl MailProvider for FakeProvider {
                 Ok(())
             },
         )
+    }
+
+    fn archive_folder_name(&self) -> Option<&'static str> {
+        Some("보관함")
+    }
+
+    async fn create_folder(&self, name: &str) -> Result<String, ProviderError> {
+        self.check_online()?;
+        self.server().ops.push(format!("create:{name}"));
+        self.add_folder(name, name, FolderKind::Archive);
+        Ok(name.into())
     }
 
     async fn move_message(

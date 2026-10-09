@@ -22,7 +22,8 @@ export interface Account {
   signature: string;
 }
 
-export type FolderKind = "inbox" | "sent" | "drafts" | "spam" | "trash" | "label" | "folder";
+export type FolderKind =
+  "inbox" | "sent" | "drafts" | "spam" | "trash" | "archive" | "label" | "folder";
 
 export interface Folder {
   id: string;
@@ -215,6 +216,14 @@ export function deleteMail(id: string): Promise<void> {
 /** 같은 계정의 다른 폴더로 옮긴다. 옮긴 메일은 서버 반영 뒤 대상 폴더에 다시 나타난다. */
 export function moveMail(id: string, folderId: string): Promise<void> {
   return call("move_mail", { id, folderId });
+}
+
+/**
+ * 메일을 이 계정의 보관 폴더로 옮긴다(Gmail은 전체보관함, 네이버는 "보관함" 폴더 — 없으면 서버에 만든다).
+ * 이미 보관·휴지통·스팸·임시보관함에 있는 메일이거나 폴더를 만들 수 없으면 한국어 안내와 함께 던진다.
+ */
+export function archiveMail(id: string): Promise<void> {
+  return call("archive_mail", { id });
 }
 
 /** 링크를 기본 브라우저(메일 주소는 기본 메일 앱)로 연다. 앱 창 안에서는 이동하지 않는다. */

@@ -32,6 +32,12 @@
   height: var(--control-height);
 }
 
+.star {
+  flex: none;
+  margin-top: var(--space-1);
+  color: var(--color-star);
+}
+
 .sep {
   width: 1px;
   height: var(--space-4);

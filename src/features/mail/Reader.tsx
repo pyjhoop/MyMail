@@ -3,16 +3,26 @@ import {
   ChevronDown,
   ChevronUp,
   Forward,
-  MoreHorizontal,
   Reply,
   ReplyAll,
+  Star,
   Trash2,
 } from "lucide-react";
 import { NoMailSelected, ReaderSkeleton } from "../../components/StateView";
 import type { MailDetail } from "../../lib/ipc";
 import { AttachmentList } from "./AttachmentList";
 import { HtmlBody } from "./HtmlBody";
+import { MoreMenu, type MoreMenuProps } from "./MoreMenu";
 import styles from "./Reader.module.css";
+
+/** 도구 모음의 보관·삭제·더보기. 동작은 App이 정하고 Reader는 버튼만 그린다. */
+export interface ReaderActions {
+  onDelete: () => void;
+  onArchive: () => void;
+  /** 있으면 보관 버튼을 막고 이 문구를 툴팁으로 보여 준다 */
+  archiveBlockedReason?: string;
+  more: Omit<MoreMenuProps, "disabled" | "unread" | "starred">;
+}
 
 interface Props {
   mail: MailDetail | null;
@@ -22,9 +32,11 @@ interface Props {
   onPrev: () => void;
   onNext: () => void;
   onCompose: (mode: "reply" | "replyAll" | "forward") => void;
+  actions?: ReaderActions;
 }
 
-export function Reader({ mail, loading, position, onPrev, onNext, onCompose }: Props) {
+export function Reader({ mail, loading, position, onPrev, onNext, onCompose, actions }: Props) {
+  const ready = !!mail && !!actions;
   return (
     <main className={styles.reader}>
       <div className={styles.toolbar}>
@@ -56,15 +68,36 @@ export function Reader({ mail, loading, position, onPrev, onNext, onCompose }: P
           전달
         </button>
         <span className={styles.sep} />
-        <button type="button" className={`ib ${styles.icon}`} aria-label="보관" disabled={!mail}>
+        <button
+          type="button"
+          className={`ib ${styles.icon}`}
+          aria-label="보관"
+          title={actions?.archiveBlockedReason}
+          disabled={!ready || !!actions.archiveBlockedReason}
+          onClick={actions?.onArchive}
+        >
           <Archive size={20} strokeWidth={1.75} aria-hidden />
         </button>
-        <button type="button" className={`ib ${styles.icon}`} aria-label="삭제" disabled={!mail}>
+        <button
+          type="button"
+          className={`ib ${styles.icon}`}
+          aria-label="삭제"
+          disabled={!ready}
+          onClick={actions?.onDelete}
+        >
           <Trash2 size={20} strokeWidth={1.75} aria-hidden />
         </button>
-        <button type="button" className={`ib ${styles.icon}`} aria-label="더보기" disabled={!mail}>
-          <MoreHorizontal size={20} strokeWidth={1.75} aria-hidden />
-        </button>
+        <MoreMenu
+          disabled={!ready}
+          unread={mail?.unread ?? false}
+          starred={mail?.starred ?? false}
+          moveTargets={actions?.more.moveTargets ?? []}
+          spam={actions?.more.spam}
+          onSetRead={(read) => actions?.more.onSetRead(read)}
+          onSetStarred={(starred) => actions?.more.onSetStarred(starred)}
+          onMove={(folder) => actions?.more.onMove(folder)}
+          onToggleSpam={() => actions?.more.onToggleSpam()}
+        />
         <span className={styles.grow} />
         {position && <span className={styles.position}>{position}</span>}
         <button
@@ -92,6 +125,16 @@ export function Reader({ mail, loading, position, onPrev, onNext, onCompose }: P
           <article className={`${styles.article} ${mail.html ? styles.wide : ""}`}>
             <div className={styles.titleRow}>
               <h1>{mail.subject}</h1>
+              {mail.starred && (
+                <Star
+                  className={styles.star}
+                  size={18}
+                  strokeWidth={1.75}
+                  fill="currentColor"
+                  role="img"
+                  aria-label="별표 표시됨"
+                />
+              )}
               {mail.label && (
                 <span className={styles.chip}>
                   <span

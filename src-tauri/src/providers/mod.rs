@@ -38,6 +38,8 @@ pub enum FolderKind {
     Trash,
     /// 전체보관함(Gmail `\All`). 다른 폴더 메일이 모두 들어 있어 가장 마지막에 동기화한다.
     All,
+    /// 보관함. Gmail은 `All`이 이 역할을 하고, 네이버는 앱이 만든 "보관함" 폴더다.
+    Archive,
     Label,
     Folder,
 }
@@ -50,8 +52,8 @@ impl FolderKind {
             Self::Drafts => "drafts",
             Self::Spam => "spam",
             Self::Trash => "trash",
-            // UI에서는 일반 폴더로 보인다. 구분은 동기화 순서에만 쓴다.
-            Self::All => "folder",
+            // 동기화 순서는 `All`과 `Archive`가 다르지만, 상위 계층에는 둘 다 "이 계정의 보관 폴더"다.
+            Self::All | Self::Archive => "archive",
             Self::Label => "label",
             Self::Folder => "folder",
         }
@@ -252,6 +254,16 @@ pub trait MailProvider: Send + Sync {
         _remote_id: &str,
     ) -> Result<(), ProviderError> {
         unsupported("메일 삭제")
+    }
+
+    /// 보관용으로 서버에 새로 만들 폴더 이름. 보관 폴더가 따로 없는 서비스(네이버)만 값을 가진다.
+    fn archive_folder_name(&self) -> Option<&'static str> {
+        None
+    }
+
+    /// 서버에 폴더를 만든다. 이미 있으면 그대로 두고, 폴더의 key를 돌려준다.
+    async fn create_folder(&self, _name: &str) -> Result<String, ProviderError> {
+        unsupported("폴더 만들기")
     }
 
     /// 첨부 하나의 내용을 받는다. `\Seen`이 달리지 않아야 한다(읽음 상태를 바꾸지 않는다).
