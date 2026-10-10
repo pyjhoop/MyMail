@@ -22,7 +22,7 @@ interface Props {
   error?: LoadError;
   mails: MailSummary[];
   accounts: Account[];
-  /** 통합 보기에서는 행에 계정 색 점을 붙인다 */
+  /** 통합 보기에서는 행 왼쪽에 계정 색 세로 막대를 붙인다 */
   showAccount: boolean;
   selectedId: string | null;
   onSelect: (id: string) => void;
@@ -288,6 +288,15 @@ export function MailList({
                   }`}
                   style={{ transform: `translateY(${v.start}px)` }}
                 >
+                  {account && (
+                    <span
+                      className={styles.accountBar}
+                      role="img"
+                      aria-label={account.name}
+                      title={account.name}
+                      style={{ background: `var(--account-${account.colorIndex})` }}
+                    />
+                  )}
                   <input
                     type="checkbox"
                     className={styles.check}
@@ -308,13 +317,6 @@ export function MailList({
                     <span className={styles.body}>
                       <span className={styles.line}>
                         <span className={`${styles.sender} ${m.unread ? styles.strong : ""}`}>
-                          {account && (
-                            <span
-                              className={styles.accountDot}
-                              style={{ background: `var(--account-${account.colorIndex})` }}
-                              title={account.name}
-                            />
-                          )}
                           {m.sender}
                           {m.threadCount && (
                             <span className={styles.threadCount}>{m.threadCount}</span>

@@ -284,11 +284,14 @@
   color: var(--color-text);
 }
 
-.accountDot {
-  flex: none;
-  width: 6px;
-  height: 6px;
-  border-radius: var(--radius-full);
+.accountBar {
+  position: absolute;
+  top: var(--mail-row-bar-inset);
+  bottom: var(--mail-row-bar-inset);
+  left: 0;
+  width: var(--mail-row-bar-width);
+  border-radius: 0 var(--mail-row-bar-width) var(--mail-row-bar-width) 0;
+  pointer-events: none;
 }
 
 .threadCount {

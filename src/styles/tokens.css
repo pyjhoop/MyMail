@@ -93,6 +93,8 @@
   --folder-item-height: 32px;
   --folder-item-height-account: 44px;
   --mail-row-height: 84px;
+  --mail-row-bar-width: 3px;
+  --mail-row-bar-inset: 10px;
   --icon-size: 20px;
   --icon-size-dense: 16px;
   --icon-stroke: 1.75;

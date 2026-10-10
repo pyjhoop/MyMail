@@ -159,3 +159,41 @@ describe("MailList 다중 선택", () => {
     expect(screen.queryByText(/^선택 \d+개$/)).not.toBeInTheDocument();
   });
 });
+
+describe("MailList 계정 색 막대", () => {
+  const renderWith = (showAccount: boolean, mails: MailSummary[]) =>
+    render(
+      <MailList
+        title="받은편지함"
+        status="ready"
+        mails={mails}
+        accounts={FAKE_ACCOUNTS}
+        showAccount={showAccount}
+        selectedId={null}
+        onSelect={vi.fn()}
+        checkedIds={new Set()}
+        onCheckedChange={vi.fn()}
+        onDelete={vi.fn()}
+        onRefresh={vi.fn()}
+        sort="newest"
+        onSortChange={vi.fn()}
+      />,
+    );
+  const two = [
+    { ...MAILS[0], id: "x1", accountId: FAKE_ACCOUNTS[0].id },
+    { ...MAILS[1], id: "x2", accountId: FAKE_ACCOUNTS[1].id },
+  ];
+
+  it("통합 보기에서는 계정 색 세로 막대가 행마다 붙는다", () => {
+    renderWith(true, two);
+    for (const a of FAKE_ACCOUNTS.slice(0, 2)) {
+      const bar = screen.getByRole("img", { name: a.name });
+      expect(bar.style.background).toContain(`--account-${a.colorIndex}`);
+    }
+  });
+
+  it("개별 계정·폴더 보기에서는 막대가 없다", () => {
+    renderWith(false, two);
+    expect(screen.queryByRole("img", { name: FAKE_ACCOUNTS[0].name })).not.toBeInTheDocument();
+  });
+});
