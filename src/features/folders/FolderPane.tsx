@@ -1,6 +1,7 @@
 import {
   Archive,
   ChevronDown,
+  ChevronRight,
   FileText,
   Folder as FolderIcon,
   Inbox,
@@ -11,10 +12,11 @@ import {
   Trash2,
   type LucideIcon,
 } from "lucide-react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { Account, Folder, FolderKind } from "../../lib/ipc";
 import { labelColorVar, labelPaths } from "../../lib/labels";
 import styles from "./FolderPane.module.css";
+import { useCollapsedFolders } from "./useCollapsedFolders";
 
 interface Props {
   /** null이면 통합 받은편지함 */
@@ -44,6 +46,7 @@ function FolderItem({
   selected,
   collapsed,
   labelPath,
+  tree,
   onSelect,
 }: {
   folder: Folder;
@@ -51,21 +54,42 @@ function FolderItem({
   collapsed: boolean;
   /** 라벨의 전체 이름("부모/자식"). 색을 메일 행의 라벨 칩과 맞추는 데 쓴다 */
   labelPath?: string;
+  /** 자식이 있는 항목이면 접기 상태와 토글. 접힌 줄의 안 읽은 수는 자식 합계다 */
+  tree?: { expanded: boolean; onToggle: (collapse: boolean) => void; unread: number };
   onSelect: () => void;
 }) {
   const Icon = ICONS[folder.kind] ?? Archive;
   const isInbox = folder.kind === "inbox";
-  const nested = (folder.depth ?? 0) > 0;
-  return (
+  const depth = folder.depth ?? 0;
+  const nested = depth > 0;
+  const parent = tree !== undefined && !collapsed;
+  const unread = tree && !tree.expanded ? tree.unread : folder.unread;
+  const className = [
+    styles.item,
+    selected ? styles.selected : "",
+    nested ? styles.nested : "",
+    parent ? styles.parent : "",
+  ].join(" ");
+  const button = (
     <button
       type="button"
-      className={`${styles.item} ${selected ? styles.selected : ""}`}
+      className={className}
       aria-current={selected}
+      aria-expanded={parent ? tree.expanded : undefined}
       title={collapsed ? folder.name : undefined}
       onClick={onSelect}
-      style={nested ? ({ "--indent": "38px" } as CSSProperties) : undefined}
+      onKeyDown={(e) => {
+        if (!parent) return;
+        if (e.key === "ArrowRight" && !tree.expanded) {
+          e.preventDefault();
+          tree.onToggle(false);
+        } else if (e.key === "ArrowLeft" && tree.expanded) {
+          e.preventDefault();
+          tree.onToggle(true);
+        }
+      }}
+      style={nested ? ({ "--depth": depth } as CSSProperties) : undefined}
     >
-      {folder.expandable && <ChevronDown size={14} strokeWidth={2} aria-hidden />}
       {folder.kind === "label" ? (
         <span className={styles.dotWrap}>
           <span
@@ -79,15 +103,106 @@ function FolderItem({
       {!collapsed && (
         <>
           <span className={styles.name}>{folder.name}</span>
-          {folder.unread > 0 && (
+          {unread > 0 && (
             <span className={isInbox || selected ? styles.countStrong : styles.count}>
-              {folder.unread}
+              {unread}
             </span>
           )}
         </>
       )}
     </button>
   );
+  if (!parent) return button;
+  return (
+    <div
+      className={`${styles.treeRow} ${nested ? styles.nested : ""}`}
+      style={nested ? ({ "--depth": depth } as CSSProperties) : undefined}
+    >
+      {button}
+      <button
+        type="button"
+        className={styles.toggle}
+        aria-label={`${folder.name} ${tree.expanded ? "접기" : "펼치기"}`}
+        aria-expanded={tree.expanded}
+        onClick={() => tree.onToggle(tree.expanded)}
+      >
+        {tree.expanded ? (
+          <ChevronDown size={14} strokeWidth={2} aria-hidden />
+        ) : (
+          <ChevronRight size={14} strokeWidth={2} aria-hidden />
+        )}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * 깊이(depth)로 부모/자식을 나타내는 목록(서버 순서, 부모가 자식보다 앞)을 접고 펼 수 있게 그린다.
+ * 선택된 항목의 조상은 접혀 있어도 펼친 것으로 본다.
+ */
+function FolderTree({
+  items,
+  selectedId,
+  collapsed,
+  collapsedIds,
+  onToggle,
+  paths,
+  onSelect,
+}: {
+  items: Folder[];
+  selectedId: string;
+  collapsed: boolean;
+  collapsedIds: ReadonlySet<string>;
+  onToggle: (id: string, collapse: boolean) => void;
+  paths?: Map<string, string>;
+  onSelect: (id: string) => void;
+}) {
+  const depthOf = (f: Folder) => f.depth ?? 0;
+  const forcedOpen = new Set<string>();
+  const selectedIndex = items.findIndex((f) => f.id === selectedId);
+  if (selectedIndex >= 0) {
+    let need = depthOf(items[selectedIndex]);
+    for (let i = selectedIndex - 1; i >= 0 && need > 0; i--) {
+      if (depthOf(items[i]) < need) {
+        forcedOpen.add(items[i].id);
+        need = depthOf(items[i]);
+      }
+    }
+  }
+
+  const rows: ReactNode[] = [];
+  let hideBelow: number | null = null; // 이 깊이보다 깊은 항목은 접힌 부모 안이라 숨긴다
+  items.forEach((f, i) => {
+    const depth = depthOf(f);
+    if (hideBelow !== null) {
+      if (depth > hideBelow) return;
+      hideBelow = null;
+    }
+    let total = f.unread;
+    let hasChildren = false;
+    for (let j = i + 1; j < items.length && depthOf(items[j]) > depth; j++) {
+      hasChildren = true;
+      total += items[j].unread;
+    }
+    const expanded = !hasChildren || collapsed || !collapsedIds.has(f.id) || forcedOpen.has(f.id);
+    if (hasChildren && !expanded) hideBelow = depth;
+    rows.push(
+      <FolderItem
+        key={f.id}
+        folder={f}
+        labelPath={paths?.get(f.id)}
+        selected={f.id === selectedId}
+        collapsed={collapsed}
+        tree={
+          hasChildren
+            ? { expanded, onToggle: (collapse) => onToggle(f.id, collapse), unread: total }
+            : undefined
+        }
+        onSelect={() => onSelect(f.id)}
+      />,
+    );
+  });
+  return <>{rows}</>;
 }
 
 export function FolderPane({
@@ -99,6 +214,8 @@ export function FolderPane({
   onSelect,
   onCompose,
 }: Props) {
+  const { collapsedIds, toggle: toggleCollapsed } = useCollapsedFolders(account?.id ?? "");
+  const toggle = (id: string, collapse: boolean) => toggleCollapsed(id, collapse);
   if (account === null) {
     // 통합 받은편지함: 계정별 받은편지함 목록
     const total = accounts.reduce((sum, a) => sum + a.unread, 0);
@@ -174,25 +291,23 @@ export function FolderPane({
           </button>
         </div>
       )}
-      {labels.map((f) => (
-        <FolderItem
-          key={f.id}
-          folder={f}
-          labelPath={paths.get(f.id)}
-          selected={f.id === selectedId}
-          collapsed={collapsed}
-          onSelect={() => onSelect(f.id, account.id)}
-        />
-      ))}
-      {custom.map((f) => (
-        <FolderItem
-          key={f.id}
-          folder={f}
-          selected={f.id === selectedId}
-          collapsed={collapsed}
-          onSelect={() => onSelect(f.id, account.id)}
-        />
-      ))}
+      <FolderTree
+        items={labels}
+        selectedId={selectedId}
+        collapsed={collapsed}
+        collapsedIds={collapsedIds}
+        onToggle={toggle}
+        paths={paths}
+        onSelect={(id) => onSelect(id, account.id)}
+      />
+      <FolderTree
+        items={custom}
+        selectedId={selectedId}
+        collapsed={collapsed}
+        collapsedIds={collapsedIds}
+        onToggle={toggle}
+        onSelect={(id) => onSelect(id, account.id)}
+      />
     </aside>
   );
 }

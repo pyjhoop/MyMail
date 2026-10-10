@@ -263,5 +263,5 @@
 
 - [x] 통합 받은편지함의 계정 색 표시 — 이름 옆 점을 행 왼쪽 세로 막대(폭 3px, `--mail-row-bar-width`·`--mail-row-bar-inset` 토큰, `--account-N`)로 교체. 계정 이름은 `aria-label`/툴팁
 - [x] 라벨 색 적용 — `src/lib/labels.ts`의 `labelColor`(이름 해시 1~8, 백엔드 `label_color`와 같은 계산)를 폴더 패널·목록 칩·본문 헤더가 공유. 폴더 패널은 `labelPaths`로 "부모/자식" 전체 이름을 만들어 해시한다. 사용자 지정 색은 후속
-- [ ] 하위 라벨 접기/펼치기
+- [x] 하위 라벨 접기/펼치기 — 라벨·폴더 모두 `FolderTree`로 깊이 기반 접기/펼치기(토글 버튼 `aria-expanded`, ←/→ 키), 접힘은 계정별 localStorage(`useCollapsedFolders`), 접힌 부모는 자식 안 읽은 수 합계, 선택된 항목의 조상은 자동으로 펼침
 - [ ] 메일 미리보기(목록 행)에 라벨 표시
