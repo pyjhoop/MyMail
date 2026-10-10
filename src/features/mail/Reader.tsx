@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { NoMailSelected, ReaderSkeleton } from "../../components/StateView";
 import type { MailDetail } from "../../lib/ipc";
+import { labelColorVar } from "../../lib/labels";
 import { AttachmentList } from "./AttachmentList";
 import { HtmlBody } from "./HtmlBody";
 import { MoreMenu, type MoreMenuProps } from "./MoreMenu";
@@ -139,7 +140,7 @@ export function Reader({ mail, loading, position, onPrev, onNext, onCompose, act
                 <span className={styles.chip}>
                   <span
                     className={styles.chipDot}
-                    style={{ background: `var(--account-${mail.label.colorIndex})` }}
+                    style={{ background: labelColorVar(mail.label.name) }}
                   />
                   {mail.label.name}
                 </span>

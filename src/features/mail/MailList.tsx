@@ -10,6 +10,7 @@ import {
   OfflineState,
 } from "../../components/StateView";
 import type { Account, LoadError, MailSort, MailSummary } from "../../lib/ipc";
+import { labelColorVar } from "../../lib/labels";
 import styles from "./MailList.module.css";
 import { SORT_OPTIONS, sortLabel } from "./sort";
 
@@ -333,7 +334,7 @@ export function MailList({
                           <span className={styles.chip}>
                             <span
                               className={styles.chipDot}
-                              style={{ background: `var(--account-${m.label.colorIndex})` }}
+                              style={{ background: labelColorVar(m.label.name) }}
                             />
                             {m.label.name}
                           </span>

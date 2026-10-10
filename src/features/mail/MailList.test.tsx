@@ -192,6 +192,12 @@ describe("MailList 계정 색 막대", () => {
     }
   });
 
+  it("라벨 칩 색은 라벨 이름으로 정한 색 변수를 쓴다", () => {
+    renderWith(false, [{ ...MAILS[0], label: { name: "Work", colorIndex: 5 } }]);
+    const dot = screen.getByText("Work").querySelector("span") as HTMLElement;
+    expect(dot.style.background).toBe("var(--account-2)");
+  });
+
   it("개별 계정·폴더 보기에서는 막대가 없다", () => {
     renderWith(false, two);
     expect(screen.queryByRole("img", { name: FAKE_ACCOUNTS[0].name })).not.toBeInTheDocument();

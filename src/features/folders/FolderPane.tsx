@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { CSSProperties } from "react";
 import type { Account, Folder, FolderKind } from "../../lib/ipc";
+import { labelColorVar, labelPaths } from "../../lib/labels";
 import styles from "./FolderPane.module.css";
 
 interface Props {
@@ -42,11 +43,14 @@ function FolderItem({
   folder,
   selected,
   collapsed,
+  labelPath,
   onSelect,
 }: {
   folder: Folder;
   selected: boolean;
   collapsed: boolean;
+  /** 라벨의 전체 이름("부모/자식"). 색을 메일 행의 라벨 칩과 맞추는 데 쓴다 */
+  labelPath?: string;
   onSelect: () => void;
 }) {
   const Icon = ICONS[folder.kind] ?? Archive;
@@ -66,7 +70,7 @@ function FolderItem({
         <span className={styles.dotWrap}>
           <span
             className={styles.dot}
-            style={{ background: `var(--account-${folder.colorIndex ?? 1})` }}
+            style={{ background: labelColorVar(labelPath ?? folder.name) }}
           />
         </span>
       ) : (
@@ -141,6 +145,7 @@ export function FolderPane({
 
   const system = folders.filter((f) => SYSTEM.includes(f.kind));
   const labels = folders.filter((f) => f.kind === "label");
+  const paths = labelPaths(labels);
   const custom = folders.filter((f) => f.kind === "folder" || f.kind === "archive");
 
   return (
@@ -173,6 +178,7 @@ export function FolderPane({
         <FolderItem
           key={f.id}
           folder={f}
+          labelPath={paths.get(f.id)}
           selected={f.id === selectedId}
           collapsed={collapsed}
           onSelect={() => onSelect(f.id, account.id)}
