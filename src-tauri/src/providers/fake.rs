@@ -471,6 +471,13 @@ impl MailProvider for FakeProvider {
         )
     }
 
+    async fn empty_folder(&self, folder_key: &str) -> Result<(), ProviderError> {
+        self.with_folder(folder_key, format!("empty:{folder_key}"), |f| {
+            f.messages.clear();
+            Ok(())
+        })
+    }
+
     async fn send(&self, mail: &OutgoingMail) -> Result<(), ProviderError> {
         let mut server = self.server();
         if server.offline {

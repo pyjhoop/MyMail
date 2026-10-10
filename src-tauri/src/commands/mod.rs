@@ -303,6 +303,20 @@ pub async fn delete_mail(
     Ok(())
 }
 
+/// 휴지통·스팸함의 모든 메일을 완전히 지운다. 다른 폴더는 거절한다.
+#[tauri::command]
+pub async fn empty_folder(
+    app: AppHandle,
+    store: State<'_, Store>,
+    manager: State<'_, SyncManager>,
+    account_id: String,
+    folder_id: String,
+) -> CommandResult<()> {
+    let account_id = actions::empty_folder(&store, &account_id, &folder_id)?;
+    manager.kick(&app, &account_id);
+    Ok(())
+}
+
 /// 작성 내용을 저장한다(자동 저장). 없으면 만들고 있으면 덮어쓴다. 첨부는 건드리지 않는다.
 #[tauri::command]
 pub async fn save_draft(store: State<'_, Store>, draft: ComposeInput) -> CommandResult<()> {

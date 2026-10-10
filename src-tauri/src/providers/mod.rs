@@ -256,6 +256,11 @@ pub trait MailProvider: Send + Sync {
         unsupported("메일 삭제")
     }
 
+    /// 폴더의 모든 메일을 서버에서 완전히 지운다(휴지통·스팸함 비우기). 한 연결로 한 번에 처리한다.
+    async fn empty_folder(&self, _folder_key: &str) -> Result<(), ProviderError> {
+        unsupported("폴더 비우기")
+    }
+
     /// 보관용으로 서버에 새로 만들 폴더 이름. 보관 폴더가 따로 없는 서비스(네이버)만 값을 가진다.
     fn archive_folder_name(&self) -> Option<&'static str> {
         None

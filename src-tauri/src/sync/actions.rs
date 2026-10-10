@@ -67,6 +67,20 @@ pub fn delete_mail(store: &Store, mail_id: &str) -> Result<String, SyncError> {
     Ok(mail.account_id)
 }
 
+/// 휴지통·스팸함의 모든 메일을 완전히 지운다. 다른 폴더는 거절한다(받은편지함을 실수로 비우지 않게).
+/// 로컬에서 먼저 비우고 서버 조작은 한 건으로 큐에 넣는다. 계정 id를 돌려준다.
+pub fn empty_folder(store: &Store, account_id: &str, folder_id: &str) -> Result<String, SyncError> {
+    let (kind, key) = store
+        .folder_info(account_id, folder_id)?
+        .ok_or(SyncError::FolderNotFound)?;
+    if kind != "trash" && kind != "spam" {
+        return Err(SyncError::NotEmptiable);
+    }
+    store.enqueue(account_id, OpKind::EmptyFolder, &key, "", "")?;
+    store.clear_folder(account_id, folder_id)?;
+    Ok(account_id.to_string())
+}
+
 /// 같은 계정의 다른 폴더로 옮긴다. 옮긴 메일은 서버가 새 번호를 매기므로, 대상 폴더를 동기화할 때 다시 나타난다.
 pub fn move_mail(store: &Store, mail_id: &str, dest_folder_id: &str) -> Result<String, SyncError> {
     let mail = store.mail_ref(mail_id)?.ok_or(SyncError::MailNotFound)?;

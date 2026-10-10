@@ -218,6 +218,11 @@ export function moveMail(id: string, folderId: string): Promise<void> {
   return call("move_mail", { id, folderId });
 }
 
+/** 휴지통·스팸함의 모든 메일을 완전히 지운다. 다른 폴더는 백엔드가 거절한다. */
+export function emptyFolder(accountId: string, folderId: string): Promise<void> {
+  return call("empty_folder", { accountId, folderId });
+}
+
 /**
  * 메일을 이 계정의 보관 폴더로 옮긴다(Gmail은 전체보관함, 네이버는 "보관함" 폴더 — 없으면 서버에 만든다).
  * 이미 보관·휴지통·스팸·임시보관함에 있는 메일이거나 폴더를 만들 수 없으면 한국어 안내와 함께 던진다.

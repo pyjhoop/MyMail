@@ -74,6 +74,7 @@ pub fn run() {
             commands::sync_now,
             commands::delete_mail,
             commands::move_mail,
+            commands::empty_folder,
             commands::archive_mail,
             commands::save_draft,
             commands::get_draft,
