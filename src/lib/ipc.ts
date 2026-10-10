@@ -153,14 +153,28 @@ export function listFolders(accountId: string): Promise<Folder[]> {
 /** 메일 목록 정렬. 백엔드가 이 값만 받아들인다(그 밖의 값은 거절). */
 export type MailSort = "newest" | "oldest" | "sender" | "subject" | "unread";
 
-/** accountId가 null이면 통합 받은편지함 */
+/** 폴더 목록 한 페이지 */
+export interface MailListPage {
+  mails: MailSummary[];
+  /** 다음 페이지를 받을 때 그대로 넘기는 값. 마지막 페이지면 undefined. */
+  nextCursor?: string;
+}
+
+/** accountId가 null이면 통합 받은편지함. 한 페이지씩 받고 cursor로 이어 받는다. */
 export async function listMails(
   accountId: string | null,
   folderId: string,
   sort: MailSort = "newest",
-): Promise<MailSummary[]> {
-  const mails = await call<RawMailSummary[]>("list_mails", { accountId, folderId, sort });
-  return mails.map(toSummary);
+  cursor?: string,
+): Promise<MailListPage> {
+  const raw = await call<{ mails: RawMailSummary[]; nextCursor: string | null }>("list_mails", {
+    accountId,
+    folderId,
+    sort,
+    cursor: cursor ?? null,
+    limit: null,
+  });
+  return { mails: raw.mails.map(toSummary), nextCursor: raw.nextCursor ?? undefined };
 }
 
 /** 검색 결과 한 페이지 */
@@ -209,6 +223,22 @@ export async function searchMailsPage(
     olderCount: raw.olderCount ?? undefined,
     nextCursor: raw.nextCursor ?? undefined,
   };
+}
+
+/** 검색 범위 패널의 계정별 일치 건수 */
+export interface ScopeCount {
+  accountId: string;
+  /** 상한 1,000. capped이면 "1000+" */
+  count: number;
+  capped: boolean;
+}
+
+/** 계정별 일치 건수(스팸·휴지통 제외). 검색어·연산자는 searchMailsPage와 같은 규칙이다. */
+export function searchScopeCounts(
+  query: string,
+  tzOffsetSecs = -new Date().getTimezoneOffset() * 60,
+): Promise<ScopeCount[]> {
+  return call("search_scope_counts", { query, tzOffsetSecs });
 }
 
 /** 검색창 보낸사람 추천 한 줄 */

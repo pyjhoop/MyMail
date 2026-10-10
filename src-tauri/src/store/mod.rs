@@ -9,7 +9,7 @@ pub mod search;
 mod sync_state;
 
 use std::path::Path;
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
@@ -19,11 +19,11 @@ use crate::providers::{RemoteFolder, RemoteMessage};
 pub use attachments::AttachmentRef;
 pub use compose::{split_address, AddressSuggestion, ComposeInput, ComposeMail};
 pub use models::{
-    Account, Attachment, EarlierMail, Folder, LabelTag, MailDetail, MailSort, MailSummary,
-    NewAccount,
+    Account, Attachment, EarlierMail, Folder, LabelTag, MailDetail, MailPage, MailSort,
+    MailSummary, NewAccount,
 };
 pub use notify::{NewMail, NotifySettings};
-pub use search::{ParsedQuery, SearchPage, SearchRequest, SenderSuggestion};
+pub use search::{ParsedQuery, ScopeCount, SearchPage, SearchRequest, SenderSuggestion};
 pub use sync_state::{folder_key, OpKind};
 
 #[derive(Debug, thiserror::Error)]
@@ -51,11 +51,15 @@ const MIGRATIONS: &[&str] = &[
 ];
 
 const PREVIEW_CHARS: usize = 80;
+/// 이 통수 이하의 폴더는 모아서 정렬해도 빠르다(10만 통 합성 데이터에서 5,000통 정렬은 수십 ms).
+const SORT_IN_FOLDER_MAX: i64 = 5000;
 
+/// 복제하면 같은 연결을 가리키는 값싼 핸들이다. 디스크를 읽는 command가 `spawn_blocking`으로 넘겨 쓸 수 있다.
+#[derive(Clone)]
 pub struct Store {
-    conn: Mutex<Connection>,
+    conn: Arc<Mutex<Connection>>,
     /// 읽기 전용 연결. WAL이라 동기화가 쓰는 동안에도 검색이 기다리지 않는다. 메모리 DB에서는 없다.
-    reader: Option<Mutex<Connection>>,
+    reader: Option<Arc<Mutex<Connection>>>,
 }
 
 impl Store {
@@ -77,7 +81,7 @@ impl Store {
             rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )?;
         reader.busy_timeout(std::time::Duration::from_secs(5))?;
-        store.reader = Some(Mutex::new(reader));
+        store.reader = Some(Arc::new(Mutex::new(reader)));
         Ok(store)
     }
 
@@ -90,7 +94,7 @@ impl Store {
         conn.pragma_update(None, "foreign_keys", true)?;
         migrate(&mut conn)?;
         Ok(Self {
-            conn: Mutex::new(conn),
+            conn: Arc::new(Mutex::new(conn)),
             reader: None,
         })
     }
@@ -345,34 +349,50 @@ impl Store {
         self.list_mails_sorted(account_id, folder_id, MailSort::default())
     }
 
-    /// `list_mails`를 `sort` 순서로 돌려준다.
+    /// `list_mails`를 `sort` 순서로 전부 돌려준다(페이징 없음, 테스트용).
+    #[cfg(test)]
     pub fn list_mails_sorted(
         &self,
         account_id: Option<&str>,
         folder_id: &str,
         sort: MailSort,
     ) -> Result<Vec<MailSummary>, StoreError> {
-        let conn = self.lock()?;
-        let (filter, args): (&str, Vec<&str>) = match account_id {
-            Some(_) => ("m.folder_id = ?1", vec![folder_id]),
-            None => ("f.kind = 'inbox'", Vec::new()),
+        self.list_mails_inner(account_id, folder_id, sort, None, None)
+    }
+
+    /// 폴더 목록 한 페이지. `cursor`는 앞 페이지가 돌려준 `next_cursor`(키셋 페이징).
+    /// 임시보관함은 작성 중 메일을 섞어 정렬해야 해서 한 번에 모두 돌려준다.
+    pub fn list_mails_page(
+        &self,
+        account_id: Option<&str>,
+        folder_id: &str,
+        sort: MailSort,
+        cursor: Option<&str>,
+        limit: u32,
+    ) -> Result<MailPage, StoreError> {
+        let limit = limit.clamp(1, search::MAX_PAGE);
+        let mut mails =
+            self.list_mails_inner(account_id, folder_id, sort, cursor, Some(limit + 1))?;
+        let next_cursor = if mails.len() > limit as usize {
+            mails.truncate(limit as usize);
+            mails.last().map(|m| search::encode_cursor(sort, m))
+        } else {
+            None
         };
-        let sql = format!(
-            "SELECT m.id, m.account_id, m.folder_id, m.sender, m.sender_email, m.subject, m.preview,
-                    m.received_at, m.unread, m.starred, m.has_attachment, m.labels, m.label_name,
-                    CASE WHEN m.thread_id IS NULL THEN 0
-                         ELSE (SELECT COUNT(*) FROM messages t WHERE t.thread_id = m.thread_id) END
-             FROM messages m JOIN folders f ON f.id = m.folder_id
-             WHERE {filter} ORDER BY {order}",
-            order = sort.order_by()
-        );
-        let mut stmt = conn.prepare(&sql)?;
-        let rows = stmt.query_map(rusqlite::params_from_iter(args), summary_from_row)?;
-        let mut mails: Vec<MailSummary> = rows.collect::<Result<_, _>>()?;
-        drop(stmt);
-        // 임시보관함에는 서버 메일 위에 이 앱에서 작성 중인 메일을 함께 보여준다.
-        if let Some(account_id) = account_id {
-            let is_drafts: bool = conn
+        Ok(MailPage { mails, next_cursor })
+    }
+
+    fn list_mails_inner(
+        &self,
+        account_id: Option<&str>,
+        folder_id: &str,
+        sort: MailSort,
+        cursor: Option<&str>,
+        limit: Option<u32>,
+    ) -> Result<Vec<MailSummary>, StoreError> {
+        let conn = self.lock()?;
+        let is_drafts: bool = account_id.is_some()
+            && conn
                 .query_row(
                     "SELECT kind = 'drafts' FROM folders WHERE id = ?1",
                     [folder_id],
@@ -380,10 +400,75 @@ impl Store {
                 )
                 .optional()?
                 .unwrap_or(false);
-            if is_drafts {
-                mails.extend(compose::summaries(&conn, account_id, folder_id)?);
-                sort.sort(&mut mails);
+        // 임시보관함은 자르지 않는다(아래에서 작성 중 메일을 섞은 뒤 다시 정렬한다).
+        let (cursor, limit) = if is_drafts {
+            (None, None)
+        } else {
+            (cursor, limit)
+        };
+        let mut binds = search::Binds::default();
+        let mut wheres = match account_id {
+            Some(_) => format!("m.folder_id = {}", binds.push(folder_id.to_owned())),
+            None => "f.kind = 'inbox'".to_owned(),
+        };
+        if let Some(c) = cursor {
+            match search::keyset_clause(sort, c, &mut binds) {
+                Some(clause) => {
+                    wheres.push_str(" AND ");
+                    wheres.push_str(&clause);
+                }
+                None => return Ok(Vec::new()), // 해석할 수 없는 커서
             }
+        }
+        let limit_sql = limit.map_or_else(String::new, |n| {
+            format!("LIMIT {}", binds.push(i64::from(n)))
+        });
+        let order = sort.order_by();
+        // 통합 받은편지함은 정렬 인덱스를 걸으며 받은편지함 행만 집는다(못 박지 않으면 전부 모아 정렬한다).
+        // 한 폴더도 시간순은 (folder_id, received_at) 인덱스가 정렬을 대신한다. 보낸사람·제목·안 읽음 순은
+        // 폴더가 크면(수천 통 이상) 그 행을 모두 모아 정렬하느라 느려, 정렬 인덱스를 걸으며 이 폴더 행만 집는다.
+        let walk_sort_index = match account_id {
+            None => true,
+            Some(_) if matches!(sort, MailSort::Newest | MailSort::Oldest) => false,
+            Some(_) => {
+                let rows: i64 = conn.query_row(
+                    "SELECT COUNT(*) FROM messages WHERE folder_id = ?1",
+                    [folder_id],
+                    |r| r.get(0),
+                )?;
+                rows > SORT_IN_FOLDER_MAX
+            }
+        };
+        let from = if walk_sort_index {
+            format!(
+                "messages m INDEXED BY {} JOIN folders f ON f.id = m.folder_id",
+                search::order_index(sort)
+            )
+        } else {
+            "messages m JOIN folders f ON f.id = m.folder_id".to_owned()
+        };
+        // 안쪽에서 한 페이지만 고른 뒤에야 스레드 수를 센다.
+        let sql = format!(
+            "SELECT p.id, p.account_id, p.folder_id, p.sender, p.sender_email, p.subject, p.preview,
+                    p.received_at, p.unread, p.starred, p.has_attachment, p.labels, p.label_name,
+                    CASE WHEN p.thread_id IS NULL THEN 0
+                         ELSE (SELECT COUNT(*) FROM messages t WHERE t.thread_id = p.thread_id) END
+             FROM (SELECT m.id, m.account_id, m.folder_id, m.sender, m.sender_email, m.subject,
+                          m.preview, m.received_at, m.unread, m.starred, m.has_attachment,
+                          m.labels, m.label_name, m.thread_id
+                   FROM {from}
+                   WHERE {wheres} ORDER BY {order} {limit_sql}) AS p
+             ORDER BY {outer}",
+            outer = order.replace("m.", "p.")
+        );
+        let mut stmt = conn.prepare_cached(&sql)?;
+        let rows = stmt.query_map(rusqlite::params_from_iter(binds.0), summary_from_row)?;
+        let mut mails: Vec<MailSummary> = rows.collect::<Result<_, _>>()?;
+        drop(stmt);
+        // 임시보관함에는 서버 메일 위에 이 앱에서 작성 중인 메일을 함께 보여준다.
+        if let (Some(account_id), true) = (account_id, is_drafts) {
+            mails.extend(compose::summaries(&conn, account_id, folder_id)?);
+            sort.sort(&mut mails);
         }
         Ok(mails)
     }

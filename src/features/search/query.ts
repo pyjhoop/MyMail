@@ -48,7 +48,7 @@ export function isValidDate(value: string): boolean {
 }
 
 /** 토큰이 연산자면 해석해 query에 반영하고 true. 모르는 연산자·잘못된 값이면 false(일반 검색어). */
-function applyOperator(q: SearchQuery, token: string): boolean {
+export function applyOperator(q: SearchQuery, token: string): boolean {
   const at = token.indexOf(":");
   if (at < 0) return false;
   const key = token.slice(0, at).toLowerCase();
@@ -127,6 +127,12 @@ export function isTooShortToSearch(input: string): boolean {
   if (trimmed === "") return false;
   if (trimmed.length >= 2) return false;
   return true;
+}
+
+/** 마지막 단어가 값을 아직 안 쓴 연산자(`from:`)인지. 쓰는 중에는 자동 검색하지 않는다. */
+export function hasIncompleteOperator(input: string): boolean {
+  const last = input.trimEnd().split(/\s+/).pop() ?? "";
+  return /^(from|to|has|is|after|before):$/i.test(last);
 }
 
 /** 검색어 팁 칩. 누르면 입력에 덧붙인다. */

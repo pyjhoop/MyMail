@@ -10,6 +10,14 @@ pub struct NewAccount {
     pub color_index: u8,
 }
 
+/// 폴더 목록 한 페이지. 마지막 페이지면 `next_cursor`가 없다.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MailPage {
+    pub mails: Vec<MailSummary>,
+    pub next_cursor: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Account {

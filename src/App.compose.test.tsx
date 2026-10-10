@@ -103,14 +103,17 @@ describe("작성 연결", () => {
       attachments: [{ id: 1, name: "견적.pdf", size: 2000 }],
     };
     vi.mocked(getDraft).mockResolvedValue(saved);
-    vi.mocked(listMails).mockResolvedValueOnce([
-      {
-        ...FAKE_MAILS[0],
-        id: "draft:abc",
-        subject: "저장해 둔 제목",
-        time: "",
-      } as never,
-    ]);
+    vi.mocked(listMails).mockResolvedValueOnce({
+      nextCursor: undefined,
+      mails: [
+        {
+          ...FAKE_MAILS[0],
+          id: "draft:abc",
+          subject: "저장해 둔 제목",
+          time: "",
+        } as never,
+      ],
+    });
     render(<App />);
     fireEvent.click(await screen.findByText("저장해 둔 제목"));
 

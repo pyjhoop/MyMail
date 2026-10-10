@@ -578,7 +578,7 @@ fn 합성_10만통_검색_성능() {
         let n: usize = conn
             .prepare(
                 "SELECT m.id, m.account_id, m.folder_id, m.sender, m.sender_email, m.subject, m.preview,
-                        m.received_at, m.unread, m.starred, m.has_attachment, m.label_name, m.label_color,
+                        m.received_at, m.unread, m.starred, m.has_attachment, m.labels, m.label_name,
                         CASE WHEN m.thread_id IS NULL THEN 0
                              ELSE (SELECT COUNT(*) FROM messages t WHERE t.thread_id = m.thread_id) END
                  FROM messages_fts JOIN messages m ON m.rowid = messages_fts.rowid
@@ -670,4 +670,213 @@ fn 동기화_쓰기_중에도_검색이_막히지_않는다() {
         worst < Duration::from_millis(300),
         "쓰기 중 검색이 막혔어요: {worst:?}"
     );
+}
+
+fn median_ms(mut f: impl FnMut()) -> f64 {
+    f(); // 데운다
+    let mut v: Vec<f64> = (0..7)
+        .map(|_| {
+            let t = Instant::now();
+            f();
+            t.elapsed().as_secs_f64() * 1e3
+        })
+        .collect();
+    v.sort_by(f64::total_cmp);
+    v[v.len() / 2]
+}
+
+fn size_of(conn: &rusqlite::Connection, like: &str) -> f64 {
+    conn.query_row(
+        "SELECT COALESCE(SUM(pgsize), 0) FROM dbstat WHERE name LIKE ?1",
+        [like],
+        |r| r.get::<_, i64>(0),
+    )
+    .unwrap() as f64
+        / 1e6
+}
+
+#[test]
+#[ignore = "느린 측정(결과만 docs/decisions.md에 기록). cargo test --release store::search::perf::동기화_대량 -- --ignored --nocapture"]
+fn 동기화_대량_삽입의_트리거_비용() {
+    let n = (total_messages() / 2).max(10_000);
+    // 트리거를 모두 둔 기본 상태
+    let (full, p1) = open_perf_store("trig-full");
+    let with_all = seed_synthetic(&full, n).elapsed;
+    // sender_stats 트리거만 뺀 상태
+    let (no_stats, p2) = open_perf_store("trig-nostats");
+    no_stats
+        .lock()
+        .unwrap()
+        .execute_batch("DROP TRIGGER sender_stats_ai;")
+        .unwrap();
+    let without_stats = seed_synthetic(&no_stats, n).elapsed;
+    // FTS·sender_stats 트리거를 모두 뺀 상태(나중에 'rebuild'로 한꺼번에 만드는 대안의 하한)
+    let (bare, p3) = open_perf_store("trig-bare");
+    bare.lock()
+        .unwrap()
+        .execute_batch("DROP TRIGGER sender_stats_ai; DROP TRIGGER messages_ai;")
+        .unwrap();
+    let bare_elapsed = seed_synthetic(&bare, n).elapsed;
+    let t = Instant::now();
+    bare.lock()
+        .unwrap()
+        .execute_batch("INSERT INTO messages_fts(messages_fts) VALUES ('rebuild');")
+        .unwrap();
+    let rebuild = t.elapsed();
+    // 삽입 뒤 FTS 병합 비용(배치 optimize)
+    let t = Instant::now();
+    full.lock()
+        .unwrap()
+        .execute_batch("INSERT INTO messages_fts(messages_fts) VALUES ('optimize');")
+        .unwrap();
+    let optimize = t.elapsed();
+
+    let s = |d: Duration| d.as_secs_f64();
+    println!(
+        "\n{n}통 삽입(트랜잭션 5,000통씩; 합성 데이터 생성 시간 포함)\n  모든 트리거:           {:.2}초 ({:.1}μs/통)\n  sender_stats 트리거 X: {:.2}초 (트리거 비용 {:+.1}%)\n  FTS+집계 트리거 X:     {:.2}초 + 'rebuild' {:.2}초 = {:.2}초\n  삽입 뒤 FTS optimize:  {:.2}초",
+        s(with_all),
+        s(with_all) * 1e6 / n as f64,
+        s(without_stats),
+        (s(with_all) / s(without_stats) - 1.0) * 100.0,
+        s(bare_elapsed),
+        s(rebuild),
+        s(bare_elapsed) + s(rebuild),
+        s(optimize),
+    );
+    for p in [&p1, &p2, &p3] {
+        cleanup(p);
+    }
+}
+
+#[test]
+#[ignore = "느린 측정(결과만 docs/decisions.md에 기록). cargo test --release store::search::perf::trigram -- --ignored --nocapture"]
+fn trigram_bm25_측정() {
+    let (store, path) = open_perf_store("tokenizer");
+    let n = total_messages();
+    let seeded = seed_synthetic(&store, n);
+    let conn = store.lock().unwrap();
+    conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+        .unwrap();
+
+    let t = Instant::now();
+    conn.execute_batch(
+        "CREATE VIRTUAL TABLE tri USING fts5(subject, sender, sender_email, recipients, body,
+             content = 'messages', content_rowid = 'rowid', tokenize = 'trigram', columnsize = 0);
+         INSERT INTO tri(tri) VALUES ('rebuild');",
+    )
+    .unwrap();
+    let build = t.elapsed();
+    conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+        .unwrap();
+    let body = seeded.body_bytes as f64 / 1e6;
+    let uni = size_of(&conn, "messages_fts%");
+    let tri = size_of(&conn, "tri%");
+    println!(
+        "\n본문 합계 {body:.1}MB\n  unicode61 인덱스 {uni:.1}MB ({:.2}배)\n  trigram   인덱스 {tri:.1}MB ({:.2}배, 만드는 데 {:.1}초)",
+        uni / body,
+        tri / body,
+        build.as_secs_f64()
+    );
+
+    let count = |table: &str, expr: &str| -> i64 {
+        conn.query_row(
+            &format!("SELECT COUNT(*) FROM (SELECT rowid FROM {table} WHERE {table} MATCH ?1 LIMIT 1001)"),
+            [expr],
+            |r| r.get(0),
+        )
+        .unwrap()
+    };
+    println!("--- 일치 건수 상한 1,001 / 첫 1,001건 세는 시간(중앙값) ---");
+    for (label, uni_expr, tri_expr) in [
+        ("단어 전체 '견적서'", "\"견적서\"*", "\"견적서\""),
+        ("단어 앞부분 '견적'", "\"견적\"*", "\"견적\""),
+        ("단어 중간 '적서'", "\"적서\"*", "\"적서\""),
+        ("영문 'invoice'", "\"invoice\"*", "\"invoice\""),
+        ("영문 중간 'voic'", "\"voic\"*", "\"voic\""),
+    ] {
+        let mut un = 0;
+        let mut tn = 0;
+        let um = median_ms(|| un = count("messages_fts", uni_expr));
+        let tm = median_ms(|| tn = count("tri", tri_expr));
+        println!("{label:<20} unicode61 {un:>5}건 {um:>6.1}ms | trigram {tn:>5}건 {tm:>6.1}ms");
+    }
+
+    println!("--- 관련도(bm25) 정렬 vs 최신순, 첫 100건 ---");
+    for (label, word) in [("빈출어 '회의'", "회의"), ("보통 '견적서'", "견적서")] {
+        let expr = format!("\"{word}\"*");
+        let newest = median_ms(|| {
+            conn.prepare_cached(
+                "SELECT m.id FROM messages_fts JOIN messages m ON m.rowid = messages_fts.rowid
+                 WHERE messages_fts MATCH ?1 ORDER BY m.received_at DESC, m.id LIMIT 100",
+            )
+            .unwrap()
+            .query_map([&expr], |r| r.get::<_, String>(0))
+            .unwrap()
+            .count();
+        });
+        let bm25 = median_ms(|| {
+            conn.prepare_cached(
+                "SELECT rowid FROM messages_fts WHERE messages_fts MATCH ?1
+                 ORDER BY bm25(messages_fts, 10.0, 5.0, 5.0, 1.0, 1.0) LIMIT 100",
+            )
+            .unwrap()
+            .query_map([&expr], |r| r.get::<_, i64>(0))
+            .unwrap()
+            .count();
+        });
+        println!("{label:<16} 최신순 {newest:>7.1}ms | bm25 {bm25:>7.1}ms");
+    }
+    drop(conn);
+    cleanup(&path);
+}
+
+#[test]
+#[ignore = "느린 측정. cargo test --release store::search::perf::폴더_목록 -- --ignored --nocapture"]
+fn 폴더_목록_페이지_성능() {
+    let (store, path) = open_perf_store("folderlist");
+    let n = total_messages();
+    seed_synthetic(&store, n);
+    store
+        .lock()
+        .unwrap()
+        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA optimize;")
+        .unwrap();
+    println!("\n--- 폴더 목록 첫 페이지(100건) / 다음 페이지 ---");
+    let mut over: Vec<String> = Vec::new();
+    for sort in [
+        MailSort::Newest,
+        MailSort::Oldest,
+        MailSort::Sender,
+        MailSort::Subject,
+        MailSort::Unread,
+    ] {
+        for (label, account, folder) in [
+            ("한 계정 받은편지함", Some("acct1"), "acct1-inbox"),
+            ("통합 받은편지함", None, ""),
+        ] {
+            let mut first_ms = 0.0;
+            let mut cursor = None;
+            let med = median_ms(|| {
+                let t = Instant::now();
+                let page = store
+                    .list_mails_page(account, folder, sort, None, 100)
+                    .unwrap();
+                first_ms = t.elapsed().as_secs_f64() * 1e3;
+                cursor = page.next_cursor;
+            });
+            let next = median_ms(|| {
+                store
+                    .list_mails_page(account, folder, sort, cursor.as_deref(), 100)
+                    .unwrap();
+            });
+            println!("{sort:?} / {label:<18} 첫 페이지 {med:>6.1}ms | 다음 페이지 {next:>6.1}ms");
+            if med > 100.0 || next > 100.0 {
+                over.push(format!(
+                    "{sort:?} / {label}: 첫 {med:.0}ms, 다음 {next:.0}ms"
+                ));
+            }
+        }
+    }
+    cleanup(&path);
+    assert!(over.is_empty(), "100ms 목표를 넘은 항목: {over:#?}");
 }

@@ -52,6 +52,65 @@ async fn 계정과_폴더가_읽힌다() {
 }
 
 #[tokio::test]
+async fn 폴더_목록은_키셋_페이지로_빠짐없이_이어진다() {
+    let store = seeded().await;
+    for sort in [
+        MailSort::Newest,
+        MailSort::Oldest,
+        MailSort::Sender,
+        MailSort::Subject,
+        MailSort::Unread,
+    ] {
+        let whole = store
+            .list_mails_sorted(Some("a1"), "a1-inbox", sort)
+            .unwrap();
+        let mut cursor: Option<String> = None;
+        let mut ids = Vec::new();
+        let mut pages = 0;
+        loop {
+            let page = store
+                .list_mails_page(Some("a1"), "a1-inbox", sort, cursor.as_deref(), 7)
+                .unwrap();
+            pages += 1;
+            ids.extend(page.mails.iter().map(|m| m.id.clone()));
+            cursor = page.next_cursor;
+            if cursor.is_none() {
+                break;
+            }
+        }
+        let whole_ids: Vec<_> = whole.iter().map(|m| m.id.clone()).collect();
+        assert_eq!(ids, whole_ids, "{sort:?}");
+        assert_eq!(pages, 3, "{sort:?}"); // 20통 / 7
+    }
+    // 마지막 페이지는 커서가 없고, 잘못된 커서는 빈 페이지다.
+    let last = store
+        .list_mails_page(Some("a1"), "a1-inbox", MailSort::Newest, None, 200)
+        .unwrap();
+    assert_eq!(last.mails.len(), 20);
+    assert!(last.next_cursor.is_none());
+    let bad = store
+        .list_mails_page(Some("a1"), "a1-inbox", MailSort::Newest, Some("엉터리"), 7)
+        .unwrap();
+    assert!(bad.mails.is_empty());
+}
+
+#[tokio::test]
+async fn 통합_받은편지함도_페이지로_나뉜다() {
+    let store = seeded().await;
+    let first = store
+        .list_mails_page(None, "", MailSort::Newest, None, 8)
+        .unwrap();
+    assert_eq!(first.mails.len(), 8);
+    let second = store
+        .list_mails_page(None, "", MailSort::Newest, first.next_cursor.as_deref(), 8)
+        .unwrap();
+    assert!(second
+        .mails
+        .iter()
+        .all(|m| !first.mails.iter().any(|f| f.id == m.id)));
+}
+
+#[tokio::test]
 async fn 메일_목록은_최신순이고_스레드_수를_센다() {
     let store = seeded().await;
     let mails = store.list_mails(Some("a1"), "a1-inbox").unwrap();

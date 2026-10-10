@@ -1,5 +1,8 @@
 // HTML 메일 정제와 iframe 문서 조립. 화면과 무관한 순수 함수.
 import DOMPurify from "dompurify";
+import { splitByTerms } from "../features/search/splitByTerms";
+
+const DEFAULT_HIGHLIGHT = "#fde68a";
 
 export interface PreparedHtml {
   /** 정제를 마친 본문 HTML */
@@ -16,7 +19,11 @@ const CSS_EXTERNAL_URL = /url\(\s*["']?\s*(https?:)?\/\//i;
  * `showImages`가 false면 외부 이미지(img, background, 인라인 스타일)의 주소를 뗀다.
  * iframe CSP가 한 번 더 막으므로 여기서는 개수 집계와 깨진 이미지 표시 방지가 목적이다.
  */
-export function prepareMailHtml(raw: string, showImages: boolean): PreparedHtml {
+export function prepareMailHtml(
+  raw: string,
+  showImages: boolean,
+  highlight: readonly string[] = [],
+): PreparedHtml {
   const clean = DOMPurify.sanitize(raw, {
     FORCE_BODY: true, // 맨 앞의 <style>이 버려지지 않게 한다
     FORBID_TAGS: [
@@ -62,12 +69,46 @@ export function prepareMailHtml(raw: string, showImages: boolean): PreparedHtml 
     }
   });
 
+  if (highlight.length > 0) markTerms(doc, highlight);
+
   // 맨 앞의 <style>은 파서가 <head>로 옮기므로 함께 되돌려 놓는다.
   const headStyles = Array.from(doc.head.querySelectorAll("style"), (s) => s.outerHTML).join("");
   return { html: headStyles + doc.body.innerHTML, externalImages };
 }
 
+const NO_MARK_PARENTS = new Set(["STYLE", "SCRIPT", "TITLE", "TEXTAREA", "NOSCRIPT"]);
+
+/**
+ * 본문 글자(텍스트 노드)에서 검색어와 겹치는 부분을 `<mark>`로 감싼다.
+ * 텍스트를 노드 단위로 쪼개 DOM으로 넣을 뿐 문자열을 HTML로 다시 해석하지 않는다.
+ */
+function markTerms(doc: Document, terms: readonly string[]): void {
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+  const targets: Text[] = [];
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const parent = n.parentElement;
+    if (parent && !NO_MARK_PARENTS.has(parent.tagName)) targets.push(n as Text);
+  }
+  for (const node of targets) {
+    const parts = splitByTerms(node.data, terms);
+    if (parts.length === 1 && !parts[0].hit) continue;
+    const frag = doc.createDocumentFragment();
+    for (const p of parts) {
+      if (p.hit) {
+        const mark = doc.createElement("mark");
+        mark.textContent = p.text;
+        frag.appendChild(mark);
+      } else {
+        frag.appendChild(doc.createTextNode(p.text));
+      }
+    }
+    node.replaceWith(frag);
+  }
+}
+
 export interface PaperColors {
+  /** 검색어 강조 배경 (없으면 기본 노란색) */
+  highlight?: string;
   background: string;
   text: string;
   link: string;
@@ -93,6 +134,7 @@ export function readPaperColors(): PaperColors {
     background: get("--mail-paper-bg"),
     text: get("--mail-paper-text"),
     link: get("--mail-paper-link"),
+    highlight: get("--mail-paper-highlight"),
     fontFamily: get("--font-sans"),
     dark: document.documentElement.dataset.theme === "dark",
   };
@@ -112,8 +154,9 @@ export function buildMailDocument(
         background: invertHex(colors.background),
         text: invertHex(colors.text),
         link: invertHex(colors.link),
+        highlight: invertHex(colors.highlight || DEFAULT_HIGHLIGHT),
       }
-    : colors;
+    : { ...colors, highlight: colors.highlight || DEFAULT_HIGHLIGHT };
   const darkCss = colors.dark
     ? `html { filter: invert(1) hue-rotate(180deg); background: ${c.background}; }
 img, video { filter: invert(1) hue-rotate(180deg); }
@@ -126,6 +169,7 @@ ${darkCss}html { color-scheme: light; overflow-y: hidden; }
 body { margin: 0; padding: 16px; background: ${c.background}; color: ${c.text};
   font: 14px/1.6 ${colors.fontFamily}; overflow-wrap: break-word; }
 a { color: ${c.link}; }
+mark { background: ${c.highlight}; color: inherit; border-radius: 2px; }
 img { max-width: 100%; height: auto; }
 blockquote { margin-left: 0; padding-left: 12px; border-left: 3px solid #d4d4d8; }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
