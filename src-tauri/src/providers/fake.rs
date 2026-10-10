@@ -274,7 +274,11 @@ impl FakeProvider {
             received_at: self.now - (i as i64) * 3 * 3600,
             unread: i.is_multiple_of(4),
             starred: i.is_multiple_of(7),
-            label: (i.is_multiple_of(3) && self.offset == 0).then(|| ("여행".to_string(), 6)),
+            labels: if i.is_multiple_of(3) && self.offset == 0 {
+                vec!["여행".to_string()]
+            } else {
+                Vec::new()
+            },
             attachments: if has_attachment {
                 ATTACHMENTS
                     .iter()

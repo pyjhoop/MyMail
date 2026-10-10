@@ -54,7 +54,8 @@ export interface MailSummary {
   hasAttachment: boolean;
   /** 스레드 안 메일 수 (2 이상일 때만 표시) */
   threadCount?: number;
-  label?: { name: string; colorIndex: number };
+  /** 붙은 라벨 전체(시스템 라벨 제외). 없으면 빈 배열 */
+  labels: { name: string; colorIndex: number }[];
 }
 
 export interface MailAttachment {

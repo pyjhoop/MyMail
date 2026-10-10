@@ -136,15 +136,12 @@ export function Reader({ mail, loading, position, onPrev, onNext, onCompose, act
                   aria-label="별표 표시됨"
                 />
               )}
-              {mail.label && (
-                <span className={styles.chip}>
-                  <span
-                    className={styles.chipDot}
-                    style={{ background: labelColorVar(mail.label.name) }}
-                  />
-                  {mail.label.name}
+              {mail.labels.map((l) => (
+                <span key={l.name} className={styles.chip}>
+                  <span className={styles.chipDot} style={{ background: labelColorVar(l.name) }} />
+                  {l.name}
                 </span>
-              )}
+              ))}
             </div>
 
             {mail.earlier.map((e) => (

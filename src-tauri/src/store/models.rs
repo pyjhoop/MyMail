@@ -44,6 +44,22 @@ pub struct LabelTag {
     pub color_index: u8,
 }
 
+impl LabelTag {
+    pub fn new(name: String) -> Self {
+        let color_index = label_color(&name);
+        Self { name, color_index }
+    }
+}
+
+/// 라벨 이름으로 정하는 색(1~8). 같은 이름이면 언제나 같은 색이다.
+/// UI의 `labelColor`(src/lib/labels.ts)와 같은 계산이어야 폴더 패널의 색과 맞는다.
+pub fn label_color(name: &str) -> u8 {
+    let hash = name
+        .bytes()
+        .fold(0u32, |h, b| h.wrapping_mul(31).wrapping_add(u32::from(b)));
+    (hash % 8) as u8 + 1
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MailSummary {
@@ -60,7 +76,8 @@ pub struct MailSummary {
     pub starred: bool,
     pub has_attachment: bool,
     pub thread_count: Option<u32>,
-    pub label: Option<LabelTag>,
+    /// 붙은 라벨 전체(시스템 라벨 제외). 없으면 빈 목록
+    pub labels: Vec<LabelTag>,
 }
 
 #[derive(Debug, Clone, Serialize)]

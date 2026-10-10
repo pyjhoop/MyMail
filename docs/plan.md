@@ -264,4 +264,4 @@
 - [x] 통합 받은편지함의 계정 색 표시 — 이름 옆 점을 행 왼쪽 세로 막대(폭 3px, `--mail-row-bar-width`·`--mail-row-bar-inset` 토큰, `--account-N`)로 교체. 계정 이름은 `aria-label`/툴팁
 - [x] 라벨 색 적용 — `src/lib/labels.ts`의 `labelColor`(이름 해시 1~8, 백엔드 `label_color`와 같은 계산)를 폴더 패널·목록 칩·본문 헤더가 공유. 폴더 패널은 `labelPaths`로 "부모/자식" 전체 이름을 만들어 해시한다. 사용자 지정 색은 후속
 - [x] 하위 라벨 접기/펼치기 — 라벨·폴더 모두 `FolderTree`로 깊이 기반 접기/펼치기(토글 버튼 `aria-expanded`, ←/→ 키), 접힘은 계정별 localStorage(`useCollapsedFolders`), 접힌 부모는 자식 안 읽은 수 합계, 선택된 항목의 조상은 자동으로 펼침
-- [ ] 메일 미리보기(목록 행)에 라벨 표시
+- [x] 메일 미리보기(목록 행)에 라벨 표시 — 원인: ① Gmail의 일반 폴더가 `FolderKind::Folder`로 분류돼 라벨 구역에 안 나옴(`default_folder_kind`로 Gmail은 `Label`) ② 메일당 첫 라벨 하나만 저장 → `MailSummary.labels` 목록으로 변경(마이그레이션 `0008_labels.sql`, 예전 행은 `label_name`으로 대체) ③ 행에는 최대 2개 칩+"+N"(칩은 하위 라벨의 마지막 이름, 툴팁은 전체). 남은 것: 이미 저장된 메일은 서버 값을 다시 받지 않아 라벨이 갱신되지 않음(UID 대조 방식) — 라벨 재동기화는 후속

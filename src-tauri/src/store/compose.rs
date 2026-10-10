@@ -133,10 +133,14 @@ pub(super) fn summaries(
             starred: false,
             has_attachment: r.get(6)?,
             thread_count: None,
-            label: failed.then(|| LabelTag {
-                name: FAILED_LABEL.into(),
-                color_index: FAILED_LABEL_COLOR,
-            }),
+            labels: if failed {
+                vec![LabelTag {
+                    name: FAILED_LABEL.into(),
+                    color_index: FAILED_LABEL_COLOR,
+                }]
+            } else {
+                Vec::new()
+            },
         })
     })?;
     Ok(rows.collect::<Result<_, _>>()?)

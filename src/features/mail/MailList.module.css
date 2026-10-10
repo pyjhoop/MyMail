@@ -326,7 +326,15 @@
   color: var(--color-text-secondary);
 }
 
+.chipText {
+  max-width: var(--chip-max-width);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .chipDot {
+  flex: none;
   width: 6px;
   height: 6px;
   border-radius: var(--radius-full);

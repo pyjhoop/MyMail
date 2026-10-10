@@ -12,6 +12,14 @@ export function labelColor(name: string): number {
   return (hash % 8) + 1;
 }
 
+/** 목록 행 한 줄에 칩으로 보여 줄 최대 라벨 수. 넘치면 "+N"으로 줄인다 */
+export const MAX_ROW_LABELS = 2;
+
+/** 칩에 쓰는 짧은 이름: "부모/자식"이면 "자식" */
+export function labelLeaf(name: string): string {
+  return name.slice(name.lastIndexOf("/") + 1) || name;
+}
+
 /** `tokens.css`의 계정 팔레트 변수로 칠할 때 쓰는 값 */
 export function labelColorVar(name: string): string {
   return `var(--account-${labelColor(name)})`;

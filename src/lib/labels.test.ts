@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Folder } from "./ipc";
-import { labelColor, labelColorVar, labelPaths } from "./labels";
+import { labelColor, labelColorVar, labelLeaf, labelPaths } from "./labels";
 
 const label = (id: string, name: string, depth = 0): Folder => ({
   id,
@@ -28,6 +28,14 @@ describe("labelColor", () => {
 
   it("색 값은 토큰 변수로만 나온다", () => {
     expect(labelColorVar("Work")).toBe("var(--account-2)");
+  });
+});
+
+describe("labelLeaf", () => {
+  it("계층 라벨은 마지막 이름만 돌려준다", () => {
+    expect(labelLeaf("여행/제주")).toBe("제주");
+    expect(labelLeaf("Work")).toBe("Work");
+    expect(labelLeaf("a/b/c")).toBe("c");
   });
 });
 

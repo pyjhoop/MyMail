@@ -135,7 +135,7 @@ impl ImapProvider {
                     .find(|(name, _)| *name == lower)
                     .map(|(_, kind)| *kind)
             })
-            .unwrap_or(FolderKind::Folder)
+            .unwrap_or(default_folder_kind(self.config.gmail_extensions))
     }
 
     fn is_hidden(&self, attrs: &[imap::types::NameAttribute]) -> bool {
@@ -249,7 +249,7 @@ impl ImapProvider {
                 if let Some(attrs) = gmail.remove(&uid) {
                     message.thread_id = attrs.thrid;
                     message.dedupe_key = attrs.msgid;
-                    message.label = attrs.labels.first().map(|l| (l.clone(), label_color(l)));
+                    message.labels = attrs.labels;
                 }
                 messages.push(message);
             }
@@ -664,12 +664,13 @@ fn map_op_error(e: imap::Error) -> ProviderError {
     }
 }
 
-/// 라벨 이름으로 정하는 칩 색(1~8). 같은 이름이면 언제나 같은 색이다.
-fn label_color(name: &str) -> u8 {
-    let hash = name
-        .bytes()
-        .fold(0u32, |h, b| h.wrapping_mul(31).wrapping_add(u32::from(b)));
-    (hash % 8) as u8 + 1
+/// 특별한 용도가 없는 폴더의 종류. Gmail은 이런 폴더가 곧 사용자 라벨이다(IMAP이 라벨을 폴더로 보여 준다).
+fn default_folder_kind(gmail: bool) -> FolderKind {
+    if gmail {
+        FolderKind::Label
+    } else {
+        FolderKind::Folder
+    }
 }
 
 /// 받은편지함, 임시보관함 같은 기본 폴더를 앞에 두고 나머지는 서버 순서를 유지한다.
@@ -744,11 +745,9 @@ mod tests {
     }
 
     #[test]
-    fn 라벨_색은_이름마다_고정이고_1에서_8_사이다() {
-        assert_eq!(label_color("Work"), label_color("Work"));
-        for name in ["Work", "여행", "a", ""] {
-            assert!((1..=8).contains(&label_color(name)));
-        }
+    fn gmail의_일반_폴더는_라벨이고_그_밖의_서비스는_폴더다() {
+        assert_eq!(default_folder_kind(true), FolderKind::Label);
+        assert_eq!(default_folder_kind(false), FolderKind::Folder);
     }
 
     #[test]

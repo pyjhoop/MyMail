@@ -10,7 +10,7 @@ import {
   OfflineState,
 } from "../../components/StateView";
 import type { Account, LoadError, MailSort, MailSummary } from "../../lib/ipc";
-import { labelColorVar } from "../../lib/labels";
+import { labelColorVar, labelLeaf, MAX_ROW_LABELS } from "../../lib/labels";
 import styles from "./MailList.module.css";
 import { SORT_OPTIONS, sortLabel } from "./sort";
 
@@ -330,13 +330,24 @@ export function MailList({
                       </span>
                       <span className={styles.line}>
                         <span className={styles.preview}>{m.preview}</span>
-                        {m.label && (
-                          <span className={styles.chip}>
+                        {m.labels.slice(0, MAX_ROW_LABELS).map((l) => (
+                          <span key={l.name} className={styles.chip} title={l.name}>
                             <span
                               className={styles.chipDot}
-                              style={{ background: labelColorVar(m.label.name) }}
+                              style={{ background: labelColorVar(l.name) }}
                             />
-                            {m.label.name}
+                            <span className={styles.chipText}>{labelLeaf(l.name)}</span>
+                          </span>
+                        ))}
+                        {m.labels.length > MAX_ROW_LABELS && (
+                          <span
+                            className={styles.chip}
+                            title={m.labels
+                              .slice(MAX_ROW_LABELS)
+                              .map((l) => l.name)
+                              .join(", ")}
+                          >
+                            +{m.labels.length - MAX_ROW_LABELS}
                           </span>
                         )}
                         {m.hasAttachment && (

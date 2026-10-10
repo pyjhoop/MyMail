@@ -32,6 +32,7 @@ const mail: MailDetail = {
   unread: false,
   starred: false,
   hasAttachment: true,
+  labels: [],
   to: "me@gmail.com, seoyeon@naver.com, doyun@gmail.com",
   body: ["준호야,\n항공권 끝!", "렌터카도 부탁해"],
   html: undefined,
