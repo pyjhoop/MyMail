@@ -1,5 +1,5 @@
 import { ImageOff } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { openExternal } from "../../lib/ipc";
 import {
   buildMailDocument,
@@ -13,6 +13,14 @@ import styles from "./HtmlBody.module.css";
 const BASE_WIDTH = 640;
 const MAX_ZOOM = 1.6;
 
+/** `<html data-theme>`가 바뀌면 다시 그리도록 구독한다. */
+function subscribeTheme(onChange: () => void) {
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  return () => observer.disconnect();
+}
+const getTheme = () => document.documentElement.dataset.theme ?? "";
+
 interface Props {
   /** 정제 전 원문 HTML */
   html: string;
@@ -25,11 +33,13 @@ interface Props {
 export function HtmlBody({ html }: Props) {
   const [showImages, setShowImages] = useState(false);
   const frame = useRef<HTMLIFrameElement>(null);
+  const theme = useSyncExternalStore(subscribeTheme, getTheme);
 
   const prepared = useMemo(() => prepareMailHtml(html, showImages), [html, showImages]);
   const srcDoc = useMemo(
     () => buildMailDocument(prepared.html, { showImages, colors: readPaperColors() }),
-    [prepared.html, showImages],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- theme가 바뀌면 색을 다시 읽는다
+    [prepared.html, showImages, theme],
   );
 
   const onLoad = useCallback(() => {

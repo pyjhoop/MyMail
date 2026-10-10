@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { buildMailDocument, isOpenableLink, prepareMailHtml } from "./mailHtml";
+import { buildMailDocument, invertHex, isOpenableLink, prepareMailHtml } from "./mailHtml";
 
-const colors = { background: "#fff", text: "#000", link: "#00f", fontFamily: "sans-serif" };
+const colors = {
+  background: "#fff",
+  text: "#000",
+  link: "#00f",
+  fontFamily: "sans-serif",
+  dark: false,
+};
 
 describe("prepareMailHtml", () => {
   it("스크립트·이벤트 핸들러·javascript: 링크·폼·프레임을 제거한다", () => {
@@ -60,6 +66,27 @@ describe("buildMailDocument", () => {
     const on = buildMailDocument("<p>x</p>", { showImages: true, colors });
     expect(on).toContain("img-src data: https: http:;");
     expect(on).not.toContain("script-src");
+  });
+});
+
+describe("다크 모드 본문", () => {
+  it("invertHex는 색을 반전한다", () => {
+    expect(invertHex("#ffffff")).toBe("#000000");
+    expect(invertHex("#18181b")).toBe("#e7e7e4");
+    expect(invertHex("#f00")).toBe("#00ffff");
+    expect(invertHex("rgb(1,2,3)")).toBe("rgb(1,2,3)");
+  });
+
+  it("다크면 문서를 반전하고 이미지는 다시 반전하며, 라이트면 반전하지 않는다", () => {
+    const dark = buildMailDocument("<p>x</p>", {
+      showImages: false,
+      colors: { ...colors, background: "#1c1c21", text: "#ededef", dark: true },
+    });
+    expect(dark).toContain("html { filter: invert(1) hue-rotate(180deg)");
+    expect(dark).toContain("img, video { filter: invert(1) hue-rotate(180deg); }");
+    expect(dark).toContain(`background: ${invertHex("#1c1c21")}`);
+    const light = buildMailDocument("<p>x</p>", { showImages: false, colors });
+    expect(light).not.toContain("invert(1)");
   });
 });
 
