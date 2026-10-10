@@ -20,7 +20,7 @@ pub use models::{
     Account, Attachment, EarlierMail, Folder, LabelTag, MailDetail, MailSort, MailSummary,
     NewAccount,
 };
-pub use notify::NewMail;
+pub use notify::{NewMail, NotifySettings};
 pub use sync_state::{folder_key, OpKind};
 
 #[derive(Debug, thiserror::Error)]
@@ -41,6 +41,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/0006_compose_quote.sql"),
     include_str!("migrations/0007_attachment_part.sql"),
     include_str!("migrations/0008_account_settings.sql"),
+    include_str!("migrations/0009_notify.sql"),
 ];
 
 const PREVIEW_CHARS: usize = 80;
@@ -251,6 +252,7 @@ impl Store {
         let conn = self.lock()?;
         let mut stmt = conn.prepare(
             "SELECT a.id, a.name, a.email, a.provider, a.color_index, a.initial, a.signature, a.sign_replies,
+                    a.notify_enabled, a.notify_scope, a.notify_sound, a.notify_badge,
                     (SELECT COUNT(*) FROM messages m JOIN folders f ON f.id = m.folder_id
                       WHERE m.account_id = a.id AND f.kind = 'inbox' AND m.unread = 1)
              FROM accounts a ORDER BY a.position",
@@ -265,7 +267,11 @@ impl Store {
                 initial: r.get(5)?,
                 signature: r.get(6)?,
                 sign_replies: r.get(7)?,
-                unread: r.get(8)?,
+                notify_enabled: r.get(8)?,
+                notify_scope: r.get(9)?,
+                notify_sound: r.get(10)?,
+                notify_badge: r.get(11)?,
+                unread: r.get(12)?,
             })
         })?;
         Ok(rows.collect::<Result<_, _>>()?)

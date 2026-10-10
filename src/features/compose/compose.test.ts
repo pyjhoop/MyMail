@@ -19,6 +19,10 @@ const account: Account = {
   initial: "개",
   signature: "박준호 드림",
   signReplies: true,
+  notifyEnabled: true,
+  notifyScope: "inbox",
+  notifySound: true,
+  notifyBadge: true,
 };
 
 const mail: MailDetail = {

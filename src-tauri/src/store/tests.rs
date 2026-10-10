@@ -401,7 +401,7 @@ fn 이미_저장된_메일의_uid_기록은_마이그레이션이_채운다() {
 async fn 워터마크_이후_새로_저장된_안읽은_받은편지함_메일만_찾는다() {
     let store = seeded().await;
     let mark = store.mail_watermark("a1").unwrap();
-    assert!(store.new_unread_inbox("a1", mark).unwrap().is_empty());
+    assert!(store.new_unread("a1", mark, "inbox").unwrap().is_empty());
 
     let inbox = store
         .list_folders("a1")
@@ -417,8 +417,90 @@ async fn 워터마크_이후_새로_저장된_안읽은_받은편지함_메일�
     read.unread = false;
     store.save_messages("a1", &key, &[fresh, read]).unwrap();
 
-    let found = store.new_unread_inbox("a1", mark).unwrap();
+    let found = store.new_unread("a1", mark, "inbox").unwrap();
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].subject, "소식");
-    assert!(store.new_unread_inbox("other", mark).unwrap().is_empty());
+    assert!(store.new_unread("other", mark, "inbox").unwrap().is_empty());
+}
+
+fn inbox_key(store: &Store) -> (String, String) {
+    let inbox = store
+        .list_folders("a1")
+        .unwrap()
+        .into_iter()
+        .find(|f| f.kind == "inbox")
+        .unwrap();
+    (inbox.id.clone(), folder_key("a1", &inbox.id))
+}
+
+fn fresh_from(email: &str, remote_id: &str) -> crate::providers::RemoteMessage {
+    let mut m = html_message("본문", None);
+    m.remote_id = remote_id.into();
+    m.sender_email = email.into();
+    m
+}
+
+#[tokio::test]
+async fn 알림_대상_규칙별로_새_메일을_고른다() {
+    let store = seeded().await;
+    let (inbox_id, key) = inbox_key(&store);
+    // 별표한 메일의 보낸사람 주소를 알아 둔다.
+    let existing = store.list_mails(Some("a1"), &inbox_id).unwrap().remove(0);
+    store.set_starred(&existing.id, true).unwrap();
+
+    let mark = store.mail_watermark("a1").unwrap();
+    store
+        .save_messages(
+            "a1",
+            &key,
+            &[
+                fresh_from(&existing.sender_email, "9101"),
+                fresh_from("stranger@example.com", "9102"),
+            ],
+        )
+        .unwrap();
+    // 보낸편지함에 들어온 안 읽은 메일은 "모든 폴더"에서도 빠진다.
+    let sent = store
+        .list_folders("a1")
+        .unwrap()
+        .into_iter()
+        .find(|f| f.kind == "sent")
+        .unwrap();
+    store
+        .save_messages(
+            "a1",
+            &folder_key("a1", &sent.id),
+            &[fresh_from("me@gmail.com", "9103")],
+        )
+        .unwrap();
+
+    assert_eq!(store.new_unread("a1", mark, "inbox").unwrap().len(), 2);
+    assert_eq!(store.new_unread("a1", mark, "all").unwrap().len(), 2);
+    assert_eq!(store.new_unread("a1", mark, "starred").unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn 알림_설정과_일시_중지가_저장된다() {
+    let store = seeded().await;
+    assert_eq!(
+        store.notify_settings("a1").unwrap(),
+        NotifySettings::default()
+    );
+    let next = NotifySettings {
+        enabled: false,
+        scope: "starred".into(),
+        sound: false,
+        badge: false,
+    };
+    store.set_notify_settings("a1", &next).unwrap();
+    assert_eq!(store.notify_settings("a1").unwrap(), next);
+    let account = store.list_accounts().unwrap().remove(0);
+    assert!(!account.notify_enabled && account.notify_scope == "starred");
+
+    assert_eq!(store.notify_paused_until().unwrap(), None);
+    store.set_notify_paused_until(Some(1234)).unwrap();
+    store.set_notify_paused_until(Some(5678)).unwrap();
+    assert_eq!(store.notify_paused_until().unwrap(), Some(5678));
+    store.set_notify_paused_until(None).unwrap();
+    assert_eq!(store.notify_paused_until().unwrap(), None);
 }

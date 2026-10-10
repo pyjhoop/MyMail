@@ -12,6 +12,7 @@ vi.mock("../../lib/ipc", async (importOriginal) => {
     setAutostart: vi.fn(() => Promise.resolve()),
     setSignature: vi.fn(() => Promise.resolve()),
     setSignReplies: vi.fn(() => Promise.resolve()),
+    setNotifySettings: vi.fn(() => Promise.resolve()),
     updateAccount: vi.fn(() => Promise.resolve()),
     reorderAccounts: vi.fn(() => Promise.resolve()),
     removeAccount: vi.fn(() => Promise.resolve()),
@@ -113,6 +114,34 @@ describe("설정", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "답장·전달에도 서명 넣기" }));
     await waitFor(() => expect(ipc.setSignReplies).toHaveBeenCalledWith("a1", false));
     expect(onAccountPatch).toHaveBeenCalledWith("a1", { signReplies: false });
+  });
+
+  it("알림 설정 토글이 저장된다", async () => {
+    const { onAccountPatch } = setup();
+    openAccounts();
+    fireEvent.click(screen.getByRole("switch", { name: "알림 소리" }));
+    await waitFor(() =>
+      expect(ipc.setNotifySettings).toHaveBeenCalledWith("a1", {
+        notifyEnabled: true,
+        notifyScope: "inbox",
+        notifySound: false,
+        notifyBadge: true,
+      }),
+    );
+    expect(onAccountPatch).toHaveBeenCalledWith("a1", { notifySound: false });
+  });
+
+  it("알림 대상을 바꾸고, 알림을 끄면 대상·소리를 쓸 수 없다", async () => {
+    const { onAccountPatch } = setup();
+    openAccounts();
+    fireEvent.click(screen.getByRole("radio", { name: "별표한 보낸사람만" }));
+    await waitFor(() =>
+      expect(onAccountPatch).toHaveBeenCalledWith("a1", { notifyScope: "starred" }),
+    );
+    fireEvent.click(screen.getByRole("switch", { name: "새 메일 알림" }));
+    await waitFor(() =>
+      expect(onAccountPatch).toHaveBeenCalledWith("a1", { notifyEnabled: false }),
+    );
   });
 
   it("손잡이에서 아래 방향키로 계정 순서를 바꾼다", async () => {

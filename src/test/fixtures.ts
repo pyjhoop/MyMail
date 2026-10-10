@@ -12,6 +12,10 @@ export const FAKE_ACCOUNTS: Account[] = [
     initial: "개",
     signature: "",
     signReplies: true,
+    notifyEnabled: true,
+    notifyScope: "inbox",
+    notifySound: true,
+    notifyBadge: true,
   },
   {
     id: "a2",
@@ -23,6 +27,10 @@ export const FAKE_ACCOUNTS: Account[] = [
     initial: "프",
     signature: "",
     signReplies: true,
+    notifyEnabled: true,
+    notifyScope: "inbox",
+    notifySound: true,
+    notifyBadge: true,
   },
   {
     id: "a3",
@@ -34,6 +42,10 @@ export const FAKE_ACCOUNTS: Account[] = [
     initial: "네",
     signature: "",
     signReplies: true,
+    notifyEnabled: true,
+    notifyScope: "inbox",
+    notifySound: true,
+    notifyBadge: true,
   },
 ];
 
