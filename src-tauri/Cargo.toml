@@ -1,6 +1,6 @@
 [package]
 name = "mymail"
-version = "0.1.1"
+version = "0.1.2"
 description = "MyMail"
 authors = ["pyjhoop"]
 edition = "2021"
