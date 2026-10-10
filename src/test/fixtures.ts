@@ -82,12 +82,19 @@ export async function fakeInvoke(command: string, args: Record<string, unknown> 
       return FAKE_MAILS.filter((m) =>
         args.accountId === null ? true : m.folderId === args.folderId,
       );
-    case "search_mails":
-      return FAKE_MAILS.filter(
+    case "search_mails": {
+      const mails = FAKE_MAILS.filter(
         (m) =>
           (args.accountId === null || m.accountId === args.accountId) &&
           m.subject.includes(args.query as string),
       );
+      return { mails, total: mails.length, totalCapped: false, olderCount: null, nextCursor: null };
+    }
+    case "suggest_senders":
+      return [
+        { accountId: "a1", name: "김도윤", email: "doyun.kim@gmail.com", mailCount: 24 },
+        { accountId: "a2", name: "이서연", email: "seoyeon.lee@gmail.com", mailCount: 17 },
+      ];
     case "get_mail":
       return FAKE_DETAIL(args.id as string);
     case "get_autostart":

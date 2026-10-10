@@ -99,6 +99,10 @@
   --control-height: 28px;
   --control-height-lg: 32px;
   --search-width: 480px;
+  --suggest-width: 560px;
+  --suggest-row-height: 36px;
+  --suggest-person-height: 40px;
+  --avatar-size-sm: 24px;
   --compose-width: 540px;
   --compose-width-expanded: 860px;
   --compose-height: 560px;

@@ -1,14 +1,14 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
-import { listMails, searchMails, syncNow } from "./lib/ipc";
+import { listMails, searchMailsPage, syncNow } from "./lib/ipc";
 
 vi.mock("./lib/ipc", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./lib/ipc")>();
   return {
     ...actual,
     listMails: vi.fn(actual.listMails),
-    searchMails: vi.fn(actual.searchMails),
+    searchMailsPage: vi.fn(actual.searchMailsPage),
     syncNow: vi.fn(() => Promise.resolve()),
   };
 });
@@ -31,7 +31,7 @@ beforeEach(() => {
   vi.mocked(syncNow).mockReset();
   vi.mocked(syncNow).mockResolvedValue(undefined);
   vi.mocked(listMails).mockClear();
-  vi.mocked(searchMails).mockClear();
+  vi.mocked(searchMailsPage).mockClear();
 });
 
 describe("메일 목록 정렬", () => {
@@ -57,8 +57,10 @@ describe("메일 목록 정렬", () => {
     fireEvent.change(screen.getByRole("searchbox", { name: "메일 검색" }), {
       target: { value: "일정 1" },
     });
-    await screen.findByText("검색: 일정 1");
-    await waitFor(() => expect(searchMails).toHaveBeenLastCalledWith(null, "일정 1", "subject"));
+    await screen.findByText("‘일정 1’ 검색 결과 · 1개");
+    await waitFor(() =>
+      expect(searchMailsPage).toHaveBeenLastCalledWith(null, "일정 1", "subject"),
+    );
   });
 
   it("선택을 저장하고 다음 실행 때 복원한다", async () => {

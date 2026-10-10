@@ -9,6 +9,7 @@ import { Composer, type ComposeInit, type ComposeResult } from "./features/compo
 import { startDraft, type ComposeMode } from "./features/compose/compose";
 import { Settings } from "./features/settings/Settings";
 import { FolderPane } from "./features/folders/FolderPane";
+import { highlightTerms, isTooShortToSearch } from "./features/search/query";
 import { MailList, type ListStatus } from "./features/mail/MailList";
 import { Reader, type ReaderActions } from "./features/mail/Reader";
 import { useMailSort } from "./features/mail/sort";
@@ -34,7 +35,7 @@ import {
   onSyncProgress,
   onTrayCompose,
   onWindowFocus,
-  searchMails,
+  searchMailsPage,
   setRead,
   setStarred,
   syncNow,
@@ -44,6 +45,7 @@ import {
   type LoadError,
   type MailDetail,
   type MailSummary,
+  type SearchPage,
   type SyncProgress,
 } from "./lib/ipc";
 import styles from "./App.module.css";
@@ -107,6 +109,8 @@ function App() {
     scope: string;
     mails: MailSummary[];
     error?: LoadError;
+    /** 검색 결과일 때 전체 건수와 다음 페이지 커서 */
+    page?: Omit<SearchPage, "mails">;
   } | null>(null);
   const [detailResult, setDetailResult] = useState<{ key: string; mail: MailDetail | null } | null>(
     null,
@@ -115,6 +119,9 @@ function App() {
   const folderPaneRef = useRef<HTMLDivElement>(null);
   const listPaneRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  // 검색을 새로 시작할 때마다 올린다. 늦게 도착한 옛 검색의 다음 페이지가 섞이지 않게 한다.
+  const searchGeneration = useRef(0);
+  const loadingMore = useRef(false);
   // 안 읽은 수를 다시 읽는 요청 번호. 가장 마지막 요청의 응답만 화면에 반영한다.
   const countsSeq = useRef(0);
   const selectionRef = useRef<AccountSelection>(selection);
@@ -145,6 +152,34 @@ function App() {
     [listedMails, hiddenIds],
   );
   const error = mailsReady ? mailsResult.error : undefined;
+
+  const searchPage = mailsReady ? mailsResult.page : undefined;
+  const nextCursor = searchPage?.nextCursor;
+  // 목록 끝에 닿으면 검색 결과의 다음 페이지를 이어 붙인다.
+  const loadMore = () => {
+    if (!term || !nextCursor || loadingMore.current) return;
+    loadingMore.current = true;
+    const generation = searchGeneration.current;
+    const scope = mailsScope;
+    searchMailsPage(selection === "all" ? null : selection, term, sort, nextCursor)
+      .then((next) => {
+        if (generation !== searchGeneration.current) return;
+        setMailsResult((prev) => {
+          if (prev?.scope !== scope || !prev.page) return prev;
+          const seen = new Set(prev.mails.map((m) => m.id));
+          return {
+            ...prev,
+            mails: [...prev.mails, ...next.mails.filter((m) => !seen.has(m.id))],
+            page: { ...prev.page, nextCursor: next.nextCursor },
+          };
+        });
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (generation === searchGeneration.current) loadingMore.current = false;
+      });
+  };
+  const searchTerms = useMemo(() => (term ? highlightTerms(term) : []), [term]);
 
   const detailLoading = mailId !== null && detailResult?.key !== mailId;
   const detail = mailId !== null && detailResult?.key === mailId ? detailResult.mail : null;
@@ -195,7 +230,11 @@ function App() {
   }, [selection, refreshCounts]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setTerm(search.trim()), SEARCH_DELAY_MS);
+    // 한 글자는 결과가 너무 넓어 자동으로 찾지 않는다(Enter로 직접 찾을 수는 있다).
+    const timer = setTimeout(
+      () => setTerm(isTooShortToSearch(search) ? "" : search.trim()),
+      SEARCH_DELAY_MS,
+    );
     return () => clearTimeout(timer);
   }, [search]);
 
@@ -203,9 +242,17 @@ function App() {
     if (folderPending && !term) return;
     let cancelled = false;
     const accountArg = selection === "all" ? null : selection;
-    (term ? searchMails(accountArg, term, sort) : listMails(accountArg, folderId, sort))
+    searchGeneration.current += 1;
+    loadingMore.current = false;
+    const request: Promise<{ mails: MailSummary[]; page?: Omit<SearchPage, "mails"> }> = term
+      ? searchMailsPage(accountArg, term, sort).then(({ mails: found, ...page }) => ({
+          mails: found,
+          page,
+        }))
+      : listMails(accountArg, folderId, sort).then((found) => ({ mails: found }));
+    request
       .then((result) => {
-        if (!cancelled) setMailsResult({ scope: mailsScope, mails: result });
+        if (!cancelled) setMailsResult({ scope: mailsScope, ...result });
       })
       .catch((e: unknown) => {
         if (cancelled) return;
@@ -646,10 +693,15 @@ function App() {
   );
 
   const title = useMemo(() => {
-    if (term) return `검색: ${term}`;
+    if (term) {
+      const count = searchPage
+        ? ` · ${searchPage.total.toLocaleString("ko-KR")}${searchPage.totalCapped ? "+" : ""}개`
+        : "";
+      return `‘${term}’ 검색 결과${count}`;
+    }
     if (selection === "all") return "통합 받은편지함";
     return folders.find((f) => f.id === folderId)?.name ?? "받은편지함";
-  }, [term, selection, folders, folderId]);
+  }, [term, searchPage, selection, folders, folderId]);
 
   const running = Object.values(syncs).filter((s) => s.error === null && s.done < s.total);
   const failed = Object.values(syncs).find((s) => s.error !== null);
@@ -675,6 +727,14 @@ function App() {
         syncProgress={running.length > 0 ? syncDone / syncTotal : undefined}
         search={search}
         onSearchChange={setSearch}
+        onSearchSubmit={(value) => {
+          // Enter·추천 선택은 입력이 멈추길 기다리지 않고 바로 검색한다.
+          setSearch(value);
+          setTerm(value);
+        }}
+        searchScope={account ? account.name : "모든 계정"}
+        searchAccountId={account ? account.id : null}
+        accounts={accounts}
         searchInputRef={searchInputRef}
         onOpenSettings={() => setSettingsOpen(true)}
       />
@@ -737,6 +797,8 @@ function App() {
               deleting={deleting}
               notice={notice}
               searching={term !== ""}
+              highlight={searchTerms}
+              onEndReached={loadMore}
               onRefresh={refresh}
               refreshing={refreshing}
               syncError={syncError}
