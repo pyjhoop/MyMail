@@ -81,6 +81,7 @@ async fn sync_skipping(
             cache: Some(cache),
             skip_unchanged: true,
             first,
+            refresh_labels: false,
         },
         |_| {},
     )
@@ -143,6 +144,7 @@ async fn 개수에_드러나지_않는_변화는_건너뛰지_않는_동기화�
             cache: Some(&mut cache),
             skip_unchanged: false,
             first: None,
+            refresh_labels: false,
         },
         |_| {},
     )

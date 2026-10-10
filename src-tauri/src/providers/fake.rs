@@ -8,8 +8,8 @@ use async_trait::async_trait;
 
 use super::{
     AttachmentData, AttachmentTarget, FolderKind, FolderSnapshot, FolderStatus, MailProvider,
-    OutgoingMail, ProviderError, RemoteAttachment, RemoteFlags, RemoteFolder, RemoteMessage,
-    WakeReason,
+    OutgoingMail, ProviderError, RemoteAttachment, RemoteFlags, RemoteFolder, RemoteLabels,
+    RemoteMessage, WakeReason,
 };
 
 const SENDERS: [(&str, &str); 6] = [
@@ -63,6 +63,8 @@ struct FakeServer {
     sent: Vec<OutgoingMail>,
     /// 처음 목록에 없던 폴더(`add_folder`·`create_folder`로 늘어난 것)
     extra_folders: Vec<RemoteFolder>,
+    /// true면 라벨 재동기화를 지원하지 않는 서비스처럼 동작한다.
+    no_labels: bool,
 }
 
 /// 메모리 안의 가짜 서버. 처음 상태는 항상 같고, 조작(읽음·이동·삭제)이 상태에 반영된다.
@@ -171,6 +173,23 @@ impl FakeProvider {
         {
             m.unread = unread;
         }
+    }
+
+    /// 다른 기기에서 라벨을 바꾼 것처럼 서버 메일의 라벨을 고친다.
+    pub fn set_labels(&self, folder_key: &str, remote_id: &str, labels: &[&str]) {
+        if let Some(m) = self
+            .server()
+            .folders
+            .get_mut(folder_key)
+            .and_then(|f| f.messages.iter_mut().find(|m| m.remote_id == remote_id))
+        {
+            m.labels = labels.iter().map(|l| (*l).to_string()).collect();
+        }
+    }
+
+    /// 라벨을 지원하지 않는 서비스(네이버)처럼 굴게 한다.
+    pub fn set_supports_labels(&self, supported: bool) {
+        self.server().no_labels = !supported;
     }
 
     /// 서버가 UID를 새로 매겼다고 가정한다(UIDVALIDITY 변경).
@@ -335,6 +354,27 @@ impl MailProvider for FakeProvider {
                     })
                     .collect(),
             })
+        })
+    }
+
+    fn supports_labels(&self) -> bool {
+        !self.server().no_labels
+    }
+
+    async fn fetch_labels(
+        &self,
+        folder_key: &str,
+        ids: &[String],
+    ) -> Result<Vec<RemoteLabels>, ProviderError> {
+        self.with_folder(folder_key, format!("labels:{folder_key}"), |f| {
+            Ok(f.messages
+                .iter()
+                .filter(|m| ids.contains(&m.remote_id))
+                .map(|m| RemoteLabels {
+                    remote_id: m.remote_id.clone(),
+                    labels: m.labels.clone(),
+                })
+                .collect())
         })
     }
 

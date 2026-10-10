@@ -831,3 +831,135 @@ async fn 오프라인에서_비운_폴더는_큐에_남았다가_연결되면_�
     assert!(fake.ops().iter().any(|o| o == "empty:trash"));
     assert!(store.list_mails(Some("n1"), "n1-trash").unwrap().is_empty());
 }
+fn label_names(store: &Store, id: &str) -> Vec<String> {
+    store
+        .get_mail(id)
+        .unwrap()
+        .unwrap()
+        .summary
+        .labels
+        .into_iter()
+        .map(|l| l.name)
+        .collect()
+}
+
+fn label_ops(fake: &FakeProvider, folder: &str) -> usize {
+    fake.ops()
+        .iter()
+        .filter(|o| **o == format!("labels:{folder}"))
+        .count()
+}
+
+/// 라벨 도입 전에 받은 것처럼 로컬 라벨을 모두 비운다.
+fn forget_labels(store: &Store, folder_id: &str) {
+    let all: Vec<_> = store
+        .local_labels(folder_id)
+        .unwrap()
+        .into_keys()
+        .map(|remote_id| crate::providers::RemoteLabels {
+            remote_id,
+            labels: Vec::new(),
+        })
+        .collect();
+    store.apply_labels(folder_id, &all).unwrap();
+}
+
+#[tokio::test]
+async fn 라벨_도입_전에_받은_메일에도_첫_동기화에서_라벨이_붙는다() {
+    let (store, fake) = added(5).await;
+    forget_labels(&store, "n1-inbox");
+    assert!(label_names(&store, "n1-inbox-0").is_empty());
+    assert!(!store.labels_synced("n1").unwrap());
+
+    sync_all(&store, &fake).await;
+
+    assert_eq!(label_names(&store, "n1-inbox-0"), vec!["여행"]);
+    assert_eq!(label_names(&store, "n1-inbox-3"), vec!["여행"]);
+    assert!(label_names(&store, "n1-inbox-1").is_empty());
+    assert!(store.labels_synced("n1").unwrap());
+}
+
+#[tokio::test]
+async fn 한_번_훑은_뒤에는_라벨_갱신을_켜야만_다시_읽는다() {
+    let (store, fake) = added(5).await;
+    sync_all(&store, &fake).await;
+    let calls = label_ops(&fake, "inbox");
+    assert_eq!(calls, 1);
+
+    fake.set_labels("inbox", "1", &["업무", "중요"]);
+    fake.set_labels("inbox", "0", &[]);
+    sync_all(&store, &fake).await;
+    assert_eq!(
+        label_ops(&fake, "inbox"),
+        calls,
+        "기본 동기화는 라벨을 다시 읽지 않는다"
+    );
+    assert!(label_names(&store, "n1-inbox-1").is_empty());
+
+    sync_account_with(
+        &store,
+        &fake,
+        "n1",
+        Scope::All,
+        SyncOptions {
+            refresh_labels: true,
+            ..SyncOptions::default()
+        },
+        |_| {},
+    )
+    .await
+    .unwrap();
+    assert_eq!(label_ops(&fake, "inbox"), calls + 1);
+    assert_eq!(label_names(&store, "n1-inbox-1"), vec!["업무", "중요"]);
+    assert!(label_names(&store, "n1-inbox-0").is_empty());
+    // 바뀌지 않은 메일은 그대로다.
+    assert_eq!(label_names(&store, "n1-inbox-3"), vec!["여행"]);
+}
+
+#[tokio::test]
+async fn 라벨이_없는_서비스는_라벨을_읽지_않는다() {
+    let (store, fake) = added(5).await;
+    fake.set_supports_labels(false);
+
+    sync_account_with(
+        &store,
+        &fake,
+        "n1",
+        Scope::All,
+        SyncOptions {
+            refresh_labels: true,
+            ..SyncOptions::default()
+        },
+        |_| {},
+    )
+    .await
+    .unwrap();
+
+    assert!(fake.ops().iter().all(|o| !o.starts_with("labels:")));
+    assert!(!store.labels_synced("n1").unwrap());
+}
+
+#[tokio::test]
+async fn 큰_폴더는_청크로_나눠_라벨을_읽는다() {
+    let (store, fake) = added(LABEL_CHUNK * 2 + 1).await;
+
+    sync_all(&store, &fake).await;
+
+    assert_eq!(label_ops(&fake, "inbox"), 3);
+    // 청크보다 작은 폴더는 한 번이다.
+    assert_eq!(label_ops(&fake, "sent"), 1);
+}
+
+#[tokio::test]
+async fn 일부_폴더만_맞춘_동기화는_훑었다고_기록하지_않는다() {
+    let (store, fake) = added(5).await;
+    let keys = vec!["inbox".to_string()];
+
+    sync_account(&store, &fake, "n1", Scope::Folders(&keys), |_| {})
+        .await
+        .unwrap();
+    assert!(!store.labels_synced("n1").unwrap());
+
+    sync_all(&store, &fake).await;
+    assert!(store.labels_synced("n1").unwrap());
+}
