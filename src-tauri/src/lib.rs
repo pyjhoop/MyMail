@@ -6,6 +6,7 @@ mod notify;
 mod providers;
 mod store;
 mod sync;
+mod toast;
 mod tray;
 mod updater;
 
@@ -89,6 +90,7 @@ pub fn run() {
             commands::update_account,
             commands::set_notify_settings,
             commands::reorder_accounts,
+            commands::set_account_palette,
             commands::remove_account,
             commands::save_attachment,
             commands::save_all_attachments,

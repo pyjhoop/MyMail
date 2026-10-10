@@ -33,10 +33,12 @@ import {
   listFolders,
   listMails,
   moveMail,
+  onOpenMail,
   onSyncProgress,
   onTrayCompose,
   onWindowFocus,
   searchMailsPage,
+  setAccountPalette,
   setRead,
   setStarred,
   syncNow,
@@ -629,6 +631,38 @@ function App() {
     startComposeRef.current = startCompose;
   });
   useEffect(() => onTrayCompose(() => startComposeRef.current("new")), []);
+
+  // 알림 토스트를 누르면 그 메일의 폴더로 가서 연다.
+  const selectFolderRef = useRef(selectFolder);
+  useEffect(() => {
+    selectFolderRef.current = selectFolder;
+  });
+  useEffect(
+    () =>
+      onOpenMail((target) => {
+        selectFolderRef.current(target.folderId, target.accountId);
+        setMailId(target.mailId);
+      }),
+    [],
+  );
+
+  // 토스트 색 링에 쓸 계정 색 토큰 값을 백엔드에 넘긴다. 테마가 바뀌면 다시 보낸다.
+  useEffect(() => {
+    const send = () => {
+      const style = getComputedStyle(document.documentElement);
+      const colors = Array.from({ length: 8 }, (_, i) =>
+        style.getPropertyValue(`--account-${i + 1}`).trim(),
+      );
+      setAccountPalette(colors).catch(() => undefined);
+    };
+    send();
+    const observer = new MutationObserver(send);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    return () => observer.disconnect();
+  }, []);
 
   // 창이 다시 포커스를 얻으면(트레이에서 열 때 포함) 서버와 바로 맞춘다. 결과는 sync-progress 이벤트로 반영된다.
   const focusSyncRef = useRef<() => void>(() => undefined);

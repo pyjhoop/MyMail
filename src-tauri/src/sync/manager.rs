@@ -215,13 +215,13 @@ fn notify_new(app: &AppHandle, account_id: &str, settings: &NotifySettings, mail
     if !crate::notify::should_notify(settings, paused, crate::notify::now_secs()) {
         return;
     }
-    let name = app
+    let (name, color_index) = app
         .state::<Store>()
         .list_accounts()
         .ok()
         .and_then(|accounts| accounts.into_iter().find(|a| a.id == account_id))
-        .map_or_else(String::new, |a| a.name);
-    crate::notify::show(app, &name, settings, mails);
+        .map_or_else(|| (String::new(), 0), |a| (a.name, a.color_index));
+    crate::notify::show(app, &name, color_index, settings, mails);
 }
 
 /// 대기를 마치거나, `sync_now`가 깨우면 곧바로 돌아온다.

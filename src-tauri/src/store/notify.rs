@@ -7,6 +7,7 @@ use super::{Store, StoreError};
 /// 알림에 보여 줄 새 메일
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewMail {
+    pub id: String,
     pub sender: String,
     pub subject: String,
     pub preview: String,
@@ -65,7 +66,7 @@ impl Store {
         };
         let conn = self.lock()?;
         let mut stmt = conn.prepare(&format!(
-            "SELECT m.sender, m.subject, m.preview FROM messages m JOIN folders f ON f.id = m.folder_id
+            "SELECT m.sender, m.subject, m.preview, m.id FROM messages m JOIN folders f ON f.id = m.folder_id
              WHERE m.account_id = ?1 AND m.rowid > ?2 AND m.unread = 1 AND {folder_rule}
              ORDER BY m.rowid"
         ))?;
@@ -74,6 +75,7 @@ impl Store {
                 sender: r.get(0)?,
                 subject: r.get(1)?,
                 preview: r.get(2)?,
+                id: r.get(3)?,
             })
         })?;
         Ok(rows.collect::<Result<_, _>>()?)
