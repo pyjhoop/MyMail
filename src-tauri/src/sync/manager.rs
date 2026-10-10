@@ -96,7 +96,6 @@ impl SyncManager {
     }
 
     /// 계정을 지울 때 동기화를 멈춘다.
-    #[allow(dead_code)] // 계정 삭제 기능이 생기면 연결
     pub fn stop(&self, account_id: &str) {
         if let Some(entry) = self
             .entries

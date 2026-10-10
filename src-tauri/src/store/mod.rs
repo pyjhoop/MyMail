@@ -40,6 +40,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/0005_compose.sql"),
     include_str!("migrations/0006_compose_quote.sql"),
     include_str!("migrations/0007_attachment_part.sql"),
+    include_str!("migrations/0008_account_settings.sql"),
 ];
 
 const PREVIEW_CHARS: usize = 80;
@@ -249,7 +250,7 @@ impl Store {
     pub fn list_accounts(&self) -> Result<Vec<Account>, StoreError> {
         let conn = self.lock()?;
         let mut stmt = conn.prepare(
-            "SELECT a.id, a.name, a.email, a.provider, a.color_index, a.initial, a.signature,
+            "SELECT a.id, a.name, a.email, a.provider, a.color_index, a.initial, a.signature, a.sign_replies,
                     (SELECT COUNT(*) FROM messages m JOIN folders f ON f.id = m.folder_id
                       WHERE m.account_id = a.id AND f.kind = 'inbox' AND m.unread = 1)
              FROM accounts a ORDER BY a.position",
@@ -263,7 +264,8 @@ impl Store {
                 color_index: r.get(4)?,
                 initial: r.get(5)?,
                 signature: r.get(6)?,
-                unread: r.get(7)?,
+                sign_replies: r.get(7)?,
+                unread: r.get(8)?,
             })
         })?;
         Ok(rows.collect::<Result<_, _>>()?)

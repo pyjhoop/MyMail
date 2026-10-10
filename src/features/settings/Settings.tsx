@@ -7,13 +7,13 @@ import {
   installUpdate,
   onUpdateProgress,
   setAutostart,
-  setSignature,
   toLoadError,
   type Account,
   type UpdateInfo,
 } from "../../lib/ipc";
 import { SHORTCUTS } from "../shell/shortcuts";
 import type { ThemePreference } from "../shell/useSystemTheme";
+import { AccountsPanel } from "./AccountsPanel";
 import styles from "./Settings.module.css";
 
 const TABS = ["일반", "계정", "모양", "단축키"] as const;
@@ -29,11 +29,23 @@ interface Props {
   accounts: Account[];
   theme: ThemePreference;
   onThemeChange: (theme: ThemePreference) => void;
-  onSignatureSaved: (accountId: string, signature: string) => void;
+  onAccountPatch: (accountId: string, patch: Partial<Account>) => void;
+  onAccountsReorder: (ids: string[]) => void;
+  onAccountRemoved: (accountId: string) => void;
+  onAddAccount: () => void;
   onClose: () => void;
 }
 
-export function Settings({ accounts, theme, onThemeChange, onSignatureSaved, onClose }: Props) {
+export function Settings({
+  accounts,
+  theme,
+  onThemeChange,
+  onAccountPatch,
+  onAccountsReorder,
+  onAccountRemoved,
+  onAddAccount,
+  onClose,
+}: Props) {
   const [tab, setTab] = useState<Tab>("일반");
 
   useEffect(() => {
@@ -75,7 +87,15 @@ export function Settings({ accounts, theme, onThemeChange, onSignatureSaved, onC
             <Updates />
           </>
         )}
-        {tab === "계정" && <Accounts accounts={accounts} onSignatureSaved={onSignatureSaved} />}
+        {tab === "계정" && (
+          <AccountsPanel
+            accounts={accounts}
+            onAccountPatch={onAccountPatch}
+            onAccountsReorder={onAccountsReorder}
+            onAccountRemoved={onAccountRemoved}
+            onAddAccount={onAddAccount}
+          />
+        )}
         {tab === "모양" && <Appearance theme={theme} onThemeChange={onThemeChange} />}
         {tab === "단축키" && <Shortcuts />}
       </section>
@@ -226,104 +246,6 @@ function Updates() {
         </p>
       )}
     </>
-  );
-}
-
-function Accounts({
-  accounts,
-  onSignatureSaved,
-}: {
-  accounts: Account[];
-  onSignatureSaved: (accountId: string, signature: string) => void;
-}) {
-  if (accounts.length === 0) {
-    return (
-      <>
-        <h2 className={styles.title}>계정</h2>
-        <p className={styles.hint}>추가된 계정이 없어요.</p>
-      </>
-    );
-  }
-  return (
-    <>
-      <h2 className={styles.title}>계정</h2>
-      {accounts.map((a) => (
-        <AccountCard key={a.id} account={a} onSaved={onSignatureSaved} />
-      ))}
-    </>
-  );
-}
-
-function AccountCard({
-  account,
-  onSaved,
-}: {
-  account: Account;
-  onSaved: (accountId: string, signature: string) => void;
-}) {
-  const [text, setText] = useState(account.signature);
-  const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const dirty = text.trimEnd() !== account.signature;
-
-  const save = async () => {
-    setState("saving");
-    try {
-      await setSignature(account.id, text);
-      onSaved(account.id, text.trimEnd());
-      setState("saved");
-    } catch {
-      setState("error");
-    }
-  };
-
-  return (
-    <div className={styles.card}>
-      <div className={styles.cardHead}>
-        <span
-          className={styles.avatar}
-          style={{ background: `var(--account-${account.colorIndex})` }}
-          aria-hidden
-        >
-          {account.initial}
-        </span>
-        <span>
-          <span className={styles.name}>{account.name}</span>
-          <span className={styles.hint}>
-            {account.email} · {account.provider === "gmail" ? "Gmail" : "네이버"}
-          </span>
-        </span>
-      </div>
-      <label className={styles.label} htmlFor={`sig-${account.id}`}>
-        서명
-      </label>
-      <textarea
-        id={`sig-${account.id}`}
-        className={styles.textarea}
-        rows={4}
-        value={text}
-        placeholder="새 메일과 답장 끝에 넣을 서명"
-        onChange={(e) => {
-          setText(e.target.value);
-          setState("idle");
-        }}
-      />
-      <div className={styles.actions}>
-        <button
-          type="button"
-          className={styles.primary}
-          disabled={!dirty || state === "saving"}
-          onClick={() => void save()}
-        >
-          {state === "saving" ? "저장 중…" : "서명 저장"}
-        </button>
-        {state === "saved" && !dirty && <span className={styles.hint}>저장했어요.</span>}
-        {state === "error" && (
-          <span role="alert" className={styles.error}>
-            서명을 저장하지 못했어요.
-          </span>
-        )}
-      </div>
-    </div>
   );
 }
 

@@ -1,0 +1,372 @@
+import { useState, type DragEvent, type KeyboardEvent } from "react";
+import { ChevronDown, ChevronUp, GripVertical, Plus } from "lucide-react";
+import {
+  removeAccount,
+  reorderAccounts,
+  setSignature,
+  setSignReplies,
+  toLoadError,
+  updateAccount,
+  type Account,
+} from "../../lib/ipc";
+import styles from "./AccountsPanel.module.css";
+
+const COLOR_NAMES = ["파랑", "초록", "주황", "보라", "분홍", "청록", "황토", "빨강"];
+
+export interface AccountsPanelProps {
+  accounts: Account[];
+  onAccountPatch: (accountId: string, patch: Partial<Account>) => void;
+  onAccountsReorder: (ids: string[]) => void;
+  onAccountRemoved: (accountId: string) => void;
+  onAddAccount: () => void;
+}
+
+/** `ids`에서 `fromId`를 빼서 `index`(빼기 전 기준 삽입 위치) 앞에 넣는다. */
+function moveId(ids: string[], fromId: string, index: number): string[] {
+  const from = ids.indexOf(fromId);
+  if (from < 0) return ids;
+  const next = ids.filter((id) => id !== fromId);
+  next.splice(index > from ? index - 1 : index, 0, fromId);
+  return next;
+}
+
+export function AccountsPanel({
+  accounts,
+  onAccountPatch,
+  onAccountsReorder,
+  onAccountRemoved,
+  onAddAccount,
+}: AccountsPanelProps) {
+  const [openId, setOpenId] = useState<string | undefined>(accounts[0]?.id);
+  const [dragId, setDragId] = useState<string>();
+  const [dropIndex, setDropIndex] = useState<number>();
+  const [error, setError] = useState<string>();
+
+  const reorder = async (ids: string[]) => {
+    if (ids.join() === accounts.map((a) => a.id).join()) return;
+    setError(undefined);
+    try {
+      await reorderAccounts(ids);
+      onAccountsReorder(ids);
+    } catch (e) {
+      setError(toLoadError(e).message);
+    }
+  };
+
+  const ids = accounts.map((a) => a.id);
+  const endDrag = () => {
+    setDragId(undefined);
+    setDropIndex(undefined);
+  };
+  const overCard = (e: DragEvent<HTMLDivElement>, index: number) => {
+    if (!dragId) return;
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setDropIndex(e.clientY < rect.top + rect.height / 2 ? index : index + 1);
+  };
+  const drop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    if (dragId && dropIndex !== undefined) void reorder(moveId(ids, dragId, dropIndex));
+    endDrag();
+  };
+  const onHandleKey = (e: KeyboardEvent, id: string, index: number) => {
+    if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+    e.preventDefault();
+    const to = e.key === "ArrowUp" ? index - 1 : index + 2;
+    if (to < 0 || to > ids.length) return;
+    void reorder(moveId(ids, id, to));
+  };
+
+  return (
+    <div className={styles.panel}>
+      <div className={styles.top}>
+        <div className={styles.topText}>
+          <h2 className={styles.title}>계정</h2>
+          <p className={styles.sub}>왼쪽 손잡이를 끌어 계정 레일 순서를 바꿀 수 있어요.</p>
+        </div>
+        <button type="button" className={styles.add} onClick={onAddAccount}>
+          <Plus size={16} strokeWidth={2} aria-hidden />
+          계정 추가
+        </button>
+      </div>
+      {accounts.length === 0 && <p className={styles.hint}>추가된 계정이 없어요.</p>}
+      {error && (
+        <p role="alert" className={styles.error}>
+          {error}
+        </p>
+      )}
+      <div onDrop={drop} onDragOver={(e) => dragId && e.preventDefault()}>
+        {accounts.map((account, index) => (
+          <div key={account.id} onDragOver={(e) => overCard(e, index)}>
+            {dropIndex === index && dragId !== account.id && <DropMark />}
+            <AccountCard
+              account={account}
+              open={openId === account.id}
+              dragging={dragId === account.id}
+              onToggle={() => setOpenId(openId === account.id ? undefined : account.id)}
+              onDragStart={() => setDragId(account.id)}
+              onDragEnd={endDrag}
+              onHandleKey={(e) => onHandleKey(e, account.id, index)}
+              onPatch={(patch) => onAccountPatch(account.id, patch)}
+              onRemoved={() => onAccountRemoved(account.id)}
+            />
+          </div>
+        ))}
+        {dropIndex === accounts.length && <DropMark />}
+      </div>
+    </div>
+  );
+}
+
+function DropMark() {
+  return (
+    <div aria-hidden className={styles.dropMark}>
+      <span className={styles.dropLine} />
+      <span className={styles.dropDot} />
+    </div>
+  );
+}
+
+interface CardProps {
+  account: Account;
+  open: boolean;
+  dragging: boolean;
+  onToggle: () => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  onHandleKey: (e: KeyboardEvent) => void;
+  onPatch: (patch: Partial<Account>) => void;
+  onRemoved: () => void;
+}
+
+function AccountCard({
+  account,
+  open,
+  dragging,
+  onToggle,
+  onDragStart,
+  onDragEnd,
+  onHandleKey,
+  onPatch,
+  onRemoved,
+}: CardProps) {
+  const [name, setName] = useState(account.name);
+  const [signature, setSig] = useState(account.signature);
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+
+  const run = async (job: () => Promise<void>) => {
+    setError(undefined);
+    try {
+      await job();
+    } catch (e) {
+      setError(toLoadError(e).message);
+    }
+  };
+
+  const saveProfile = (nextName: string, colorIndex: number) =>
+    run(async () => {
+      await updateAccount(account.id, nextName, colorIndex);
+      onPatch({ name: nextName, colorIndex, initial: Array.from(nextName)[0] ?? "" });
+    });
+
+  const commitName = () => {
+    const next = name.trim();
+    if (!next) {
+      setName(account.name);
+      return;
+    }
+    setName(next);
+    if (next !== account.name) void saveProfile(next, account.colorIndex);
+  };
+
+  const commitSignature = () => {
+    const next = signature.trimEnd();
+    if (next === account.signature) return;
+    void run(async () => {
+      await setSignature(account.id, next);
+      onPatch({ signature: next });
+    });
+  };
+
+  const toggleSignReplies = (on: boolean) =>
+    run(async () => {
+      await setSignReplies(account.id, on);
+      onPatch({ signReplies: on });
+    });
+
+  const remove = async () => {
+    setBusy(true);
+    await run(async () => {
+      await removeAccount(account.id);
+      onRemoved();
+    });
+    setBusy(false);
+  };
+
+  const color = `var(--account-${account.colorIndex})`;
+
+  return (
+    <section
+      aria-label={`${account.name} 설정`}
+      className={`${styles.card} ${open ? styles.cardOpen : ""} ${dragging ? styles.dragging : ""}`}
+    >
+      <div className={styles.head}>
+        <button
+          type="button"
+          className={`ib ${styles.handle}`}
+          aria-label="순서 바꾸기"
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData("text/plain", account.id);
+            onDragStart();
+          }}
+          onDragEnd={onDragEnd}
+          onKeyDown={onHandleKey}
+        >
+          <GripVertical size={16} aria-hidden />
+        </button>
+        <button
+          type="button"
+          className={`ib ${styles.headMain}`}
+          aria-expanded={open}
+          onClick={onToggle}
+        >
+          <span
+            className={styles.avatar}
+            style={{
+              background: color,
+              boxShadow: `0 0 0 2px var(--color-bg), 0 0 0 4px ${color}`,
+            }}
+            aria-hidden
+          >
+            {account.initial}
+          </span>
+          <span className={styles.who}>
+            <span className={styles.name}>{account.name}</span>
+            <span className={styles.email}>
+              {account.email} · {account.provider === "gmail" ? "Gmail" : "네이버"}
+            </span>
+          </span>
+          {open ? (
+            <ChevronUp size={16} strokeWidth={1.75} aria-hidden className={styles.chevron} />
+          ) : (
+            <ChevronDown size={16} strokeWidth={1.75} aria-hidden className={styles.chevron} />
+          )}
+        </button>
+      </div>
+      {open && (
+        <>
+          <div className={styles.form}>
+            <label className={styles.label} htmlFor={`dn-${account.id}`}>
+              표시 이름
+            </label>
+            <input
+              id={`dn-${account.id}`}
+              className={styles.input}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={commitName}
+              onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+            />
+
+            <span className={styles.label}>계정 색</span>
+            <div role="group" aria-label="계정 색" className={styles.swatches}>
+              {COLOR_NAMES.map((label, i) => {
+                const index = i + 1;
+                const selected = account.colorIndex === index;
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    aria-label={label}
+                    aria-pressed={selected}
+                    className={styles.swatch}
+                    style={{
+                      background: `var(--account-${index})`,
+                      boxShadow: selected
+                        ? `0 0 0 2px var(--color-bg), 0 0 0 4px var(--account-${index})`
+                        : "none",
+                    }}
+                    onClick={() => {
+                      if (!selected) void saveProfile(account.name, index);
+                    }}
+                  />
+                );
+              })}
+            </div>
+
+            <label className={styles.label} htmlFor={`sig-${account.id}`}>
+              서명
+            </label>
+            <div className={styles.sigBox}>
+              <textarea
+                id={`sig-${account.id}`}
+                className={styles.textarea}
+                rows={3}
+                value={signature}
+                placeholder="새 메일과 답장 끝에 넣을 서명"
+                onChange={(e) => setSig(e.target.value)}
+                onBlur={commitSignature}
+              />
+              <label className={styles.check}>
+                <input
+                  type="checkbox"
+                  checked={account.signReplies}
+                  onChange={(e) => void toggleSignReplies(e.target.checked)}
+                />
+                답장·전달에도 서명 넣기
+              </label>
+            </div>
+
+            <span className={styles.label}>알림</span>
+            {/* 알림 설정(켜기/끄기·대상·소리·안 읽은 수)은 "알림·트레이" 작업에서 채운다. */}
+            <p className={styles.hint}>알림 설정은 곧 지원돼요.</p>
+          </div>
+          <div className={styles.foot}>
+            {confirming ? (
+              <>
+                <span className={styles.confirmText}>
+                  이 PC에 저장된 이 계정의 메일과 비밀번호를 지워요. 서버의 메일은 그대로예요.
+                </span>
+                <span className={styles.spacer} />
+                <button
+                  type="button"
+                  className={styles.plain}
+                  disabled={busy}
+                  onClick={() => setConfirming(false)}
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  className={styles.danger}
+                  disabled={busy}
+                  onClick={() => void remove()}
+                >
+                  {busy ? "제거 중…" : "제거"}
+                </button>
+              </>
+            ) : (
+              <>
+                <button type="button" className={styles.danger} onClick={() => setConfirming(true)}>
+                  계정 제거
+                </button>
+                <span className={styles.spacer} />
+                {error ? (
+                  <span role="alert" className={styles.errorText}>
+                    {error}
+                  </span>
+                ) : (
+                  <span className={styles.footNote}>변경 사항은 자동 저장돼요</span>
+                )}
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}

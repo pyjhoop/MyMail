@@ -123,11 +123,13 @@ export function startDraft({ mode, account, mail }: ComposeStart): DraftFields {
     quoteText: "",
   };
   const sig = signatureBlock(account.signature);
-  const signed = sig ? `\n\n${sig}` : "";
+  const newSigned = sig ? `\n\n${sig}` : "";
 
   if (!mail || mode === "new") {
-    return { ...base, subject: "", body: signed };
+    return { ...base, subject: "", body: newSigned };
   }
+  // 설정에서 "답장·전달에도 서명 넣기"를 끄면 답장·전달에는 서명을 넣지 않는다.
+  const signed = account.signReplies ? newSigned : "";
 
   if (mode === "forward") {
     const info = [

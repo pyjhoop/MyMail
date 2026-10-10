@@ -687,9 +687,22 @@ function App() {
               setTheme(next);
               saveTheme(next);
             }}
-            onSignatureSaved={(accountId, signature) =>
-              setAccounts((prev) => prev.map((a) => (a.id === accountId ? { ...a, signature } : a)))
+            onAccountPatch={(accountId, patch) =>
+              setAccounts((prev) => prev.map((a) => (a.id === accountId ? { ...a, ...patch } : a)))
             }
+            onAccountsReorder={(ids) =>
+              setAccounts((prev) =>
+                ids
+                  .map((id) => prev.find((a) => a.id === id))
+                  .filter((a): a is Account => a !== undefined)
+                  .concat(prev.filter((a) => !ids.includes(a.id))),
+              )
+            }
+            onAccountRemoved={(accountId) => {
+              setAccounts((prev) => prev.filter((a) => a.id !== accountId));
+              if (selection === accountId) selectAccount("all");
+            }}
+            onAddAccount={() => setAdding(true)}
             onClose={() => setSettingsOpen(false)}
           />
         </div>

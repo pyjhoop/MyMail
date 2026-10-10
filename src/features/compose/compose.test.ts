@@ -18,6 +18,7 @@ const account: Account = {
   unread: 0,
   initial: "개",
   signature: "박준호 드림",
+  signReplies: true,
 };
 
 const mail: MailDetail = {
@@ -48,6 +49,13 @@ describe("서명", () => {
 
   it("새 메일 본문 끝에 서명 구분선과 함께 들어간다", () => {
     expect(startDraft({ mode: "new", account }).body).toBe("\n\n-- \n박준호 드림");
+  });
+
+  it("답장·전달에 서명 넣기를 끄면 새 메일에만 서명이 들어간다", () => {
+    const off = { ...account, signReplies: false };
+    expect(startDraft({ mode: "new", account: off }).body).toBe("\n\n-- \n박준호 드림");
+    expect(startDraft({ mode: "reply", account: off, mail }).body).toBe("");
+    expect(startDraft({ mode: "forward", account: off, mail }).body).not.toContain("박준호 드림");
   });
 
   it("계정을 바꾸면 서명도 바뀌고, 직접 고친 서명은 건드리지 않는다", () => {

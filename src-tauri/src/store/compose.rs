@@ -302,6 +302,51 @@ impl Store {
         Ok(())
     }
 
+    pub fn set_sign_replies(&self, account_id: &str, on: bool) -> Result<(), StoreError> {
+        self.lock()?.execute(
+            "UPDATE accounts SET sign_replies = ?2 WHERE id = ?1",
+            params![account_id, on],
+        )?;
+        Ok(())
+    }
+
+    /// 표시 이름과 계정 색(1~8)을 바꾼다. 아바타 글자도 새 이름의 첫 글자로 맞춘다.
+    pub fn update_account_profile(
+        &self,
+        account_id: &str,
+        name: &str,
+        color_index: u8,
+    ) -> Result<(), StoreError> {
+        let initial: String = name.chars().next().map(String::from).unwrap_or_default();
+        self.lock()?.execute(
+            "UPDATE accounts SET name = ?2, color_index = ?3, initial = ?4 WHERE id = ?1",
+            params![account_id, name, color_index, initial],
+        )?;
+        Ok(())
+    }
+
+    /// 계정 레일 순서를 `ids` 순서로 저장한다. 목록에 없는 계정은 그 뒤에 기존 순서로 둔다.
+    pub fn reorder_accounts(&self, ids: &[String]) -> Result<(), StoreError> {
+        let mut conn = self.lock()?;
+        let tx = conn.transaction()?;
+        let mut order: Vec<String> = ids.to_vec();
+        {
+            let mut stmt = tx.prepare("SELECT id FROM accounts ORDER BY position")?;
+            let rest = stmt
+                .query_map([], |r| r.get::<_, String>(0))?
+                .collect::<Result<Vec<_>, _>>()?;
+            order.extend(rest.into_iter().filter(|id| !ids.contains(id)));
+        }
+        for (i, id) in order.iter().enumerate() {
+            tx.execute(
+                "UPDATE accounts SET position = ?2 WHERE id = ?1",
+                params![id, i as i64],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     /// 계정의 표시 이름·주소·서비스 이름
     pub fn account_identity(
         &self,

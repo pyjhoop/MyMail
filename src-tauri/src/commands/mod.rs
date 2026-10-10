@@ -390,6 +390,58 @@ pub async fn set_signature(
     Ok(())
 }
 
+#[tauri::command]
+pub async fn set_sign_replies(
+    store: State<'_, Store>,
+    account_id: String,
+    on: bool,
+) -> CommandResult<()> {
+    store.set_sign_replies(&account_id, on)?;
+    Ok(())
+}
+
+/// 계정의 표시 이름과 색(1~8)을 바꾼다.
+#[tauri::command]
+pub async fn update_account(
+    store: State<'_, Store>,
+    account_id: String,
+    name: String,
+    color_index: u8,
+) -> CommandResult<()> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(invalid("표시 이름을 입력해 주세요."));
+    }
+    if !(1..=8).contains(&color_index) {
+        return Err(invalid("계정 색을 확인해 주세요."));
+    }
+    store.update_account_profile(&account_id, name, color_index)?;
+    Ok(())
+}
+
+/// 계정 레일 순서를 저장한다.
+#[tauri::command]
+pub async fn reorder_accounts(store: State<'_, Store>, ids: Vec<String>) -> CommandResult<()> {
+    store.reorder_accounts(&ids)?;
+    Ok(())
+}
+
+/// 계정과 저장된 메일·비밀번호를 지우고 동기화를 멈춘다. 서버의 메일은 건드리지 않는다.
+#[tauri::command]
+pub async fn remove_account(
+    app: AppHandle,
+    store: State<'_, Store>,
+    credentials: State<'_, Arc<dyn CredentialStore>>,
+    account_id: String,
+) -> CommandResult<()> {
+    app.state::<SyncManager>().stop(&account_id);
+    store.delete_account(&account_id)?;
+    credentials
+        .delete(&account_id)
+        .map_err(|_| invalid("저장된 비밀번호를 지우지 못했어요."))?;
+    Ok(())
+}
+
 /// 같은 계정의 다른 폴더로 옮긴다.
 #[tauri::command]
 pub async fn move_mail(

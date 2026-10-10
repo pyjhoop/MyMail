@@ -193,6 +193,38 @@ fn 서명은_계정에_저장된다() {
 }
 
 #[test]
+fn 계정_이름_색_순서_답장서명을_바꾼다() {
+    let store = store_with_account("gmail");
+    store
+        .insert_account(&NewAccount {
+            id: "a2".into(),
+            name: "둘째".into(),
+            email: "two@naver.com".into(),
+            provider: "naver".into(),
+            color_index: 2,
+        })
+        .unwrap();
+    assert!(store.list_accounts().unwrap()[0].sign_replies);
+
+    store.update_account_profile("a1", "회사 메일", 5).unwrap();
+    store.set_sign_replies("a1", false).unwrap();
+    let a1 = store.list_accounts().unwrap().remove(0);
+    assert_eq!(a1.name, "회사 메일");
+    assert_eq!(a1.color_index, 5);
+    assert_eq!(a1.initial, "회");
+    assert!(!a1.sign_replies);
+
+    store.reorder_accounts(&["a2".to_string()]).unwrap();
+    let ids: Vec<String> = store
+        .list_accounts()
+        .unwrap()
+        .into_iter()
+        .map(|a| a.id)
+        .collect();
+    assert_eq!(ids, ["a2", "a1"]);
+}
+
+#[test]
 fn 인용은_보낼_때에만_머리말과_함께_붙는다() {
     let body = outgoing_body(
         "알겠어요\n\n-- \n서명",
