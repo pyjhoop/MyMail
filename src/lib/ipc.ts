@@ -20,6 +20,8 @@ export interface Account {
   initial: string;
   /** 새 메일·답장 끝에 넣는 서명 (일반 텍스트) */
   signature: string;
+  /** 답장·전달에도 서명을 넣을지 */
+  signReplies: boolean;
 }
 
 export type FolderKind =
@@ -382,6 +384,25 @@ export function suggestAddresses(query: string): Promise<Recipient[]> {
 
 export function setSignature(accountId: string, signature: string): Promise<void> {
   return call("set_signature", { accountId, signature });
+}
+
+export function setSignReplies(accountId: string, on: boolean): Promise<void> {
+  return call("set_sign_replies", { accountId, on });
+}
+
+/** 표시 이름과 계정 색(1~8)을 바꾼다 */
+export function updateAccount(accountId: string, name: string, colorIndex: number): Promise<void> {
+  return call("update_account", { accountId, name, colorIndex });
+}
+
+/** 계정 레일 순서를 저장한다 */
+export function reorderAccounts(ids: string[]): Promise<void> {
+  return call("reorder_accounts", { ids });
+}
+
+/** 계정과 저장된 메일·비밀번호를 지운다(서버의 메일은 그대로) */
+export function removeAccount(accountId: string): Promise<void> {
+  return call("remove_account", { accountId });
 }
 
 /** Windows 시작 시 실행 여부 */

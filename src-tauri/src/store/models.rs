@@ -22,6 +22,8 @@ pub struct Account {
     pub initial: String,
     /// 새 메일·답장 끝에 넣는 서명(일반 텍스트). 없으면 빈 문자열
     pub signature: String,
+    /// 답장·전달에도 서명을 넣을지
+    pub sign_replies: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]

@@ -11,6 +11,7 @@ export const FAKE_ACCOUNTS: Account[] = [
     unread: 12,
     initial: "개",
     signature: "",
+    signReplies: true,
   },
   {
     id: "a2",
@@ -21,6 +22,7 @@ export const FAKE_ACCOUNTS: Account[] = [
     unread: 3,
     initial: "프",
     signature: "",
+    signReplies: true,
   },
   {
     id: "a3",
@@ -31,6 +33,7 @@ export const FAKE_ACCOUNTS: Account[] = [
     unread: 128,
     initial: "네",
     signature: "",
+    signReplies: true,
   },
 ];
 
@@ -95,6 +98,10 @@ export async function fakeInvoke(command: string, args: Record<string, unknown> 
     case "sync_now":
     case "set_autostart":
     case "set_signature":
+    case "set_sign_replies":
+    case "update_account":
+    case "reorder_accounts":
+    case "remove_account":
       return undefined;
     default:
       throw new Error(`알 수 없는 command: ${command}`);
