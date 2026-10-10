@@ -48,6 +48,31 @@ a:hover {
   box-shadow: var(--focus-ring);
 }
 
+/* 스크롤바: 얇게, 평소엔 옅게, 호버하면 진하게. 어두운 테마는 색 토큰이 알아서 바뀐다. */
+::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  min-height: var(--scrollbar-thumb-min);
+  min-width: var(--scrollbar-thumb-min);
+  border-radius: var(--radius-full);
+  background: var(--color-border-strong);
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-tertiary);
+  background-clip: content-box;
+}
+
 h1,
 h2 {
   margin: 0;
