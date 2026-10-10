@@ -484,6 +484,13 @@ export function removeAccount(accountId: string): Promise<void> {
   return call("remove_account", { accountId });
 }
 
+export type ResetScope = "cache" | "all";
+
+/** 저장한 데이터를 지운다. cache: 메일 캐시만, all: 계정·비밀번호·설정까지(서버의 메일은 그대로) */
+export function resetData(scope: ResetScope): Promise<void> {
+  return call("reset_data", { scope });
+}
+
 /** Windows 시작 시 실행 여부 */
 export function getAutostart(): Promise<boolean> {
   return call("get_autostart");

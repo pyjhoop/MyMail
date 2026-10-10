@@ -4,6 +4,7 @@ mod attachments;
 mod compose;
 mod models;
 mod notify;
+mod reset;
 pub mod search;
 mod sync_state;
 

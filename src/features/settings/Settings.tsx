@@ -9,11 +9,13 @@ import {
   setAutostart,
   toLoadError,
   type Account,
+  type ResetScope,
   type UpdateInfo,
 } from "../../lib/ipc";
 import { SHORTCUTS } from "../shell/shortcuts";
 import type { ThemePreference } from "../shell/useSystemTheme";
 import { AccountsPanel } from "./AccountsPanel";
+import { DataReset } from "./DataReset";
 import styles from "./Settings.module.css";
 
 const TABS = ["일반", "계정", "모양", "단축키"] as const;
@@ -33,6 +35,7 @@ interface Props {
   onAccountsReorder: (ids: string[]) => void;
   onAccountRemoved: (accountId: string) => void;
   onAddAccount: () => void;
+  onDataReset: (scope: ResetScope) => void;
   onClose: () => void;
 }
 
@@ -44,6 +47,7 @@ export function Settings({
   onAccountsReorder,
   onAccountRemoved,
   onAddAccount,
+  onDataReset,
   onClose,
 }: Props) {
   const [tab, setTab] = useState<Tab>("일반");
@@ -85,6 +89,7 @@ export function Settings({
           <>
             <General />
             <Updates />
+            <DataReset onDone={onDataReset} />
           </>
         )}
         {tab === "계정" && (

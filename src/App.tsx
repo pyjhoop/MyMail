@@ -771,6 +771,16 @@ function App() {
               if (selection === accountId) selectAccount("all");
             }}
             onAddAccount={() => setAdding(true)}
+            onDataReset={(scope) => {
+              selectAccount("all");
+              setReloadKey((k) => k + 1);
+              if (scope === "all") {
+                // 처음 실행 상태: 계정이 없으니 설정을 닫고 계정 추가 마법사를 연다.
+                setAccounts([]);
+                setSettingsOpen(false);
+                setAdding(true);
+              }
+            }}
             onClose={() => setSettingsOpen(false)}
           />
         </div>

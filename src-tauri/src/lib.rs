@@ -4,6 +4,7 @@ mod commands;
 mod compose;
 mod notify;
 mod providers;
+mod reset;
 mod store;
 mod sync;
 mod tray;
@@ -90,6 +91,7 @@ pub fn run() {
             commands::set_notify_settings,
             commands::reorder_accounts,
             commands::remove_account,
+            commands::reset_data,
             commands::save_attachment,
             commands::save_all_attachments,
             commands::reveal_saved_attachment,

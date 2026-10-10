@@ -122,6 +122,7 @@ export async function fakeInvoke(command: string, args: Record<string, unknown> 
     case "update_account":
     case "reorder_accounts":
     case "remove_account":
+    case "reset_data":
       return undefined;
     default:
       throw new Error(`알 수 없는 command: ${command}`);

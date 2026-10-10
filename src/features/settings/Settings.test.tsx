@@ -16,6 +16,7 @@ vi.mock("../../lib/ipc", async (importOriginal) => {
     updateAccount: vi.fn(() => Promise.resolve()),
     reorderAccounts: vi.fn(() => Promise.resolve()),
     removeAccount: vi.fn(() => Promise.resolve()),
+    resetData: vi.fn(() => Promise.resolve()),
     appVersion: vi.fn(() => Promise.resolve("0.1.0")),
     checkUpdate: vi.fn(() => Promise.resolve(null)),
     installUpdate: vi.fn(() => Promise.resolve()),
@@ -30,6 +31,7 @@ const setup = (props: Partial<Parameters<typeof Settings>[0]> = {}) => {
   const onAccountsReorder = vi.fn();
   const onAccountRemoved = vi.fn();
   const onAddAccount = vi.fn();
+  const onDataReset = vi.fn();
   render(
     <Settings
       accounts={FAKE_ACCOUNTS}
@@ -39,6 +41,7 @@ const setup = (props: Partial<Parameters<typeof Settings>[0]> = {}) => {
       onAccountsReorder={onAccountsReorder}
       onAccountRemoved={onAccountRemoved}
       onAddAccount={onAddAccount}
+      onDataReset={onDataReset}
       onClose={onClose}
       {...props}
     />,
@@ -50,6 +53,7 @@ const setup = (props: Partial<Parameters<typeof Settings>[0]> = {}) => {
     onAccountsReorder,
     onAccountRemoved,
     onAddAccount,
+    onDataReset,
   };
 };
 
@@ -208,5 +212,47 @@ describe("업데이트", () => {
     setup();
     fireEvent.click(await screen.findByRole("button", { name: "업데이트 확인" }));
     expect(await screen.findByText("최신 버전이에요.")).toBeInTheDocument();
+  });
+});
+
+describe("데이터 초기화", () => {
+  it("캐시 지우기: 확인 창에서 취소하면 호출하지 않는다", () => {
+    const { onDataReset } = setup();
+    fireEvent.click(screen.getByRole("button", { name: "메일 캐시 지우기" }));
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "취소" }));
+    expect(ipc.resetData).not.toHaveBeenCalled();
+    expect(onDataReset).not.toHaveBeenCalled();
+  });
+
+  it("캐시 지우기: 확인하면 cache 범위로 부른다", async () => {
+    const { onDataReset } = setup();
+    fireEvent.click(screen.getByRole("button", { name: "메일 캐시 지우기" }));
+    fireEvent.click(screen.getByRole("button", { name: "캐시 지우기" }));
+    await waitFor(() => expect(ipc.resetData).toHaveBeenCalledWith("cache"));
+    await waitFor(() => expect(onDataReset).toHaveBeenCalledWith("cache"));
+  });
+
+  it("모든 데이터 초기화는 확인 문구가 맞아야 활성화된다", async () => {
+    const { onDataReset } = setup();
+    fireEvent.click(screen.getByRole("button", { name: "데이터 초기화" }));
+    const confirm = screen.getByRole("button", { name: "모두 초기화" });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("확인 문구"), { target: { value: "초기" } });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("확인 문구"), { target: { value: "초기화" } });
+    expect(confirm).toBeEnabled();
+    fireEvent.click(confirm);
+    await waitFor(() => expect(ipc.resetData).toHaveBeenCalledWith("all"));
+    await waitFor(() => expect(onDataReset).toHaveBeenCalledWith("all"));
+  });
+
+  it("실패하면 오류를 보이고 완료 처리를 하지 않는다", async () => {
+    vi.mocked(ipc.resetData).mockRejectedValueOnce({ kind: "unknown", message: "지우지 못했어요" });
+    const { onDataReset } = setup();
+    fireEvent.click(screen.getByRole("button", { name: "메일 캐시 지우기" }));
+    fireEvent.click(screen.getByRole("button", { name: "캐시 지우기" }));
+    expect(await screen.findByText("지우지 못했어요")).toBeInTheDocument();
+    expect(onDataReset).not.toHaveBeenCalled();
   });
 });
