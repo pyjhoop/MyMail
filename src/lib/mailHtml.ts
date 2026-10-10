@@ -72,6 +72,17 @@ export interface PaperColors {
   text: string;
   link: string;
   fontFamily: string;
+  /** 다크 테마면 본문 색을 반전해 보여 준다 */
+  dark: boolean;
+}
+
+/** `#rgb`·`#rrggbb`를 반전한 `#rrggbb`. 해석할 수 없으면 그대로 돌려준다. */
+export function invertHex(color: string): string {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim());
+  if (!m) return color;
+  const hex = m[1].length === 3 ? [...m[1]].map((c) => c + c).join("") : m[1];
+  const n = parseInt(hex, 16);
+  return `#${(0xffffff - n).toString(16).padStart(6, "0")}`;
 }
 
 /** tokens.css의 값을 읽는다. iframe 안에는 앱 CSS 변수가 닿지 않아 값으로 넘겨야 한다. */
@@ -83,6 +94,7 @@ export function readPaperColors(): PaperColors {
     text: get("--mail-paper-text"),
     link: get("--mail-paper-link"),
     fontFamily: get("--font-sans"),
+    dark: document.documentElement.dataset.theme === "dark",
   };
 }
 
@@ -93,13 +105,27 @@ export function buildMailDocument(
 ): string {
   const img = showImages ? "data: https: http:" : "data:";
   const csp = `default-src 'none'; img-src ${img}; style-src 'unsafe-inline'; font-src data:`;
+  // 다크: 문서 전체를 반전(+색상 회전)해 메일이 지정한 색도 어둡게 만들고, 이미지·영상은 다시 반전해 원래대로 둔다.
+  // 반전될 것이므로 바탕·글자·링크 색은 원하는 색의 반전값으로 적는다.
+  const c = colors.dark
+    ? {
+        background: invertHex(colors.background),
+        text: invertHex(colors.text),
+        link: invertHex(colors.link),
+      }
+    : colors;
+  const darkCss = colors.dark
+    ? `html { filter: invert(1) hue-rotate(180deg); background: ${c.background}; }
+img, video { filter: invert(1) hue-rotate(180deg); }
+`
+    : "";
   return `<!doctype html><html><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <style>
-html { color-scheme: light; overflow-y: hidden; }
-body { margin: 0; padding: 16px; background: ${colors.background}; color: ${colors.text};
+${darkCss}html { color-scheme: light; overflow-y: hidden; }
+body { margin: 0; padding: 16px; background: ${c.background}; color: ${c.text};
   font: 14px/1.6 ${colors.fontFamily}; overflow-wrap: break-word; }
-a { color: ${colors.link}; }
+a { color: ${c.link}; }
 img { max-width: 100%; height: auto; }
 blockquote { margin-left: 0; padding-left: 12px; border-left: 3px solid #d4d4d8; }
 </style></head><body>${body}</body></html>`;

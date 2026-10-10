@@ -141,6 +141,10 @@
   --color-highlight-bg: #6b5410;
   --color-scrim: rgba(0, 0, 0, 0.55);
 
+  --mail-paper-bg: #1c1c21;
+  --mail-paper-text: #ededef;
+  --mail-paper-link: #a5a8fa;
+
   --account-1: #60a5fa;
   --account-2: #4ade80;
   --account-3: #fb923c;
