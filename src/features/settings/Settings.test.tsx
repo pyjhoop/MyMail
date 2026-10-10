@@ -215,6 +215,43 @@ describe("업데이트", () => {
   });
 });
 
+describe("설정 후속", () => {
+  it("모양 탭에서 밀도를 고르면 알린다", () => {
+    const onDensityChange = vi.fn();
+    setup({ density: "comfortable", onDensityChange });
+    fireEvent.click(screen.getByRole("tab", { name: "모양" }));
+    expect(screen.getByRole("radio", { name: /^기본/ })).toBeChecked();
+    fireEvent.click(screen.getByRole("radio", { name: /컴팩트/ }));
+    expect(onDensityChange).toHaveBeenCalledWith("compact");
+  });
+
+  it("탭마다 항목이 보인다", () => {
+    setup();
+    expect(screen.getByRole("heading", { name: "일반" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "위험 영역" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "모양" }));
+    expect(screen.getByRole("radiogroup", { name: "목록 밀도" })).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "테마" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "단축키" }));
+    expect(screen.getByRole("heading", { name: "단축키" })).toBeInTheDocument();
+  });
+
+  it("계정 카드 머리줄에 동기화 상태를 보인다", () => {
+    const [a1, a2] = FAKE_ACCOUNTS;
+    const base = { accountId: a1.id, error: null, errorKind: null };
+    setup({
+      syncs: {
+        [a1.id]: { ...base, done: 64, total: 100 },
+        [a2.id]: { ...base, accountId: a2.id, done: 0, total: 0, error: "x", errorKind: "auth" },
+      },
+      syncedAt: {},
+    });
+    openAccounts();
+    expect(screen.getByText("동기화 중 64%")).toBeInTheDocument();
+    expect(screen.getByText(/인증 오류/)).toBeInTheDocument();
+  });
+});
+
 describe("데이터 초기화", () => {
   it("캐시 지우기: 확인 창에서 취소하면 호출하지 않는다", () => {
     const { onDataReset } = setup();

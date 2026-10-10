@@ -380,11 +380,12 @@
   - 백엔드: `reset_data(scope)` command. 동기화를 먼저 멈추고(SyncManager 정지) 진행 중인 알림·큐(`pending_ops`)를 비운다. 캐시 범위는 `messages`·`folders`·FTS·`sender_stats`·첨부 캐시·동기화 상태만 지우고 `accounts`는 남긴다. 전체 범위는 계정마다 keyring 항목을 지운 뒤(비밀번호 평문 규칙 유지) DB를 비우거나 파일을 삭제 후 다시 만든다. 열려 있는 연결·WAL 파일(`-wal`, `-shm`) 처리에 주의한다
   - 테스트: Rust — 캐시 범위는 계정이 남고 메일이 0통, 전체 범위는 계정 0개이고 keyring 삭제가 호출됨(`FakeKeyring`/mock), 초기화 뒤 동기화가 재시작 가능, 두 번 연속 호출해도 안전. UI — 버튼 → 범위 선택 → 확인 창, 취소하면 호출 안 됨, 전체 초기화는 확인 문구가 맞아야 활성, 완료 후 마법사 표시
   - 완료 메모: 설정 > 일반 맨 아래 "위험 영역"(`DataReset.tsx`)에 "메일 캐시 지우기"·"데이터 초기화" 버튼과 확인 창(전체는 "초기화" 문구 입력 필요, 진행 중 버튼 막힘, 실패 시 오류 표시). `reset_data(scope)` command: `SyncManager::stop_all` → `reset::apply`(캐시: messages·folder_uids·pending_ops·sender_stats 삭제+uid_validity 비움, 계정·폴더·작성 중 메일 유지 / 전체: keyring 먼저 삭제, 하나라도 실패하면 DB 유지, 이후 계정·폴더·메일·작성 메일·app_settings 삭제) → WAL checkpoint(TRUNCATE)+VACUUM, 캐시 범위는 동기화 재시작. DB 파일은 지우지 않고 DELETE로 비운다(연결·WAL 충돌 회피, 마이그레이션 불필요). 전체 초기화 후 UI는 localStorage를 비우고 설정을 닫아 계정 추가 마법사를 연다. 테스트: Rust `reset::tests`(캐시/전체/keyring 실패/반복 호출, MemoryStore·메모리 DB만 사용), UI 4건. 실창 육안 확인은 못 함.
-- [ ] 설정 후속 — 계정 카드 동기화 상태 표시와 일반·모양·단축키 탭 디자인 대조 (`Settings.dc.html`)
+- [x] 설정 후속 — 계정 카드 동기화 상태 표시와 일반·모양·단축키 탭 디자인 대조 (`Settings.dc.html`)
   - 계정 카드 머리줄에 "동기화됨 · 방금" / "동기화 중 64%" / 오류 상태를 보인다(동기화 엔진의 상태·진행률 이벤트를 `invoke`/이벤트로 받음). 오프라인·인증 오류도 구분한다
   - 일반·모양·단축키 탭을 디자인과 대조해 빠진 항목과 간격·크기를 맞춘다(밀도 설정 포함 여부 확인). 차이는 이 목록에 적고 고친다
   - 서명 서식 툴바는 서명이 일반 텍스트라 제외한다(결정 로그 확인 후 유지)
   - 테스트: 상태별 문구 렌더, 탭별 항목 렌더, 밀도 변경이 목록 행 높이 토큰에 반영됨
+  - 완료 메모: 계정 카드 머리줄(핸들·아바타·이름 오른쪽)에 상태 점+문구를 둔다(`lib/syncStatus.ts`): "동기화됨 · 방금/N분 전", "동기화 중 64%", "오프라인 · 마지막 동기화 N분 전", "인증 오류 · 비밀번호를 확인해 주세요", "동기화 오류", 알림 전에는 "동기화 대기 중". 백엔드 `sync-progress` 이벤트에 `errorKind`("auth"/"network"/"other", `sync::error_kind`)를 추가해 오프라인·인증을 구분하고, `App`이 계정별 마지막 성공 시각을 들고 있다가 `Settings`로 내려준다(30초마다 문구 갱신). 디자인 대조: `Settings.dc.html`에는 계정 탭만 있고 일반·모양·단축키 탭 디자인은 없다 → 요구사항 S-06 기준으로 맞췄다. 일반(시작 시 실행·트레이 안내·업데이트·위험 영역)은 그대로, 모양 탭에 빠져 있던 **밀도(기본 3줄/컴팩트 1줄)**를 추가(`useDensity`, `<html data-density>`, `tokens.css`의 `:root[data-density="compact"] { --mail-row-height: 40px }`, `MailList`가 밀도별 행 높이로 가상화·한 줄 레이아웃은 `MailList.module.css`). 단축키 탭은 `SHORTCUTS` 목록 그대로. 서명 서식 툴바는 서명이 일반 텍스트(결정 로그 2026-10-09)라 계속 제외. 테스트: `syncStatus`(상태별 문구), Settings(밀도 선택·탭별 항목·카드 상태 렌더), `useDensity`(저장·`data-density`·토큰 값과 `ROW_HEIGHTS` 일치), Rust `error_kind`. 실창 육안 확인(특히 컴팩트 행 모양)은 못 함.
 - [ ] 검색 화면 후속 — 1차에서 남긴 UI와 목록 페이징 (위 "검색 화면을 디자인대로"의 미체크 하위 항목을 모두 마무리하고 그 항목도 체크)
   - 폴더 패널을 "검색 범위"로 바꾸기(계정별 결과 수·색 점, 스팸·휴지통 제외 안내, 계정별 건수 command)
   - 결과 목록 필터 칩 줄(보낸사람·기간·첨부 있음·계정)과 "3개월보다 오래된 결과 N개 더 있음 · 기간 필터 해제"(`olderCount` 사용)

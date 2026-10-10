@@ -331,6 +331,8 @@ export interface SyncProgress {
   total: number;
   /** 중간에 실패했을 때의 안내. 이미 받은 메일은 남아 있다. */
   error: string | null;
+  /** 오류 종류: 인증 / 오프라인·연결 / 기타. 오류가 없으면 null */
+  errorKind?: "auth" | "network" | "other" | null;
 }
 
 /** 진행 상황을 구독한다. 브라우저(pnpm dev)·테스트에서는 아무 일도 하지 않는다. 반환값은 구독 해제 함수. */

@@ -297,7 +297,18 @@ async fn 각_폴더의_최신_메일을_먼저_받는다() {
     assert_eq!(inbox_count(&store), 130);
     assert_eq!(store.list_mails(Some("n1"), "n1-sent").unwrap().len(), 3);
     let last = reports.last();
+    assert_eq!(last.error_kind, Some("network"));
     assert!(last.error.unwrap().contains("연결 끊김"));
+}
+
+#[test]
+fn 오류_종류는_인증과_연결과_기타로_나뉜다() {
+    use super::error_kind;
+    let auth = SyncError::Provider(ProviderError::Auth("x".into()));
+    let net = SyncError::Provider(ProviderError::Network("x".into()));
+    assert_eq!(error_kind(&auth), "auth");
+    assert_eq!(error_kind(&net), "network");
+    assert_eq!(error_kind(&SyncError::NotConnected), "other");
 }
 
 #[tokio::test]

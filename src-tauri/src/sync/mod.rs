@@ -55,6 +55,17 @@ pub struct Progress {
     pub total: usize,
     /// 중간에 실패했을 때의 안내. 이미 받은 메일은 남는다.
     pub error: Option<String>,
+    /// 오류의 종류: "auth"(인증) | "network"(오프라인·연결) | "other". 오류가 없으면 `None`.
+    pub error_kind: Option<&'static str>,
+}
+
+/// 설정 화면의 동기화 상태 표시를 위한 오류 분류
+fn error_kind(e: &SyncError) -> &'static str {
+    match e {
+        SyncError::Provider(ProviderError::Auth(_)) | SyncError::Auth(_) => "auth",
+        SyncError::Provider(ProviderError::Network(_)) => "network",
+        _ => "other",
+    }
 }
 
 /// 동기화할 폴더 범위
@@ -234,11 +245,16 @@ struct Tracker<'a, F: Fn(Progress)> {
 
 impl<F: Fn(Progress)> Tracker<'_, F> {
     fn emit(&self, error: Option<String>) {
+        self.emit_with(error, None);
+    }
+
+    fn emit_with(&self, error: Option<String>, error_kind: Option<&'static str>) {
         (self.report)(Progress {
             account_id: self.account_id.into(),
             done: self.done,
             total: self.total,
             error,
+            error_kind,
         });
     }
 }
@@ -300,7 +316,7 @@ pub async fn sync_account_with(
             tracker.emit(None);
         }
         Err(e) => {
-            tracker.emit(Some(user_message(e)));
+            tracker.emit_with(Some(user_message(e)), Some(error_kind(e)));
         }
     }
     result

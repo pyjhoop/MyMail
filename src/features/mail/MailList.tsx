@@ -13,6 +13,7 @@ import type { Account, LoadError, MailSort, MailSummary } from "../../lib/ipc";
 import { labelColorVar, labelLeaf, MAX_ROW_LABELS } from "../../lib/labels";
 import { Highlight } from "../search/Highlight";
 import styles from "./MailList.module.css";
+import { ROW_HEIGHTS, type Density } from "../shell/useDensity";
 import { SORT_OPTIONS, sortLabel } from "./sort";
 
 export type ListStatus = "loading" | "ready" | "error";
@@ -52,10 +53,10 @@ interface Props {
   lastSyncedAt?: Date | null;
   sort: MailSort;
   onSortChange: (sort: MailSort) => void;
+  /** 목록 밀도. 기본은 3줄 행 */
+  density?: Density;
 }
 
-// 행 높이는 tokens.css의 --mail-row-height(84px)와 같아야 한다.
-const ROW_HEIGHT = 84;
 const NO_TERMS: readonly string[] = [];
 /** 끝에서 이만큼 남으면 다음 페이지를 부른다 */
 const END_MARGIN = 10;
@@ -90,6 +91,7 @@ export function MailList({
   lastSyncedAt,
   sort,
   onSortChange,
+  density = "comfortable",
 }: Props) {
   const [filter, setFilter] = useState<Filter>("all");
   const [sortOpen, setSortOpen] = useState(false);
@@ -167,7 +169,8 @@ export function MailList({
   const virtualizer = useVirtualizer({
     count: visible.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_HEIGHT,
+    // 행 높이는 tokens.css의 --mail-row-height와 같아야 한다(밀도별 값은 ROW_HEIGHTS).
+    estimateSize: () => ROW_HEIGHTS[density],
     overscan: 8,
   });
 

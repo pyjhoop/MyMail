@@ -349,3 +349,59 @@
   flex: none;
   color: var(--color-star);
 }
+
+/* 컴팩트 밀도: 보낸사람 · 제목 · 미리보기 · 아이콘 · 시간을 한 줄에 */
+:global(:root[data-density="compact"]) .main {
+  align-items: center;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+:global(:root[data-density="compact"]) .body {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+:global(:root[data-density="compact"]) .line {
+  display: contents;
+}
+
+:global(:root[data-density="compact"]) .sender {
+  order: 1;
+  flex: 0 0 25%;
+}
+
+:global(:root[data-density="compact"]) .subject {
+  order: 2;
+  flex: 0 1 45%;
+  height: auto;
+}
+
+:global(:root[data-density="compact"]) .preview {
+  order: 3;
+  flex: 1;
+}
+
+:global(:root[data-density="compact"]) .chip,
+:global(:root[data-density="compact"]) .meta,
+:global(:root[data-density="compact"]) .star {
+  order: 4;
+}
+
+:global(:root[data-density="compact"]) .time {
+  order: 5;
+}
+
+:global(:root[data-density="compact"]) .gutter {
+  padding-top: 0;
+}
+
+:global(:root[data-density="compact"]) .dot {
+  margin-top: 0;
+}
+
+:global(:root[data-density="compact"]) .check {
+  top: 50%;
+  transform: translateY(-50%);
+}

@@ -150,6 +150,42 @@
   color: var(--color-text-tertiary);
 }
 
+.status {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+}
+
+.statusDot {
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--color-border-strong);
+}
+
+.status_ok .statusDot {
+  background: var(--color-success);
+}
+
+.status_busy {
+  color: var(--color-accent-text);
+}
+
+.status_busy .statusDot {
+  background: var(--color-accent);
+}
+
+.status_error {
+  color: var(--color-danger-text);
+}
+
+.status_error .statusDot {
+  background: var(--color-danger);
+}
+
 .chevron {
   flex: none;
   color: var(--color-text-tertiary);
