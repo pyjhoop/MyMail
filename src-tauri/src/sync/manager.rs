@@ -111,6 +111,18 @@ impl SyncManager {
         }
     }
 
+    /// 모든 계정의 동기화를 멈춘다(데이터 초기화 전).
+    pub fn stop_all(&self) {
+        let entries: Vec<Entry> = self
+            .entries
+            .lock()
+            .map(|mut e| e.drain().map(|(_, v)| v).collect())
+            .unwrap_or_default();
+        for entry in entries {
+            entry.task.abort();
+        }
+    }
+
     /// 계정에 연결된 제공자. 동기화가 돌고 있지 않은 계정(비밀번호를 읽지 못한 경우 등)은 `None`.
     pub fn provider(&self, account_id: &str) -> Option<Arc<dyn MailProvider>> {
         self.entries

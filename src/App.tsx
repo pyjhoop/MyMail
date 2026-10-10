@@ -17,6 +17,7 @@ import { useMailSort } from "./features/mail/sort";
 import { useRefresh } from "./features/mail/useRefresh";
 import { FOLDER, RAIL, usePanelWidths } from "./features/shell/usePanelWidths";
 import { useShortcuts } from "./features/shell/shortcuts";
+import { loadDensity, saveDensity, useDensity, type Density } from "./features/shell/useDensity";
 import {
   loadTheme,
   saveTheme,
@@ -71,6 +72,10 @@ const SEARCH_DELAY_MS = 300;
 function App() {
   const [theme, setTheme] = useState<ThemePreference>(loadTheme);
   useTheme(theme);
+  const [density, setDensity] = useState<Density>(loadDensity);
+  useDensity(density);
+  // 계정별 마지막 성공 시각(ms). 설정의 계정 카드 상태 표시에 쓴다.
+  const [syncedAt, setSyncedAt] = useState<Record<string, number>>({});
   const { widths, dragFolder, dragList, endDrag, resetFolder, resetList } = usePanelWidths();
 
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -365,6 +370,9 @@ function App() {
     () =>
       onSyncProgress((progress) => {
         setSyncs((prev) => ({ ...prev, [progress.accountId]: progress }));
+        if (progress.error === null && progress.done >= progress.total) {
+          setSyncedAt((prev) => ({ ...prev, [progress.accountId]: Date.now() }));
+        }
         setReloadKey((k) => k + 1);
         refreshCounts();
       }),
@@ -789,6 +797,13 @@ function App() {
               setTheme(next);
               saveTheme(next);
             }}
+            density={density}
+            onDensityChange={(next) => {
+              setDensity(next);
+              saveDensity(next);
+            }}
+            syncs={syncs}
+            syncedAt={syncedAt}
             onAccountPatch={(accountId, patch) =>
               setAccounts((prev) => prev.map((a) => (a.id === accountId ? { ...a, ...patch } : a)))
             }
@@ -805,6 +820,16 @@ function App() {
               if (selection === accountId) selectAccount("all");
             }}
             onAddAccount={() => setAdding(true)}
+            onDataReset={(scope) => {
+              selectAccount("all");
+              setReloadKey((k) => k + 1);
+              if (scope === "all") {
+                // 처음 실행 상태: 계정이 없으니 설정을 닫고 계정 추가 마법사를 연다.
+                setAccounts([]);
+                setSettingsOpen(false);
+                setAdding(true);
+              }
+            }}
             onClose={() => setSettingsOpen(false)}
           />
         </div>
@@ -875,6 +900,7 @@ function App() {
               lastSyncedAt={lastSyncedAt}
               sort={sort}
               onSortChange={setSort}
+              density={density}
             />
           </div>
           <ResizeHandle

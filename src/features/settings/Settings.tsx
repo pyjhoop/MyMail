@@ -9,11 +9,15 @@ import {
   setAutostart,
   toLoadError,
   type Account,
+  type ResetScope,
+  type SyncProgress,
   type UpdateInfo,
 } from "../../lib/ipc";
+import type { Density } from "../shell/useDensity";
 import { SHORTCUTS } from "../shell/shortcuts";
 import type { ThemePreference } from "../shell/useSystemTheme";
 import { AccountsPanel } from "./AccountsPanel";
+import { DataReset } from "./DataReset";
 import styles from "./Settings.module.css";
 
 const TABS = ["일반", "계정", "모양", "단축키"] as const;
@@ -25,14 +29,29 @@ const THEMES: { value: ThemePreference; label: string }[] = [
   { value: "dark", label: "다크" },
 ];
 
+const DENSITIES: { value: Density; label: string; hint: string }[] = [
+  { value: "comfortable", label: "기본", hint: "보낸사람·제목·미리보기를 3줄로 보여 줘요." },
+  { value: "compact", label: "컴팩트", hint: "한 줄에 모두 담아 더 많은 메일을 한눈에 봐요." },
+];
+
+const NO_SYNCS: Record<string, SyncProgress> = {};
+const NO_SYNCED_AT: Record<string, number> = {};
+
 interface Props {
   accounts: Account[];
   theme: ThemePreference;
   onThemeChange: (theme: ThemePreference) => void;
+  /** 목록 밀도(모양 탭). 기본 3줄 행 */
+  density?: Density;
+  onDensityChange?: (density: Density) => void;
+  /** 계정별 마지막 동기화 진행 알림과 마지막 성공 시각(ms). 계정 카드 머리줄 상태에 쓴다 */
+  syncs?: Record<string, SyncProgress>;
+  syncedAt?: Record<string, number>;
   onAccountPatch: (accountId: string, patch: Partial<Account>) => void;
   onAccountsReorder: (ids: string[]) => void;
   onAccountRemoved: (accountId: string) => void;
   onAddAccount: () => void;
+  onDataReset: (scope: ResetScope) => void;
   onClose: () => void;
 }
 
@@ -40,10 +59,15 @@ export function Settings({
   accounts,
   theme,
   onThemeChange,
+  density = "comfortable",
+  onDensityChange = () => undefined,
+  syncs = NO_SYNCS,
+  syncedAt = NO_SYNCED_AT,
   onAccountPatch,
   onAccountsReorder,
   onAccountRemoved,
   onAddAccount,
+  onDataReset,
   onClose,
 }: Props) {
   const [tab, setTab] = useState<Tab>("일반");
@@ -85,18 +109,28 @@ export function Settings({
           <>
             <General />
             <Updates />
+            <DataReset onDone={onDataReset} />
           </>
         )}
         {tab === "계정" && (
           <AccountsPanel
             accounts={accounts}
+            syncs={syncs}
+            syncedAt={syncedAt}
             onAccountPatch={onAccountPatch}
             onAccountsReorder={onAccountsReorder}
             onAccountRemoved={onAccountRemoved}
             onAddAccount={onAddAccount}
           />
         )}
-        {tab === "모양" && <Appearance theme={theme} onThemeChange={onThemeChange} />}
+        {tab === "모양" && (
+          <Appearance
+            theme={theme}
+            onThemeChange={onThemeChange}
+            density={density}
+            onDensityChange={onDensityChange}
+          />
+        )}
         {tab === "단축키" && <Shortcuts />}
       </section>
     </main>
@@ -252,13 +286,35 @@ function Updates() {
 function Appearance({
   theme,
   onThemeChange,
+  density,
+  onDensityChange,
 }: {
   theme: ThemePreference;
   onThemeChange: (theme: ThemePreference) => void;
+  density: Density;
+  onDensityChange: (density: Density) => void;
 }) {
   return (
     <>
       <h2 className={styles.title}>모양</h2>
+      <h3 className={styles.subtitle}>밀도</h3>
+      <div role="radiogroup" aria-label="목록 밀도" className={styles.group}>
+        {DENSITIES.map((d) => (
+          <label key={d.value} className={styles.row}>
+            <input
+              type="radio"
+              name="density"
+              checked={density === d.value}
+              onChange={() => onDensityChange(d.value)}
+            />
+            <span>
+              {d.label}
+              <span className={styles.hint}>{d.hint}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      <h3 className={styles.subtitle}>테마</h3>
       <div role="radiogroup" aria-label="테마" className={styles.group}>
         {THEMES.map((t) => (
           <label key={t.value} className={styles.row}>

@@ -171,3 +171,8 @@
   --shadow-popup: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06);
   --shadow-modal: 0 24px 64px rgba(0, 0, 0, 0.6);
 }
+
+/* 목록 밀도: 컴팩트는 한 줄 행 (ROW_HEIGHTS in useDensity.ts와 같아야 한다) */
+:root[data-density="compact"] {
+  --mail-row-height: 40px;
+}

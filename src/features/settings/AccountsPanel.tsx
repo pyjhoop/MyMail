@@ -1,4 +1,4 @@
-import { useState, type DragEvent, type KeyboardEvent } from "react";
+import { useEffect, useState, type DragEvent, type KeyboardEvent } from "react";
 import { ChevronDown, ChevronUp, GripVertical, Plus } from "lucide-react";
 import {
   removeAccount,
@@ -10,7 +10,9 @@ import {
   updateAccount,
   type Account,
   type NotifyScope,
+  type SyncProgress,
 } from "../../lib/ipc";
+import { syncStatus, type SyncStatus } from "../../lib/syncStatus";
 import styles from "./AccountsPanel.module.css";
 
 const COLOR_NAMES = ["파랑", "초록", "주황", "보라", "분홍", "청록", "황토", "빨강"];
@@ -23,6 +25,10 @@ const NOTIFY_SCOPES: [NotifyScope, string][] = [
 
 export interface AccountsPanelProps {
   accounts: Account[];
+  /** 계정별 마지막 동기화 진행 알림 */
+  syncs: Record<string, SyncProgress>;
+  /** 계정별 마지막 성공 시각(ms) */
+  syncedAt: Record<string, number>;
   onAccountPatch: (accountId: string, patch: Partial<Account>) => void;
   onAccountsReorder: (ids: string[]) => void;
   onAccountRemoved: (accountId: string) => void;
@@ -38,8 +44,20 @@ function moveId(ids: string[], fromId: string, index: number): string[] {
   return next;
 }
 
+/** 상태 문구의 "N분 전"을 갱신하기 위한 현재 시각(ms). 30초마다 바뀐다. */
+function useNow(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return now;
+}
+
 export function AccountsPanel({
   accounts,
+  syncs,
+  syncedAt,
   onAccountPatch,
   onAccountsReorder,
   onAccountRemoved,
@@ -85,6 +103,8 @@ export function AccountsPanel({
     void reorder(moveId(ids, id, to));
   };
 
+  const now = useNow();
+
   return (
     <div className={styles.panel}>
       <div className={styles.top}>
@@ -109,6 +129,7 @@ export function AccountsPanel({
             {dropIndex === index && dragId !== account.id && <DropMark />}
             <AccountCard
               account={account}
+              status={syncStatus(syncs[account.id], syncedAt[account.id], now)}
               open={openId === account.id}
               dragging={dragId === account.id}
               onToggle={() => setOpenId(openId === account.id ? undefined : account.id)}
@@ -137,6 +158,7 @@ function DropMark() {
 
 interface CardProps {
   account: Account;
+  status: SyncStatus;
   open: boolean;
   dragging: boolean;
   onToggle: () => void;
@@ -149,6 +171,7 @@ interface CardProps {
 
 function AccountCard({
   account,
+  status,
   open,
   dragging,
   onToggle,
@@ -271,6 +294,10 @@ function AccountCard({
             <span className={styles.email}>
               {account.email} · {account.provider === "gmail" ? "Gmail" : "네이버"}
             </span>
+          </span>
+          <span className={`${styles.status} ${styles[`status_${status.tone}`]}`} role="status">
+            <span className={styles.statusDot} aria-hidden />
+            {status.text}
           </span>
           {open ? (
             <ChevronUp size={16} strokeWidth={1.75} aria-hidden className={styles.chevron} />

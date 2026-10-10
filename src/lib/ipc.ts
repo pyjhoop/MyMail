@@ -331,6 +331,8 @@ export interface SyncProgress {
   total: number;
   /** 중간에 실패했을 때의 안내. 이미 받은 메일은 남아 있다. */
   error: string | null;
+  /** 오류 종류: 인증 / 오프라인·연결 / 기타. 오류가 없으면 null */
+  errorKind?: "auth" | "network" | "other" | null;
 }
 
 /** 진행 상황을 구독한다. 브라우저(pnpm dev)·테스트에서는 아무 일도 하지 않는다. 반환값은 구독 해제 함수. */
@@ -503,6 +505,13 @@ export function reorderAccounts(ids: string[]): Promise<void> {
 /** 계정과 저장된 메일·비밀번호를 지운다(서버의 메일은 그대로) */
 export function removeAccount(accountId: string): Promise<void> {
   return call("remove_account", { accountId });
+}
+
+export type ResetScope = "cache" | "all";
+
+/** 저장한 데이터를 지운다. cache: 메일 캐시만, all: 계정·비밀번호·설정까지(서버의 메일은 그대로) */
+export function resetData(scope: ResetScope): Promise<void> {
+  return call("reset_data", { scope });
 }
 
 /** Windows 시작 시 실행 여부 */

@@ -473,6 +473,28 @@ pub async fn remove_account(
     Ok(())
 }
 
+/// 저장한 데이터를 지운다. 동기화를 먼저 멈추고, 계정이 남는 경우(캐시 범위·실패)에는 다시 시작한다.
+/// 서버의 메일은 건드리지 않는다.
+#[tauri::command]
+pub async fn reset_data(
+    app: AppHandle,
+    store: State<'_, Store>,
+    credentials: State<'_, Arc<dyn CredentialStore>>,
+    scope: crate::reset::ResetScope,
+) -> CommandResult<()> {
+    let manager = app.state::<SyncManager>();
+    manager.stop_all();
+    let result = crate::reset::apply(&store, &**credentials, scope);
+    if result.is_err() || scope == crate::reset::ResetScope::Cache {
+        manager.start_all(&app);
+    }
+    crate::tray::refresh(&app);
+    result.map_err(|e| match e {
+        crate::reset::ResetError::Store(e) => e.into(),
+        other => invalid(&other.to_string()),
+    })
+}
+
 /// 같은 계정의 다른 폴더로 옮긴다.
 #[tauri::command]
 pub async fn move_mail(
