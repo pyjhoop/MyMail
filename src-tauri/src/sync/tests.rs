@@ -768,3 +768,66 @@ async fn 푸시를_못_쓰는_서버는_unsupported로_알려_준다() {
         .unwrap_err();
     assert!(matches!(err, ProviderError::Unsupported(_)));
 }
+
+#[tokio::test]
+async fn 휴지통과_스팸함은_한_번의_조작으로_비워진다() {
+    for kind in ["trash", "spam"] {
+        let (store, fake) = added(5).await;
+        sync_all(&store, &fake).await;
+        let folder_id = format!("n1-{kind}");
+        assert!(!store.list_mails(Some("n1"), &folder_id).unwrap().is_empty());
+
+        actions::empty_folder(&store, "n1", &folder_id).unwrap();
+        // 로컬은 바로 비고 서버 조작은 한 건만 쌓인다.
+        assert!(store.list_mails(Some("n1"), &folder_id).unwrap().is_empty());
+        assert_eq!(store.pending_ops("n1").unwrap().len(), 1);
+
+        flush_pending(&store, &fake, "n1").await.unwrap();
+        assert_eq!(
+            fake.ops()
+                .iter()
+                .filter(|o| o.starts_with("empty:"))
+                .count(),
+            1
+        );
+        sync_all(&store, &fake).await;
+        assert!(store.list_mails(Some("n1"), &folder_id).unwrap().is_empty());
+    }
+}
+
+#[tokio::test]
+async fn 휴지통과_스팸이_아닌_폴더는_비우기를_거절한다() {
+    let (store, fake) = added(5).await;
+    sync_all(&store, &fake).await;
+    let before = inbox_count(&store);
+
+    for folder_id in ["n1-inbox", "n1-sent", "n1-drafts", "n1-l-family"] {
+        let err = actions::empty_folder(&store, "n1", folder_id).unwrap_err();
+        assert!(matches!(err, SyncError::NotEmptiable), "{folder_id}");
+    }
+    let err = actions::empty_folder(&store, "n1", "n1-없는폴더").unwrap_err();
+    assert!(matches!(err, SyncError::FolderNotFound));
+    // 다른 계정의 폴더 id로는 비울 수 없다.
+    let err = actions::empty_folder(&store, "n2", "n1-trash").unwrap_err();
+    assert!(matches!(err, SyncError::FolderNotFound));
+
+    assert_eq!(inbox_count(&store), before);
+    assert!(store.pending_ops("n1").unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn 오프라인에서_비운_폴더는_큐에_남았다가_연결되면_지워진다() {
+    let (store, fake) = added(5).await;
+    sync_all(&store, &fake).await;
+    fake.set_offline(true);
+
+    actions::empty_folder(&store, "n1", "n1-trash").unwrap();
+    assert!(flush_pending(&store, &fake, "n1").await.is_err());
+    assert_eq!(store.pending_ops("n1").unwrap().len(), 1);
+
+    fake.set_offline(false);
+    sync_all(&store, &fake).await;
+    assert!(store.pending_ops("n1").unwrap().is_empty());
+    assert!(fake.ops().iter().any(|o| o == "empty:trash"));
+    assert!(store.list_mails(Some("n1"), "n1-trash").unwrap().is_empty());
+}

@@ -386,6 +386,24 @@ impl ImapProvider {
         self.with_folder(folder_key, |s| expunge_uid(s, &uid))
     }
 
+    /// 폴더의 모든 메일에 `\Deleted`를 달고 한 번에 `EXPUNGE`한다. Gmail도 휴지통·스팸에서는 이것이 영구 삭제다.
+    fn empty_blocking(&self, folder_key: &str) -> Result<(), ProviderError> {
+        let mut session = self.connect()?;
+        let result = (|| {
+            let mailbox = session.select(folder_key).map_err(map_op_error)?;
+            // 빈 폴더에 "1:*"를 보내면 거절하는 서버가 있다.
+            if mailbox.exists == 0 {
+                return Ok(());
+            }
+            session
+                .store("1:*", "+FLAGS.SILENT (\\Deleted)")
+                .map_err(map_op_error)?;
+            session.expunge().map(|_| ()).map_err(map_op_error)
+        })();
+        let _ = session.logout();
+        result
+    }
+
     /// 연결 하나로 여러 폴더의 STATUS를 조회한다. 폴더 하나가 실패해도 나머지는 계속한다.
     fn statuses_blocking(
         &self,
@@ -616,6 +634,11 @@ impl MailProvider for ImapProvider {
         let (key, id) = (folder_key.to_string(), remote_id.to_string());
         self.blocking(move |this| this.delete_blocking(&key, &id))
             .await
+    }
+
+    async fn empty_folder(&self, folder_key: &str) -> Result<(), ProviderError> {
+        let key = folder_key.to_string();
+        self.blocking(move |this| this.empty_blocking(&key)).await
     }
 
     async fn folder_statuses(

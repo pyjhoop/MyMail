@@ -9,6 +9,7 @@ import { Composer, type ComposeInit, type ComposeResult } from "./features/compo
 import { startDraft, type ComposeMode } from "./features/compose/compose";
 import { Settings } from "./features/settings/Settings";
 import { FolderPane } from "./features/folders/FolderPane";
+import { EmptyFolderBar } from "./features/mail/EmptyFolderBar";
 import { MailList, type ListStatus } from "./features/mail/MailList";
 import { Reader, type ReaderActions } from "./features/mail/Reader";
 import { useMailSort } from "./features/mail/sort";
@@ -347,6 +348,13 @@ function App() {
 
   // 휴지통 안의 메일은 지우면 되돌릴 수 없어 확인을 받는다. 통합 보기는 받은편지함뿐이라 해당 없음.
   const inTrash = selection !== "all" && folders.find((f) => f.id === folderId)?.kind === "trash";
+
+  // "비우기" 줄은 한 계정의 휴지통·스팸함에서만 둔다(통합 보기에는 폴더가 없다).
+  const currentFolder = selection === "all" ? undefined : folders.find((f) => f.id === folderId);
+  const emptiable =
+    currentFolder && (currentFolder.kind === "trash" || currentFolder.kind === "spam")
+      ? currentFolder
+      : undefined;
 
   // 지우거나 옮기는 메일 `exclude` 말고 열 메일: 아래쪽 이웃을 먼저, 없으면 위쪽. 작성 중 메일은 건너뛴다.
   const neighbor = (exclude: string[]): MailSummary | undefined => {
@@ -736,6 +744,21 @@ function App() {
               onDelete={() => requestDelete([...checked])}
               deleting={deleting}
               notice={notice}
+              topBar={
+                emptiable && !term ? (
+                  <EmptyFolderBar
+                    accountId={emptiable.accountId}
+                    folderId={emptiable.id}
+                    kind={emptiable.kind}
+                    count={mails.length}
+                    onDone={() => {
+                      setReloadKey((k) => k + 1);
+                      refreshCounts();
+                    }}
+                    onError={setNotice}
+                  />
+                ) : undefined
+              }
               searching={term !== ""}
               onRefresh={refresh}
               refreshing={refreshing}

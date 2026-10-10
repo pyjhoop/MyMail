@@ -23,6 +23,8 @@ pub enum SyncError {
     NoTrash,
     #[error("옮길 폴더를 찾을 수 없어요")]
     FolderNotFound,
+    #[error("휴지통과 스팸함만 비울 수 있어요")]
+    NotEmptiable,
     #[error("이미 보관된 메일이에요")]
     AlreadyArchived,
     #[error("이 계정에서는 보관 폴더를 만들 수 없어요. 서비스 설정을 확인해 주세요.")]
@@ -133,6 +135,7 @@ pub async fn flush_pending(
                     .await
             }
             OpKind::Delete => provider.delete_message(&op.folder_key, &op.remote_id).await,
+            OpKind::EmptyFolder => provider.empty_folder(&op.folder_key).await,
         };
         match result {
             Ok(()) => {

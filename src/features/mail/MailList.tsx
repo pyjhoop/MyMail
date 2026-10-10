@@ -1,6 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowUpDown, Check, Paperclip, RefreshCw, Star, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import {
   AuthErrorState,
   EmptyFolder,
@@ -33,6 +33,8 @@ interface Props {
   deleting?: boolean;
   /** 삭제 결과 등 목록 위에 보여줄 안내 */
   notice?: string;
+  /** 목록 위에 끼워 넣는 줄(휴지통 비우기 등) */
+  topBar?: ReactNode;
   /** 검색 결과를 보여 주는 중이면 빈 목록 문구가 달라진다 */
   searching?: boolean;
   /** 새로고침 = 서버 동기화. 오류 화면의 "다시 시도"도 같은 함수를 부른다 */
@@ -69,6 +71,7 @@ export function MailList({
   onDelete,
   deleting = false,
   notice,
+  topBar,
   searching = false,
   onRefresh,
   refreshing = false,
@@ -247,6 +250,8 @@ export function MailList({
           </button>
         ))}
       </div>
+
+      {topBar}
 
       {notice && (
         <div className={styles.notice} role="alert">

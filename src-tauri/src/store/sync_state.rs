@@ -23,6 +23,8 @@ pub enum OpKind {
     Flagged,
     Move,
     Delete,
+    /// 폴더의 모든 메일을 완전히 지운다(휴지통·스팸함 비우기). `remote_id`는 비어 있다.
+    EmptyFolder,
 }
 
 impl OpKind {
@@ -32,6 +34,7 @@ impl OpKind {
             Self::Flagged => "flagged",
             Self::Move => "move",
             Self::Delete => "delete",
+            Self::EmptyFolder => "empty_folder",
         }
     }
 
@@ -41,6 +44,7 @@ impl OpKind {
             "flagged" => Self::Flagged,
             "move" => Self::Move,
             "delete" => Self::Delete,
+            "empty_folder" => Self::EmptyFolder,
             _ => return None,
         })
     }
