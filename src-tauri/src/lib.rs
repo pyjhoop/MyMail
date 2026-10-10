@@ -68,6 +68,7 @@ pub fn run() {
             commands::list_mails,
             commands::search::search_mails,
             commands::search::suggest_senders,
+            commands::search::search_scope_counts,
             commands::get_mail,
             commands::add_account,
             commands::set_read,

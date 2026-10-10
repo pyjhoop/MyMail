@@ -1,0 +1,22 @@
+.dotWrap {
+  display: flex;
+  justify-content: center;
+  width: var(--icon-size);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+}
+
+.section {
+  padding: var(--space-1) var(--space-2) 6px;
+}
+
+.note {
+  margin: var(--space-4) var(--space-2) 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  color: var(--color-text-tertiary);
+}

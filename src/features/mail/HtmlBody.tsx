@@ -24,18 +24,25 @@ const getTheme = () => document.documentElement.dataset.theme ?? "";
 interface Props {
   /** 정제 전 원문 HTML */
   html: string;
+  /** 본문에서 강조할 검색어 */
+  highlight?: readonly string[];
 }
 
 /**
  * HTML 메일 본문. 샌드박스 iframe(스크립트 불가) 안에 DOMPurify로 정제한 HTML을 넣고,
  * CSP로 외부 이미지를 막는다. 메일을 바꿀 때는 `key`로 다시 마운트해 "이미지 표시"를 초기화한다.
  */
-export function HtmlBody({ html }: Props) {
+export function HtmlBody({ html, highlight }: Props) {
   const [showImages, setShowImages] = useState(false);
   const frame = useRef<HTMLIFrameElement>(null);
   const theme = useSyncExternalStore(subscribeTheme, getTheme);
 
-  const prepared = useMemo(() => prepareMailHtml(html, showImages), [html, showImages]);
+  // 배열 모양이 매번 바뀌어도 내용이 같으면 다시 정제하지 않는다.
+  const terms = highlight?.join("\u0000") ?? "";
+  const prepared = useMemo(
+    () => prepareMailHtml(html, showImages, terms ? terms.split("\u0000") : []),
+    [html, showImages, terms],
+  );
   const srcDoc = useMemo(
     () => buildMailDocument(prepared.html, { showImages, colors: readPaperColors() }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- theme가 바뀌면 색을 다시 읽는다

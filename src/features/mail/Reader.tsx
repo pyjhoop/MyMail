@@ -14,7 +14,10 @@ import { labelColorVar } from "../../lib/labels";
 import { AttachmentList } from "./AttachmentList";
 import { HtmlBody } from "./HtmlBody";
 import { MoreMenu, type MoreMenuProps } from "./MoreMenu";
+import { Highlight } from "../search/Highlight";
 import styles from "./Reader.module.css";
+
+const NO_TERMS: readonly string[] = [];
 
 /** 도구 모음의 보관·삭제·더보기. 동작은 App이 정하고 Reader는 버튼만 그린다. */
 export interface ReaderActions {
@@ -34,9 +37,26 @@ interface Props {
   onNext: () => void;
   onCompose: (mode: "reply" | "replyAll" | "forward") => void;
   actions?: ReaderActions;
+  /** 검색 결과에서 연 메일이면: 본문에서 강조할 단어, 검색어 칩, 계정·폴더 표시 */
+  search?: {
+    terms: readonly string[];
+    query: string;
+    /** 계정 색(CSS 값)과 "개인 Gmail · 받은편지함" 같은 위치 */
+    place?: { color: string; label: string };
+  };
 }
 
-export function Reader({ mail, loading, position, onPrev, onNext, onCompose, actions }: Props) {
+export function Reader({
+  mail,
+  loading,
+  position,
+  onPrev,
+  onNext,
+  onCompose,
+  actions,
+  search,
+}: Props) {
+  const terms = search?.terms ?? NO_TERMS;
   const ready = !!mail && !!actions;
   return (
     <main className={styles.reader}>
@@ -124,8 +144,26 @@ export function Reader({ mail, loading, position, onPrev, onNext, onCompose, act
       {!loading && mail && (
         <div className={styles.scroll}>
           <article className={`${styles.article} ${mail.html ? styles.wide : ""}`}>
+            {search && (
+              <div className={styles.context}>
+                {search.place && (
+                  <>
+                    <span
+                      className={styles.contextDot}
+                      style={{ background: search.place.color }}
+                    />
+                    <span>{search.place.label}</span>
+                  </>
+                )}
+                <span className={styles.searchChip} title="검색어">
+                  ‘{search.query}’
+                </span>
+              </div>
+            )}
             <div className={styles.titleRow}>
-              <h1>{mail.subject}</h1>
+              <h1>
+                <Highlight text={mail.subject} terms={terms} />
+              </h1>
               {mail.starred && (
                 <Star
                   className={styles.star}
@@ -168,11 +206,13 @@ export function Reader({ mail, loading, position, onPrev, onNext, onCompose, act
             </div>
 
             {mail.html ? (
-              <HtmlBody key={mail.id} html={mail.html} />
+              <HtmlBody key={mail.id} html={mail.html} highlight={terms} />
             ) : (
               <div className={styles.content}>
                 {mail.body.map((p) => (
-                  <p key={p}>{p}</p>
+                  <p key={p}>
+                    <Highlight text={p} terms={terms} />
+                  </p>
                 ))}
               </div>
             )}

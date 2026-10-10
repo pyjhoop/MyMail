@@ -84,9 +84,9 @@ function backend() {
   vi.mocked(listFolders).mockImplementation(async (accountId) =>
     accountId === "a1" ? FOLDERS : [],
   );
-  vi.mocked(listMails).mockImplementation(async (_account, folderId) => [
-    ...(boxes[folderId] ?? []),
-  ]);
+  vi.mocked(listMails).mockImplementation(async (_account, folderId) => ({
+    mails: [...(boxes[folderId] ?? [])],
+  }));
   vi.mocked(getMail).mockImplementation(async (id) => {
     const m = all().find((x) => x.id === id);
     return m

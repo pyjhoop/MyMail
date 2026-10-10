@@ -10,7 +10,9 @@ import { startDraft, type ComposeMode } from "./features/compose/compose";
 import { Settings } from "./features/settings/Settings";
 import { FolderPane } from "./features/folders/FolderPane";
 import { EmptyFolderBar } from "./features/mail/EmptyFolderBar";
-import { highlightTerms, isTooShortToSearch } from "./features/search/query";
+import { hasIncompleteOperator, highlightTerms, isTooShortToSearch } from "./features/search/query";
+import { SearchFilters, OlderNote } from "./features/search/SearchFilters";
+import { SearchScope } from "./features/search/SearchScope";
 import { MailList, type ListStatus } from "./features/mail/MailList";
 import { Reader, type ReaderActions } from "./features/mail/Reader";
 import { useMailSort } from "./features/mail/sort";
@@ -37,6 +39,7 @@ import {
   onTrayCompose,
   onWindowFocus,
   searchMailsPage,
+  searchScopeCounts,
   setRead,
   setStarred,
   syncNow,
@@ -46,10 +49,14 @@ import {
   type LoadError,
   type MailDetail,
   type MailSummary,
+  type ScopeCount,
   type SearchPage,
   type SyncProgress,
 } from "./lib/ipc";
 import styles from "./App.module.css";
+
+/** 목록·검색 한 페이지의 부가 정보. 전체 건수와 기간 밖 건수는 검색에만 있다. */
+type PageInfo = Partial<Omit<SearchPage, "mails">>;
 
 const EMPTY_MAILS: MailSummary[] = [];
 const EMPTY_FOLDERS: Folder[] = [];
@@ -110,9 +117,13 @@ function App() {
     scope: string;
     mails: MailSummary[];
     error?: LoadError;
-    /** 검색 결과일 때 전체 건수와 다음 페이지 커서 */
-    page?: Omit<SearchPage, "mails">;
+    /** 다음 페이지 커서. 검색 결과면 전체 건수·기간 밖 건수도 있다 */
+    page?: PageInfo;
   } | null>(null);
+  // 검색어별 계정별 일치 건수 (검색 범위 패널)
+  const [scopeCounts, setScopeCounts] = useState<{ term: string; counts: ScopeCount[] } | null>(
+    null,
+  );
   const [detailResult, setDetailResult] = useState<{ key: string; mail: MailDetail | null } | null>(
     null,
   );
@@ -154,15 +165,19 @@ function App() {
   );
   const error = mailsReady ? mailsResult.error : undefined;
 
-  const searchPage = mailsReady ? mailsResult.page : undefined;
-  const nextCursor = searchPage?.nextCursor;
-  // 목록 끝에 닿으면 검색 결과의 다음 페이지를 이어 붙인다.
+  const searchPage = mailsReady && term ? mailsResult.page : undefined;
+  const nextCursor = mailsReady ? mailsResult.page?.nextCursor : undefined;
+  // 목록 끝에 닿으면 다음 페이지(검색 결과든 폴더 목록이든)를 이어 붙인다.
   const loadMore = () => {
-    if (!term || !nextCursor || loadingMore.current) return;
+    if (!nextCursor || loadingMore.current) return;
     loadingMore.current = true;
     const generation = searchGeneration.current;
     const scope = mailsScope;
-    searchMailsPage(selection === "all" ? null : selection, term, sort, nextCursor)
+    const accountArg = selection === "all" ? null : selection;
+    (term
+      ? searchMailsPage(accountArg, term, sort, nextCursor)
+      : listMails(accountArg, folderId, sort, nextCursor)
+    )
       .then((next) => {
         if (generation !== searchGeneration.current) return;
         setMailsResult((prev) => {
@@ -232,12 +247,34 @@ function App() {
 
   useEffect(() => {
     // 한 글자는 결과가 너무 넓어 자동으로 찾지 않는다(Enter로 직접 찾을 수는 있다).
-    const timer = setTimeout(
-      () => setTerm(isTooShortToSearch(search) ? "" : search.trim()),
-      SEARCH_DELAY_MS,
-    );
+    // `from:`처럼 연산자만 쓴 상태도 기다린다(값을 쓰는 중이다).
+    const timer = setTimeout(() => {
+      if (hasIncompleteOperator(search)) return;
+      setTerm(isTooShortToSearch(search) ? "" : search.trim());
+    }, SEARCH_DELAY_MS);
     return () => clearTimeout(timer);
   }, [search]);
+
+  // 검색 범위 패널의 계정별 건수. 검색어가 바뀌거나 동기화로 메일이 늘면 다시 센다.
+  useEffect(() => {
+    if (!term) return;
+    let cancelled = false;
+    searchScopeCounts(term)
+      .then((counts) => {
+        if (!cancelled) setScopeCounts({ term, counts });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [term, reloadKey]);
+  const counts = scopeCounts?.term === term ? scopeCounts.counts : undefined;
+
+  /** 칩이 고친 검색식을 기다리지 않고 바로 적용한다. 비면 평소 목록으로 돌아간다. */
+  const applySearch = (next: string) => {
+    setSearch(next);
+    setTerm(next.trim());
+  };
 
   useEffect(() => {
     if (folderPending && !term) return;
@@ -245,12 +282,15 @@ function App() {
     const accountArg = selection === "all" ? null : selection;
     searchGeneration.current += 1;
     loadingMore.current = false;
-    const request: Promise<{ mails: MailSummary[]; page?: Omit<SearchPage, "mails"> }> = term
+    const request: Promise<{ mails: MailSummary[]; page?: PageInfo }> = term
       ? searchMailsPage(accountArg, term, sort).then(({ mails: found, ...page }) => ({
           mails: found,
           page,
         }))
-      : listMails(accountArg, folderId, sort).then((found) => ({ mails: found }));
+      : listMails(accountArg, folderId, sort).then(({ mails: found, nextCursor: next }) => ({
+          mails: found,
+          page: { nextCursor: next },
+        }));
     request
       .then((result) => {
         if (!cancelled) setMailsResult({ scope: mailsScope, ...result });
@@ -702,14 +742,32 @@ function App() {
 
   const title = useMemo(() => {
     if (term) {
-      const count = searchPage
-        ? ` · ${searchPage.total.toLocaleString("ko-KR")}${searchPage.totalCapped ? "+" : ""}개`
-        : "";
+      const count =
+        searchPage?.total !== undefined
+          ? ` · ${searchPage.total.toLocaleString("ko-KR")}${searchPage.totalCapped ? "+" : ""}개`
+          : "";
       return `‘${term}’ 검색 결과${count}`;
     }
     if (selection === "all") return "통합 받은편지함";
     return folders.find((f) => f.id === folderId)?.name ?? "받은편지함";
   }, [term, searchPage, selection, folders, folderId]);
+
+  // 검색 결과에서 연 메일: 본문 강조·검색어 칩·"계정 · 폴더" 표시
+  const readerSearch = useMemo(() => {
+    if (!term || !detail) return undefined;
+    const owner = accounts.find((a) => a.id === detail.accountId);
+    const folderName = readerFolders.find((f) => f.id === detail.folderId)?.name;
+    return {
+      terms: searchTerms,
+      query: searchTerms.length > 0 ? searchTerms.join(" ") : term,
+      place: owner
+        ? {
+            color: `var(--account-${owner.colorIndex})`,
+            label: folderName ? `${owner.name} · ${folderName}` : owner.name,
+          }
+        : undefined,
+    };
+  }, [term, detail, accounts, readerFolders, searchTerms]);
 
   const running = Object.values(syncs).filter((s) => s.error === null && s.done < s.total);
   const failed = Object.values(syncs).find((s) => s.error !== null);
@@ -784,15 +842,25 @@ function App() {
             onOpenSettings={() => setSettingsOpen(true)}
           />
           <div ref={folderPaneRef} className={styles.pane}>
-            <FolderPane
-              account={account}
-              accounts={accounts}
-              folders={folders}
-              selectedId={folderId}
-              collapsed={widths.folderCollapsed}
-              onSelect={selectFolder}
-              onCompose={() => startCompose("new")}
-            />
+            {term ? (
+              <SearchScope
+                accounts={accounts}
+                counts={counts}
+                selectedId={selection === "all" ? null : selection}
+                collapsed={widths.folderCollapsed}
+                onSelect={(id) => selectAccount(id ?? "all")}
+              />
+            ) : (
+              <FolderPane
+                account={account}
+                accounts={accounts}
+                folders={folders}
+                selectedId={folderId}
+                collapsed={widths.folderCollapsed}
+                onSelect={selectFolder}
+                onCompose={() => startCompose("new")}
+              />
+            )}
           </div>
           <ResizeHandle
             label="폴더 패널 너비 조절"
@@ -832,6 +900,30 @@ function App() {
                   />
                 ) : undefined
               }
+              filterBar={
+                term ? (
+                  <SearchFilters
+                    query={term}
+                    onQueryChange={applySearch}
+                    onRequestSender={() => {
+                      setSearch(`${term} from:`);
+                      searchInputRef.current?.focus();
+                    }}
+                    accounts={accounts}
+                    scopeAccountId={selection === "all" ? null : selection}
+                    onScopeChange={(id) => selectAccount(id ?? "all")}
+                  />
+                ) : undefined
+              }
+              footer={
+                term ? (
+                  <OlderNote
+                    query={term}
+                    olderCount={searchPage?.olderCount}
+                    onQueryChange={applySearch}
+                  />
+                ) : undefined
+              }
               searching={term !== ""}
               highlight={searchTerms}
               onEndReached={loadMore}
@@ -859,6 +951,7 @@ function App() {
             onNext={() => move(1)}
             onCompose={startCompose}
             actions={readerActions}
+            search={readerSearch}
           />
         </div>
       )}

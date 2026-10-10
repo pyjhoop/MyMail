@@ -90,11 +90,12 @@ describe("휴지통에서 삭제", () => {
       ...FAKE_FOLDERS.filter((f) => f.accountId === accountId),
       ...(accountId === "a1" ? [trash] : []),
     ]);
-    vi.mocked(listMails).mockImplementation(async (_accountId, folderId) =>
-      folderId === "a1-trash"
-        ? [{ ...FAKE_MAILS[0], id: "a1-trash-0", folderId: "a1-trash", time: "오전 9:00" }]
-        : [],
-    );
+    vi.mocked(listMails).mockImplementation(async (_accountId, folderId) => ({
+      mails:
+        folderId === "a1-trash"
+          ? [{ ...FAKE_MAILS[0], id: "a1-trash-0", folderId: "a1-trash", time: "오전 9:00" }]
+          : [],
+    }));
   });
 
   afterEach(async () => {

@@ -104,6 +104,33 @@
   color: var(--color-text-secondary);
 }
 
+.context {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+}
+
+.contextDot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+}
+
+.searchChip {
+  max-width: 200px;
+  overflow: hidden;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-control);
+  background: var(--color-accent-subtle);
+  color: var(--color-accent-text);
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .chipDot {
   width: 6px;
   height: 6px;

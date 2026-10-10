@@ -206,10 +206,10 @@ pub struct SearchRequest<'a> {
 
 /// SQL과 바인딩 값을 쌓는 도구. `?N` 번호를 자동으로 매긴다.
 #[derive(Default)]
-struct Binds(Vec<Value>);
+pub(super) struct Binds(pub(super) Vec<Value>);
 
 impl Binds {
-    fn push(&mut self, v: impl Into<Value>) -> String {
+    pub(super) fn push(&mut self, v: impl Into<Value>) -> String {
         self.0.push(v.into());
         format!("?{}", self.0.len())
     }
@@ -229,7 +229,7 @@ pub enum Strategy {
 }
 
 /// `Ordered`가 걷는 인덱스(0008 마이그레이션). 정렬 5종마다 하나씩이다.
-fn order_index(sort: MailSort) -> &'static str {
+pub(super) fn order_index(sort: MailSort) -> &'static str {
     match sort {
         MailSort::Newest => "idx_messages_received",
         MailSort::Oldest => "idx_messages_received_asc",
@@ -317,7 +317,7 @@ fn base_clause(
 }
 
 /// 커서: `받은시각 \x1f id \x1f 정렬 키`. 마지막 행의 값으로 만든다.
-fn encode_cursor(sort: MailSort, m: &MailSummary) -> String {
+pub(super) fn encode_cursor(sort: MailSort, m: &MailSummary) -> String {
     let key = match sort {
         MailSort::Sender => m.sender.clone(),
         MailSort::Subject => m.subject.clone(),
@@ -328,7 +328,7 @@ fn encode_cursor(sort: MailSort, m: &MailSummary) -> String {
 }
 
 /// 커서 뒤의 행만 고르는 조건. 정렬(`MailSort::order_by`)과 같은 순서를 따른다.
-fn keyset_clause(sort: MailSort, cursor: &str, binds: &mut Binds) -> Option<String> {
+pub(super) fn keyset_clause(sort: MailSort, cursor: &str, binds: &mut Binds) -> Option<String> {
     let mut it = cursor.splitn(3, '\x1f');
     let received: i64 = it.next()?.parse().ok()?;
     let id = it.next()?.to_owned();
@@ -381,12 +381,12 @@ pub(super) fn page_sql(
     let outer_order = order.replace("m.", "p.");
     let sql = format!(
         "SELECT p.id, p.account_id, p.folder_id, p.sender, p.sender_email, p.subject, p.preview,
-                p.received_at, p.unread, p.starred, p.has_attachment, p.label_name, p.label_color,
+                p.received_at, p.unread, p.starred, p.has_attachment, p.labels, p.label_name,
                 CASE WHEN p.thread_id IS NULL THEN 0
                      ELSE (SELECT COUNT(*) FROM messages t WHERE t.thread_id = p.thread_id) END
          FROM (SELECT m.id, m.account_id, m.folder_id, m.sender, m.sender_email, m.subject,
                       m.preview, m.received_at, m.unread, m.starred, m.has_attachment,
-                      m.label_name, m.label_color, m.thread_id
+                      m.labels, m.label_name, m.thread_id
                FROM {from} WHERE {wheres} ORDER BY {order} LIMIT {limit}) AS p
          ORDER BY {outer_order}"
     );
@@ -419,6 +419,42 @@ fn count_sql(
         format!("SELECT COUNT(*) FROM (SELECT 1 FROM {from} WHERE {wheres} LIMIT {cap})"),
         binds.0,
     )
+}
+
+/// 검색어에 일치하는 글이 아주 많으면(필터 전 기준, 상한 초과) 정렬 인덱스를 걷는 방식으로 간다.
+fn pick_strategy(
+    conn: &rusqlite::Connection,
+    query: &ParsedQuery,
+    sort: MailSort,
+    force: Option<Strategy>,
+) -> Result<Strategy, StoreError> {
+    Ok(match (force, query.fts_expression()) {
+        (Some(forced), _) => forced,
+        (None, Some(expr)) => {
+            let probe: u32 = conn
+                .prepare_cached(
+                    "SELECT COUNT(*) FROM (SELECT rowid FROM messages_fts
+                     WHERE messages_fts MATCH ?1 LIMIT ?2)",
+                )?
+                .query_row(params![expr, COUNT_CAP + 1], |r| r.get(0))?;
+            if probe > COUNT_CAP {
+                Strategy::Ordered(sort)
+            } else {
+                Strategy::Match
+            }
+        }
+        (None, None) => Strategy::Match,
+    })
+}
+
+/// 계정별 일치 건수(검색 범위 패널).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScopeCount {
+    pub account_id: String,
+    /// 상한 `COUNT_CAP`
+    pub count: u32,
+    pub capped: bool,
 }
 
 /// 보낸사람 추천 한 줄.
@@ -454,24 +490,7 @@ impl Store {
             return Ok(empty);
         }
         let conn = self.read_lock()?;
-        // 검색어에 일치하는 글이 아주 많으면(필터 전 기준, 상한 초과) 정렬 인덱스를 걷는 방식으로 간다.
-        let strategy = match (force, req.query.fts_expression()) {
-            (Some(forced), _) => forced,
-            (None, Some(expr)) => {
-                let probe: u32 = conn
-                    .prepare_cached(
-                        "SELECT COUNT(*) FROM (SELECT rowid FROM messages_fts
-                     WHERE messages_fts MATCH ?1 LIMIT ?2)",
-                    )?
-                    .query_row(params![expr, COUNT_CAP + 1], |r| r.get(0))?;
-                if probe > COUNT_CAP {
-                    Strategy::Ordered(req.sort)
-                } else {
-                    Strategy::Match
-                }
-            }
-            (None, None) => Strategy::Match,
-        };
+        let strategy = pick_strategy(&conn, req.query, req.sort, force)?;
         // 건수는 순서가 필요 없지만 같은 방식으로 세야 일치가 많을 때 상한에서 멈춘다.
         let count_strategy = match strategy {
             Strategy::Ordered(_) => Strategy::Ordered(MailSort::Newest),
@@ -549,6 +568,42 @@ impl Store {
         query: &str,
     ) -> Result<Vec<MailSummary>, StoreError> {
         self.search_mails_sorted(account_id, query, MailSort::default())
+    }
+
+    /// 계정마다 일치하는 메일 수. 계정 범위를 뺀 같은 조건(스팸·휴지통 제외)으로 센다.
+    pub fn search_scope_counts(&self, query: &ParsedQuery) -> Result<Vec<ScopeCount>, StoreError> {
+        let conn = self.read_lock()?;
+        let ids: Vec<String> = conn
+            .prepare_cached("SELECT id FROM accounts ORDER BY position")?
+            .query_map([], |r| r.get(0))?
+            .collect::<Result<_, _>>()?;
+        if query.is_empty() {
+            return Ok(ids
+                .into_iter()
+                .map(|account_id| ScopeCount {
+                    account_id,
+                    count: 0,
+                    capped: false,
+                })
+                .collect());
+        }
+        let strategy = match pick_strategy(&conn, query, MailSort::Newest, None)? {
+            Strategy::Ordered(_) => Strategy::Ordered(MailSort::Newest),
+            Strategy::Match => Strategy::Match,
+        };
+        let mut out = Vec::with_capacity(ids.len());
+        for account_id in ids {
+            let (sql, binds) = count_sql(query, Some(&account_id), false, strategy);
+            let n: u32 = conn
+                .prepare_cached(&sql)?
+                .query_row(params_from_iter(binds), |r| r.get(0))?;
+            out.push(ScopeCount {
+                account_id,
+                count: n.min(COUNT_CAP),
+                capped: n > COUNT_CAP,
+            });
+        }
+        Ok(out)
     }
 
     /// 보낸사람 추천. `prefix`가 비면 메일이 많은 순. 내 주소는 뺀다.

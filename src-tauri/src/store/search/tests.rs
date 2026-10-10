@@ -443,3 +443,37 @@ fn 인덱스_순서_방식도_같은_결과를_낸다() {
         }
     }
 }
+
+#[test]
+fn 계정별_건수는_스팸_휴지통을_빼고_센다() {
+    let store = store_with_mail();
+    fill(&store);
+    let counts = store.search_scope_counts(&parse("항공권")).unwrap();
+    let by = |id: &str| counts.iter().find(|c| c.account_id == id).unwrap().count;
+    assert_eq!((by("a1"), by("a2")), (30, 1));
+    assert!(counts.iter().all(|c| !c.capped));
+    // 필터가 걸린 건수는 결과 목록의 전체 건수와 같다.
+    let q = "항공권 is:안읽음";
+    let counts = store.search_scope_counts(&parse(q)).unwrap();
+    let a1 = counts.iter().find(|c| c.account_id == "a1").unwrap().count;
+    assert_eq!(a1, run(&store, q, Some("a1"), None, 200).total);
+    // 찾을 조건이 없으면 모두 0
+    let empty = store.search_scope_counts(&parse("")).unwrap();
+    assert_eq!(empty.len(), 2);
+    assert!(empty.iter().all(|c| c.count == 0));
+}
+
+#[test]
+fn 검색_결과에도_라벨이_담긴다() {
+    let store = store_with_mail();
+    let mut m = msg(1, ("김도윤", "d@g.com"), "항공권 라벨", 1_700_000_000);
+    m.labels = vec!["Work".into(), "여행/제주".into()];
+    store.save_messages("a1", "inbox", &[m]).unwrap();
+    let page = run(&store, "항공권", None, None, 10);
+    let names: Vec<_> = page.mails[0]
+        .labels
+        .iter()
+        .map(|l| l.name.as_str())
+        .collect();
+    assert_eq!(names, ["Work", "여행/제주"]);
+}

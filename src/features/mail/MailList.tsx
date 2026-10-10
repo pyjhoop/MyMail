@@ -37,6 +37,10 @@ interface Props {
   notice?: string;
   /** 목록 위에 끼워 넣는 줄(휴지통 비우기 등) */
   topBar?: ReactNode;
+  /** 검색 결과 위의 필터 칩 줄 */
+  filterBar?: ReactNode;
+  /** 목록 맨 아래에 고정해 보여 줄 안내(기간 밖 결과 수 등). 목록이 준비됐을 때만 보인다 */
+  footer?: ReactNode;
   /** 검색 결과를 보여 주는 중이면 빈 목록 문구가 달라진다 */
   searching?: boolean;
   /** 검색 결과에서 제목·미리보기에 강조할 단어 */
@@ -81,6 +85,8 @@ export function MailList({
   deleting = false,
   notice,
   topBar,
+  filterBar,
+  footer,
   searching = false,
   highlight = NO_TERMS,
   onEndReached,
@@ -268,6 +274,8 @@ export function MailList({
         ))}
       </div>
 
+      {filterBar}
+
       {topBar}
 
       {notice && (
@@ -399,6 +407,7 @@ export function MailList({
           </div>
         </div>
       )}
+      {status === "ready" && footer}
     </section>
   );
 }

@@ -95,9 +95,20 @@ export async function fakeInvoke(command: string, args: Record<string, unknown> 
     case "list_folders":
       return FAKE_FOLDERS.filter((f) => f.accountId === args.accountId);
     case "list_mails":
-      return FAKE_MAILS.filter((m) =>
-        args.accountId === null ? true : m.folderId === args.folderId,
-      );
+      return {
+        mails: FAKE_MAILS.filter((m) =>
+          args.accountId === null ? true : m.folderId === args.folderId,
+        ),
+        nextCursor: null,
+      };
+    case "search_scope_counts":
+      return FAKE_ACCOUNTS.map((a) => ({
+        accountId: a.id,
+        count: FAKE_MAILS.filter(
+          (m) => m.accountId === a.id && m.subject.includes(args.query as string),
+        ).length,
+        capped: false,
+      }));
     case "search_mails": {
       const mails = FAKE_MAILS.filter(
         (m) =>

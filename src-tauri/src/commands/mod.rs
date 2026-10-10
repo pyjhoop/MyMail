@@ -16,7 +16,7 @@ use crate::compose::{self, ComposeError};
 use crate::providers::{self, MailProvider, ProviderError};
 use crate::store::{
     Account, AddressSuggestion, ComposeInput, ComposeMail, Folder, MailDetail, MailSort,
-    MailSummary, NewAccount, Store, StoreError,
+    NewAccount, Store, StoreError,
 };
 use crate::sync::manager::SyncManager;
 use crate::sync::{self, actions, SyncError};
@@ -92,16 +92,28 @@ pub async fn list_folders(
     Ok(store.list_folders(&account_id)?)
 }
 
-/// `account_id`가 없으면 통합 받은편지함.
+/// `account_id`가 없으면 통합 받은편지함. 한 페이지씩 받고 `cursor`로 이어 받는다.
 #[tauri::command]
 pub async fn list_mails(
     store: State<'_, Store>,
     account_id: Option<String>,
     folder_id: String,
     sort: Option<String>,
-) -> CommandResult<Vec<MailSummary>> {
+    cursor: Option<String>,
+    limit: Option<u32>,
+) -> CommandResult<crate::store::MailPage> {
     let sort = parse_sort(sort.as_deref())?;
-    Ok(store.list_mails_sorted(account_id.as_deref(), &folder_id, sort)?)
+    let store = store.inner().clone();
+    search::blocking(move || {
+        store.list_mails_page(
+            account_id.as_deref(),
+            &folder_id,
+            sort,
+            cursor.as_deref(),
+            limit.unwrap_or(search::DEFAULT_PAGE),
+        )
+    })
+    .await
 }
 
 #[tauri::command]
