@@ -1,5 +1,7 @@
-import type { Ref } from "react";
-import { Mail, Minus, Search, Settings, Square, X, CloudCheck } from "lucide-react";
+import type { RefObject } from "react";
+import { Mail, Minus, Settings, Square, X, CloudCheck } from "lucide-react";
+import { SearchBox } from "../features/search/SearchBox";
+import type { Account } from "../lib/ipc";
 import { closeWindow, minimizeWindow, toggleMaximizeWindow } from "../lib/window";
 import styles from "./TitleBar.module.css";
 
@@ -12,7 +14,14 @@ interface Props {
   search: string;
   onSearchChange: (value: string) => void;
   /** 단축키(/)로 검색창에 포커스를 줄 때 쓴다 */
-  searchInputRef?: Ref<HTMLInputElement>;
+  searchInputRef?: RefObject<HTMLInputElement | null>;
+  /** Enter·추천 선택으로 바로 검색할 때(입력 멈춤을 기다리지 않음) */
+  onSearchSubmit?: (value: string) => void;
+  /** 검색 범위 표시 ("모든 계정" 또는 계정 이름) */
+  searchScope?: string;
+  /** 보낸사람 추천을 가져올 계정. null이면 모든 계정 */
+  searchAccountId?: string | null;
+  accounts?: readonly Account[];
 }
 
 export function TitleBar({
@@ -22,6 +31,10 @@ export function TitleBar({
   search,
   onSearchChange,
   searchInputRef,
+  onSearchSubmit,
+  searchScope = "모든 계정",
+  searchAccountId = null,
+  accounts = [],
 }: Props) {
   return (
     <header className={styles.bar} data-tauri-drag-region>
@@ -31,20 +44,15 @@ export function TitleBar({
         </span>
         <span className={styles.name}>MyMail</span>
       </div>
-      <label className={styles.search}>
-        <Search size={16} strokeWidth={2} aria-hidden />
-        <input
-          ref={searchInputRef}
-          type="search"
-          placeholder="메일 검색"
-          aria-label="메일 검색"
-          value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") onSearchChange("");
-          }}
-        />
-      </label>
+      <SearchBox
+        value={search}
+        onChange={onSearchChange}
+        onSubmit={onSearchSubmit ?? onSearchChange}
+        inputRef={searchInputRef}
+        scopeLabel={searchScope}
+        accountId={searchAccountId}
+        accounts={accounts}
+      />
       <div className={styles.right} data-tauri-drag-region>
         <span className={styles.sync}>
           <CloudCheck size={16} strokeWidth={2} aria-hidden />

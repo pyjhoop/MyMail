@@ -4,6 +4,7 @@ mod attachments;
 mod compose;
 mod models;
 mod notify;
+pub mod search;
 mod sync_state;
 
 use std::path::Path;
@@ -21,6 +22,7 @@ pub use models::{
     NewAccount,
 };
 pub use notify::{NewMail, NotifySettings};
+pub use search::{ParsedQuery, SearchPage, SearchRequest, SenderSuggestion};
 pub use sync_state::{folder_key, OpKind};
 
 #[derive(Debug, thiserror::Error)]
@@ -43,17 +45,38 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/0008_account_settings.sql"),
     include_str!("migrations/0009_notify.sql"),
     include_str!("migrations/0010_labels.sql"),
+    include_str!("migrations/0011_search.sql"),
 ];
 
 const PREVIEW_CHARS: usize = 80;
 
 pub struct Store {
     conn: Mutex<Connection>,
+    /// 읽기 전용 연결. WAL이라 동기화가 쓰는 동안에도 검색이 기다리지 않는다. 메모리 DB에서는 없다.
+    reader: Option<Mutex<Connection>>,
 }
 
 impl Store {
     pub fn open(path: &Path) -> Result<Self, StoreError> {
-        Self::from_connection(Connection::open(path)?)
+        // 새 DB만 페이지를 16KB로 만든다(만든 뒤에는 못 바꾼다). 본문이 2~3KB인 행이 4KB 페이지에는
+        // 한 줄씩만 들어가 낭비가 크기 때문이다. 이미 있는 DB는 그대로 둔다.
+        let fresh = std::fs::metadata(path).map_or(true, |m| m.len() == 0);
+        let conn = Connection::open(path)?;
+        if fresh {
+            conn.pragma_update(None, "page_size", 16384)?;
+        }
+        // WAL: 읽기와 쓰기가 서로 막지 않는다. NORMAL은 WAL에서 쓰기가 빠르면서 안전하다.
+        conn.pragma_update_and_check(None, "journal_mode", "WAL", |r| r.get::<_, String>(0))?;
+        conn.pragma_update(None, "synchronous", "NORMAL")?;
+        conn.busy_timeout(std::time::Duration::from_secs(5))?;
+        let mut store = Self::from_connection(conn)?;
+        let reader = Connection::open_with_flags(
+            path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )?;
+        reader.busy_timeout(std::time::Duration::from_secs(5))?;
+        store.reader = Some(Mutex::new(reader));
+        Ok(store)
     }
 
     #[cfg(test)]
@@ -66,7 +89,16 @@ impl Store {
         migrate(&mut conn)?;
         Ok(Self {
             conn: Mutex::new(conn),
+            reader: None,
         })
+    }
+
+    /// 읽기 전용 질의용. 읽기 연결이 없으면 쓰기 연결을 쓴다.
+    fn read_lock(&self) -> Result<MutexGuard<'_, Connection>, StoreError> {
+        match &self.reader {
+            Some(r) => r.lock().map_err(|_| StoreError::Poisoned),
+            None => self.lock(),
+        }
     }
 
     fn lock(&self) -> Result<MutexGuard<'_, Connection>, StoreError> {
@@ -437,42 +469,6 @@ impl Store {
             earlier,
         }))
     }
-
-    /// 제목·보낸사람·본문을 FTS5로 검색한다. `account_id`가 없으면 모든 계정에서 찾는다.
-    #[cfg(test)]
-    pub fn search_mails(
-        &self,
-        account_id: Option<&str>,
-        query: &str,
-    ) -> Result<Vec<MailSummary>, StoreError> {
-        self.search_mails_sorted(account_id, query, MailSort::default())
-    }
-
-    /// `search_mails`를 `sort` 순서로 돌려준다.
-    pub fn search_mails_sorted(
-        &self,
-        account_id: Option<&str>,
-        query: &str,
-        sort: MailSort,
-    ) -> Result<Vec<MailSummary>, StoreError> {
-        let Some(fts) = fts_query(query) else {
-            return Ok(Vec::new());
-        };
-        let conn = self.lock()?;
-        let sql = format!(
-            "SELECT m.id, m.account_id, m.folder_id, m.sender, m.sender_email, m.subject, m.preview,
-                    m.received_at, m.unread, m.starred, m.has_attachment, m.labels, m.label_name,
-                    CASE WHEN m.thread_id IS NULL THEN 0
-                         ELSE (SELECT COUNT(*) FROM messages t WHERE t.thread_id = m.thread_id) END
-             FROM messages_fts JOIN messages m ON m.rowid = messages_fts.rowid
-             WHERE messages_fts MATCH ?1 AND (?2 IS NULL OR m.account_id = ?2)
-             ORDER BY {order}",
-            order = sort.order_by()
-        );
-        let mut stmt = conn.prepare(&sql)?;
-        let rows = stmt.query_map(params![fts, account_id], summary_from_row)?;
-        Ok(rows.collect::<Result<_, _>>()?)
-    }
 }
 
 pub fn folder_id(account_id: &str, key: &str) -> String {
@@ -545,16 +541,6 @@ fn extension(name: &str) -> String {
     name.rsplit_once('.')
         .map(|(_, ext)| ext.to_uppercase())
         .unwrap_or_default()
-}
-
-/// 사용자 입력을 FTS5 접두 검색식으로 바꾼다. 따옴표로 감싸 연산자 해석을 막는다.
-fn fts_query(input: &str) -> Option<String> {
-    let terms: Vec<String> = input
-        .split_whitespace()
-        .map(|t| format!("\"{}\"*", t.replace('"', "")))
-        .filter(|t| t != "\"\"*")
-        .collect();
-    (!terms.is_empty()).then(|| terms.join(" "))
 }
 
 #[cfg(test)]

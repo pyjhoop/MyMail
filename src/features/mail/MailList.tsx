@@ -11,6 +11,7 @@ import {
 } from "../../components/StateView";
 import type { Account, LoadError, MailSort, MailSummary } from "../../lib/ipc";
 import { labelColorVar, labelLeaf, MAX_ROW_LABELS } from "../../lib/labels";
+import { Highlight } from "../search/Highlight";
 import styles from "./MailList.module.css";
 import { SORT_OPTIONS, sortLabel } from "./sort";
 
@@ -38,6 +39,10 @@ interface Props {
   topBar?: ReactNode;
   /** 검색 결과를 보여 주는 중이면 빈 목록 문구가 달라진다 */
   searching?: boolean;
+  /** 검색 결과에서 제목·미리보기에 강조할 단어 */
+  highlight?: readonly string[];
+  /** 목록 끝 가까이까지 스크롤했을 때(검색 결과의 다음 페이지를 이어 받는다) */
+  onEndReached?: () => void;
   /** 새로고침 = 서버 동기화. 오류 화면의 "다시 시도"도 같은 함수를 부른다 */
   onRefresh: () => void;
   /** 동기화 중이면 버튼을 돌리고 비활성화한다 */
@@ -51,6 +56,9 @@ interface Props {
 
 // 행 높이는 tokens.css의 --mail-row-height(84px)와 같아야 한다.
 const ROW_HEIGHT = 84;
+const NO_TERMS: readonly string[] = [];
+/** 끝에서 이만큼 남으면 다음 페이지를 부른다 */
+const END_MARGIN = 10;
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "all", label: "전체" },
@@ -74,6 +82,8 @@ export function MailList({
   notice,
   topBar,
   searching = false,
+  highlight = NO_TERMS,
+  onEndReached,
   onRefresh,
   refreshing = false,
   syncError,
@@ -160,6 +170,12 @@ export function MailList({
     estimateSize: () => ROW_HEIGHT,
     overscan: 8,
   });
+
+  const virtualItems = virtualizer.getVirtualItems();
+  const lastShown = virtualItems.length > 0 ? virtualItems[virtualItems.length - 1].index : -1;
+  useEffect(() => {
+    if (onEndReached && lastShown >= 0 && lastShown >= visible.length - END_MARGIN) onEndReached();
+  }, [onEndReached, lastShown, visible.length]);
 
   return (
     <section className={styles.list} aria-label="메일 목록">
@@ -331,10 +347,12 @@ export function MailList({
                         <span className={styles.time}>{m.time}</span>
                       </span>
                       <span className={`${styles.subject} ${m.unread ? styles.strong : ""}`}>
-                        {m.subject}
+                        <Highlight text={m.subject} terms={highlight} />
                       </span>
                       <span className={styles.line}>
-                        <span className={styles.preview}>{m.preview}</span>
+                        <span className={styles.preview}>
+                          <Highlight text={m.preview} terms={highlight} />
+                        </span>
                         {m.labels.slice(0, MAX_ROW_LABELS).map((l) => (
                           <span key={l.name} className={styles.chip} title={l.name}>
                             <span

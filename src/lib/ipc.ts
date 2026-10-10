@@ -163,14 +163,69 @@ export async function listMails(
   return mails.map(toSummary);
 }
 
-/** 제목·보낸사람·본문 검색. accountId가 null이면 모든 계정. */
-export async function searchMails(
+/** 검색 결과 한 페이지 */
+export interface SearchPage {
+  mails: MailSummary[];
+  /** 일치하는 전체 건수. totalCapped이면 이 값 이상이다("1000+"). 첫 페이지에서만 채워진다. */
+  total: number;
+  totalCapped: boolean;
+  /** after: 보다 오래된 일치 건수. after:가 없으면 undefined. 첫 페이지에서만 채워진다. */
+  olderCount?: number;
+  /** 다음 페이지를 받을 때 그대로 넘기는 값. 마지막 페이지면 undefined. */
+  nextCursor?: string;
+}
+
+interface RawSearchPage {
+  mails: RawMailSummary[];
+  total: number;
+  totalCapped: boolean;
+  olderCount: number | null;
+  nextCursor: string | null;
+}
+
+/**
+ * 제목·보낸사람·본문 검색(연산자 from: to: has:첨부 is:안읽음 is:별표 after: before: 지원).
+ * accountId가 null이면 모든 계정, 스팸·휴지통은 제외한다. 한 페이지씩 받고 cursor로 이어 받는다.
+ */
+export async function searchMailsPage(
   accountId: string | null,
   query: string,
   sort: MailSort = "newest",
-): Promise<MailSummary[]> {
-  const mails = await call<RawMailSummary[]>("search_mails", { accountId, query, sort });
-  return mails.map(toSummary);
+  cursor?: string,
+  tzOffsetSecs = -new Date().getTimezoneOffset() * 60,
+): Promise<SearchPage> {
+  const raw = await call<RawSearchPage>("search_mails", {
+    accountId,
+    query,
+    sort,
+    cursor: cursor ?? null,
+    limit: null,
+    tzOffsetSecs,
+  });
+  return {
+    mails: raw.mails.map(toSummary),
+    total: raw.total,
+    totalCapped: raw.totalCapped,
+    olderCount: raw.olderCount ?? undefined,
+    nextCursor: raw.nextCursor ?? undefined,
+  };
+}
+
+/** 검색창 보낸사람 추천 한 줄 */
+export interface SenderSuggestion {
+  accountId: string;
+  name: string;
+  email: string;
+  mailCount: number;
+}
+
+/** 보낸사람 추천. prefix가 비면 메일이 많은 순. 동기화 때 갱신되는 집계를 읽으므로 키 입력마다 불러도 가볍다. */
+export function suggestSenders(
+  accountId: string | null,
+  prefix: string,
+  limit = 3,
+): Promise<SenderSuggestion[]> {
+  return call("suggest_senders", { accountId, prefix, limit });
 }
 
 export async function getMail(id: string): Promise<MailDetail | null> {
