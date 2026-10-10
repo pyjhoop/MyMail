@@ -87,6 +87,8 @@
   --reader-min-width: 480px;
   --reader-text-max-width: 680px;
   --reader-html-max-width: 1000px;
+  --scrollbar-size: 8px;
+  --scrollbar-thumb-min: 32px;
   --resize-hit-area: 8px;
   --resize-line-hover: 2px;
   --toolbar-height: 48px;

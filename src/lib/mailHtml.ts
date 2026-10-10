@@ -102,6 +102,11 @@ body { margin: 0; padding: 16px; background: ${colors.background}; color: ${colo
 a { color: ${colors.link}; }
 img { max-width: 100%; height: auto; }
 blockquote { margin-left: 0; padding-left: 12px; border-left: 3px solid #d4d4d8; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { border-radius: 999px; background: #d4d4d8; background-clip: content-box;
+  border: 2px solid transparent; min-width: 32px; min-height: 32px; }
+::-webkit-scrollbar-thumb:hover { background: #6b6b74; background-clip: content-box; }
 </style></head><body>${body}</body></html>`;
 }
 
