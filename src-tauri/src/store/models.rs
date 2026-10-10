@@ -52,6 +52,8 @@ pub struct Folder {
     pub color_index: Option<u8>,
     pub depth: u8,
     pub expandable: bool,
+    /// 계층을 포함한 전체 이름(`부모/자식`). 라벨 칩·라벨 조작이 쓰는 이름과 같다.
+    pub path: String,
 }
 
 #[derive(Debug, Clone, Serialize)]

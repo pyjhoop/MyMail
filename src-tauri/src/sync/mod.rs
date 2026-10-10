@@ -2,6 +2,7 @@
 //! 새 메일 감지 반복은 `manager`, 읽음·삭제·이동은 `actions`가 맡는다.
 
 pub mod actions;
+pub mod labels;
 pub mod manager;
 pub mod outbox;
 pub mod scheduler;
@@ -31,6 +32,13 @@ pub enum SyncError {
     ArchiveUnavailable,
     #[error("이 계정은 아직 서버에 연결되지 않았어요")]
     NotConnected,
+    #[error("이 계정은 라벨을 지원하지 않아요. 대신 폴더로 옮겨 보세요.")]
+    LabelsUnsupported,
+    #[error("없는 라벨이에요")]
+    LabelNotFound,
+    /// 라벨 이름 검증에 실패했다. 메시지는 그대로 사용자에게 보인다.
+    #[error("{0}")]
+    InvalidLabel(String),
     #[error(transparent)]
     Auth(#[from] AuthError),
     #[error(transparent)]
@@ -149,6 +157,16 @@ pub async fn flush_pending(
             }
             OpKind::Delete => provider.delete_message(&op.folder_key, &op.remote_id).await,
             OpKind::EmptyFolder => provider.empty_folder(&op.folder_key).await,
+            OpKind::AddLabel => {
+                provider
+                    .add_label(&op.folder_key, &op.remote_id, &op.arg)
+                    .await
+            }
+            OpKind::RemoveLabel => {
+                provider
+                    .remove_label(&op.folder_key, &op.remote_id, &op.arg)
+                    .await
+            }
         };
         match result {
             Ok(()) => {
@@ -156,7 +174,10 @@ pub async fn flush_pending(
                     moved_to.push(op.arg.clone());
                 }
             }
-            Err(ProviderError::Rejected(_) | ProviderError::NotFound(_)) => {}
+            Err(ProviderError::Rejected(_) | ProviderError::NotFound(_)) => {
+                // 서버가 받아주지 않은 라벨 조작은 로컬 표시를 되돌려 서버와 어긋나지 않게 한다.
+                labels::revert_label_op(store, account_id, &op)?;
+            }
             Err(e) => return Err(e.into()),
         }
         store.finish_op(op.id)?;
@@ -441,8 +462,11 @@ async fn resync_labels(
         for chunk in ids.chunks(LABEL_CHUNK) {
             let chunk: Vec<String> = chunk.iter().map(|id| (*id).clone()).collect();
             let remote = provider.fetch_labels(key, &chunk).await?;
+            // 서버에 아직 보내지 못한 라벨 조작이 걸린 메일은 로컬 표시가 더 새롭다.
+            let pending = store.pending_remote_ids(account_id, key)?;
             let changed: Vec<_> = remote
                 .into_iter()
+                .filter(|r| !pending.contains(&r.remote_id))
                 .filter(|r| local.get(&r.remote_id).is_some_and(|l| *l != r.labels))
                 .collect();
             if !changed.is_empty() {

@@ -25,6 +25,10 @@ pub enum OpKind {
     Delete,
     /// 폴더의 모든 메일을 완전히 지운다(휴지통·스팸함 비우기). `remote_id`는 비어 있다.
     EmptyFolder,
+    /// 메일에 라벨을 붙인다. `arg`는 라벨 이름
+    AddLabel,
+    /// 메일에서 라벨을 뗀다. `arg`는 라벨 이름
+    RemoveLabel,
 }
 
 impl OpKind {
@@ -35,6 +39,8 @@ impl OpKind {
             Self::Move => "move",
             Self::Delete => "delete",
             Self::EmptyFolder => "empty_folder",
+            Self::AddLabel => "add_label",
+            Self::RemoveLabel => "remove_label",
         }
     }
 
@@ -45,6 +51,8 @@ impl OpKind {
             "move" => Self::Move,
             "delete" => Self::Delete,
             "empty_folder" => Self::EmptyFolder,
+            "add_label" => Self::AddLabel,
+            "remove_label" => Self::RemoveLabel,
             _ => return None,
         })
     }

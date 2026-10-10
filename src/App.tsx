@@ -9,6 +9,7 @@ import { Composer, type ComposeInit, type ComposeResult } from "./features/compo
 import { startDraft, type ComposeMode } from "./features/compose/compose";
 import { Settings } from "./features/settings/Settings";
 import { FolderPane } from "./features/folders/FolderPane";
+import { LabelButton, type LabelChange } from "./features/labels/LabelButton";
 import { EmptyFolderBar } from "./features/mail/EmptyFolderBar";
 import { hasIncompleteOperator, highlightTerms, isTooShortToSearch } from "./features/search/query";
 import { SearchFilters, OlderNote } from "./features/search/SearchFilters";
@@ -27,6 +28,7 @@ import {
   type ThemePreference,
 } from "./features/shell/useSystemTheme";
 import {
+  addLabel,
   archiveMail,
   deleteMail,
   getDraft,
@@ -40,6 +42,7 @@ import {
   onSyncProgress,
   onTrayCompose,
   onWindowFocus,
+  removeLabel,
   searchMailsPage,
   setAccountPalette,
   searchScopeCounts,
@@ -56,6 +59,7 @@ import {
   type SearchPage,
   type SyncProgress,
 } from "./lib/ipc";
+import { labelColor, labelLeaf } from "./lib/labels";
 import styles from "./App.module.css";
 
 /** 목록·검색 한 페이지의 부가 정보. 전체 건수와 기간 밖 건수는 검색에만 있다. */
@@ -149,6 +153,9 @@ function App() {
   // 보관을 눌렀지만 아직 서버로 보내지 않은 메일(실행 취소 대기 중). 한 번에 하나만 둔다.
   const pendingArchive = useRef<{ id: string; row?: MailSummary } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // 라벨을 붙이거나 뗀 직후 토스트의 "실행 취소"가 할 일. 보관 취소와 같은 토스트를 쓴다.
+  const labelUndo = useRef<(() => void) | null>(null);
+  const [labelTarget, setLabelTarget] = useState<"reader" | "list" | null>(null);
 
   const account = selection === "all" ? null : (accounts.find((a) => a.id === selection) ?? null);
 
@@ -443,6 +450,13 @@ function App() {
     [mails, checkedIds],
   );
 
+  // 선택한 메일이 모두 한 계정의 것일 때만 라벨 버튼을 둔다(라벨은 계정마다 다르다).
+  const checkedMails = useMemo(() => mails.filter((m) => checked.has(m.id)), [mails, checked]);
+  const labelListAccount =
+    checkedMails.length > 0 && checkedMails.every((m) => m.accountId === checkedMails[0].accountId)
+      ? checkedMails[0].accountId
+      : null;
+
   // 휴지통 안의 메일은 지우면 되돌릴 수 없어 확인을 받는다. 통합 보기는 받은편지함뿐이라 해당 없음.
   const inTrash = selection !== "all" && folders.find((f) => f.id === folderId)?.kind === "trash";
 
@@ -511,6 +525,7 @@ function App() {
   };
 
   const showToast = (message: string, undoable: boolean) => {
+    labelUndo.current = null;
     clearTimeout(toastTimer.current);
     setToast({ message, undoable });
     toastTimer.current = setTimeout(() => {
@@ -572,6 +587,14 @@ function App() {
   };
 
   const undoArchive = () => {
+    const undoLabel = labelUndo.current;
+    if (undoLabel) {
+      labelUndo.current = null;
+      clearTimeout(toastTimer.current);
+      setToast(null);
+      undoLabel();
+      return;
+    }
     const pending = pendingArchive.current;
     if (!pending) return;
     pendingArchive.current = null;
@@ -633,6 +656,39 @@ function App() {
     showToast(message, false);
   };
 
+  // 라벨을 붙이거나 뗀 결과를 목록·본문에 바로 반영하고, 폴더 패널의 라벨별 안 읽은 수를 다시 읽는다.
+  const applyLabelChange = (change: LabelChange, undoable = true) => {
+    const { ids, label, added } = change;
+    const patch = <T extends { labels: { name: string; colorIndex: number }[] }>(m: T): T => {
+      const rest = m.labels.filter((l) => l.name !== label);
+      return {
+        ...m,
+        labels: added ? [...rest, { name: label, colorIndex: labelColor(label) }] : rest,
+      };
+    };
+    setMailsResult((prev) =>
+      prev ? { ...prev, mails: prev.mails.map((m) => (ids.includes(m.id) ? patch(m) : m)) } : prev,
+    );
+    setDetailResult((prev) =>
+      prev?.mail && ids.includes(prev.key) ? { key: prev.key, mail: patch(prev.mail) } : prev,
+    );
+    setReloadKey((k) => k + 1);
+    refreshCounts();
+    if (!undoable) return;
+    flushArchive();
+    showToast(`"${labelLeaf(label)}" 라벨을 ${added ? "붙였어요" : "뗐어요"}`, true);
+    labelUndo.current = () => {
+      (added ? removeLabel : addLabel)(ids, label)
+        .then(() => applyLabelChange({ ids, label, added: !added }, false))
+        .catch((e: unknown) => setNotice(`라벨을 되돌리지 못했어요. ${toLoadError(e).message}`));
+    };
+  };
+  const detachLabel = (id: string, label: string) => {
+    removeLabel([id], label)
+      .then(() => applyLabelChange({ ids: [id], label, added: false }))
+      .catch((e: unknown) => setNotice(`라벨을 떼지 못했어요. ${toLoadError(e).message}`));
+  };
+
   const spamFolder = readerFolders.find((f) => f.kind === "spam");
   const inboxFolder = readerFolders.find((f) => f.kind === "inbox");
   const readerActions: ReaderActions | undefined = detail
@@ -640,6 +696,18 @@ function App() {
         onDelete: () => requestDelete([detail.id]),
         onArchive: () => archiveNow(detail.id),
         archiveBlockedReason: archiveBlocked,
+        onRemoveLabel: (name) => detachLabel(detail.id, name),
+        labelButton: (
+          <LabelButton
+            accountId={detail.accountId}
+            mails={[{ id: detail.id, labels: detail.labels.map((l) => l.name) }]}
+            folders={readerFolders}
+            open={labelTarget === "reader"}
+            onOpenChange={(open) => setLabelTarget(open ? "reader" : null)}
+            onChanged={applyLabelChange}
+            onError={setNotice}
+          />
+        ),
         more: {
           moveTargets: readerFolders.filter((f) => f.id !== detail.folderId && f.kind !== "drafts"),
           spam: spamItem,
@@ -769,6 +837,11 @@ function App() {
       replyAll: () => detail && startCompose("replyAll"),
       forward: () => detail && startCompose("forward"),
       archive: () => !composing && mailId && !archiveBlocked && archiveNow(mailId),
+      label: () => {
+        if (composing) return;
+        if (checked.size > 0 && labelListAccount) setLabelTarget("list");
+        else if (detail) setLabelTarget("reader");
+      },
       remove: () => !composing && mailId && requestDelete([mailId]),
       search: () => searchInputRef.current?.focus(),
       next: () => !composing && move(1),
@@ -918,6 +991,11 @@ function App() {
                 collapsed={widths.folderCollapsed}
                 onSelect={selectFolder}
                 onCompose={() => startCompose("new")}
+                onLabelsChanged={() => {
+                  setReloadKey((k) => k + 1);
+                  refreshCounts();
+                }}
+                onError={setNotice}
               />
             )}
           </div>
@@ -942,6 +1020,23 @@ function App() {
               checkedIds={checked}
               onCheckedChange={setCheckedIds}
               onDelete={() => requestDelete([...checked])}
+              selectionActions={
+                labelListAccount ? (
+                  <LabelButton
+                    compact
+                    accountId={labelListAccount}
+                    mails={checkedMails.map((m) => ({
+                      id: m.id,
+                      labels: m.labels.map((l) => l.name),
+                    }))}
+                    folders={labelListAccount === selection ? folders : undefined}
+                    open={labelTarget === "list"}
+                    onOpenChange={(open) => setLabelTarget(open ? "list" : null)}
+                    onChanged={applyLabelChange}
+                    onError={setNotice}
+                  />
+                ) : undefined
+              }
               deleting={deleting}
               notice={notice}
               topBar={

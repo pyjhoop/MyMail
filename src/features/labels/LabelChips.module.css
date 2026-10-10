@@ -1,0 +1,44 @@
+.chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 22px;
+  margin-top: var(--space-1);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-control);
+  background: var(--color-bg-hover);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+}
+
+.remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-size-dense);
+  height: var(--icon-size-dense);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+}
+
+.remove:hover,
+.remove:focus-visible {
+  outline: none;
+  background: var(--color-bg-selected);
+  color: var(--color-text);
+}
+
+.remove:focus-visible {
+  box-shadow: var(--focus-ring);
+}

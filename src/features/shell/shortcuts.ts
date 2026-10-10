@@ -7,6 +7,7 @@ export const SHORTCUTS: { keys: string; label: string }[] = [
   { keys: "a", label: "전체 답장" },
   { keys: "f", label: "전달" },
   { keys: "e", label: "보관" },
+  { keys: "l", label: "라벨 붙이기·떼기" },
   { keys: "#", label: "삭제" },
   { keys: "/", label: "검색" },
   { keys: "j", label: "다음 메일" },
@@ -23,6 +24,8 @@ export interface ShortcutHandlers {
   replyAll: () => void;
   forward: () => void;
   archive: () => void;
+  /** 라벨 팝오버를 연다(선택한 메일이 있으면 그 메일들, 없으면 열린 메일) */
+  label: () => void;
   remove: () => void;
   search: () => void;
   next: () => void;
@@ -90,6 +93,8 @@ export function useShortcuts(handlers: ShortcutHandlers, enabled: boolean) {
           return run(h.forward);
         case "e":
           return run(h.archive);
+        case "l":
+          return run(h.label);
         case "#":
           return run(h.remove);
         case "/":

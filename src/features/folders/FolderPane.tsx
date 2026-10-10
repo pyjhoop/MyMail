@@ -12,9 +12,10 @@ import {
   Trash2,
   type LucideIcon,
 } from "lucide-react";
-import type { CSSProperties, ReactNode } from "react";
+import { useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import type { Account, Folder, FolderKind } from "../../lib/ipc";
 import { labelColorVar, labelPaths } from "../../lib/labels";
+import { LabelContextMenu, LabelManage, type LabelManageTarget } from "../labels/LabelManage";
 import styles from "./FolderPane.module.css";
 import { useCollapsedFolders } from "./useCollapsedFolders";
 
@@ -27,6 +28,10 @@ interface Props {
   collapsed: boolean;
   onSelect: (folderId: string, accountId: string) => void;
   onCompose: () => void;
+  /** 라벨을 만들거나 이름을 바꾸거나 지운 뒤(폴더·메일 목록을 다시 읽는다). 없으면 라벨 관리 메뉴가 없다 */
+  onLabelsChanged?: () => void;
+  /** 라벨 삭제 실패 같은 안내 */
+  onError?: (message: string) => void;
 }
 
 const ICONS: Partial<Record<FolderKind, LucideIcon>> = {
@@ -48,6 +53,7 @@ function FolderItem({
   labelPath,
   tree,
   onSelect,
+  onContextMenu,
 }: {
   folder: Folder;
   selected: boolean;
@@ -57,6 +63,7 @@ function FolderItem({
   /** 자식이 있는 항목이면 접기 상태와 토글. 접힌 줄의 안 읽은 수는 자식 합계다 */
   tree?: { expanded: boolean; onToggle: (collapse: boolean) => void; unread: number };
   onSelect: () => void;
+  onContextMenu?: (e: MouseEvent) => void;
 }) {
   const Icon = ICONS[folder.kind] ?? Archive;
   const isInbox = folder.kind === "inbox";
@@ -78,6 +85,7 @@ function FolderItem({
       aria-expanded={parent ? tree.expanded : undefined}
       title={collapsed ? folder.name : undefined}
       onClick={onSelect}
+      onContextMenu={onContextMenu}
       onKeyDown={(e) => {
         if (!parent) return;
         if (e.key === "ArrowRight" && !tree.expanded) {
@@ -148,6 +156,7 @@ function FolderTree({
   onToggle,
   paths,
   onSelect,
+  onContextMenu,
 }: {
   items: Folder[];
   selectedId: string;
@@ -156,6 +165,7 @@ function FolderTree({
   onToggle: (id: string, collapse: boolean) => void;
   paths?: Map<string, string>;
   onSelect: (id: string) => void;
+  onContextMenu?: (folder: Folder, e: MouseEvent) => void;
 }) {
   const depthOf = (f: Folder) => f.depth ?? 0;
   const forcedOpen = new Set<string>();
@@ -199,6 +209,7 @@ function FolderTree({
             : undefined
         }
         onSelect={() => onSelect(f.id)}
+        onContextMenu={onContextMenu && ((e) => onContextMenu(f, e))}
       />,
     );
   });
@@ -213,7 +224,11 @@ export function FolderPane({
   collapsed,
   onSelect,
   onCompose,
+  onLabelsChanged,
+  onError,
 }: Props) {
+  const [manage, setManage] = useState<LabelManageTarget | null>(null);
+  const [menu, setMenu] = useState<{ folder: Folder; x: number; y: number } | null>(null);
   const { collapsedIds, toggle: toggleCollapsed } = useCollapsedFolders(account?.id ?? "");
   const toggle = (id: string, collapse: boolean) => toggleCollapsed(id, collapse);
   if (account === null) {
@@ -263,6 +278,7 @@ export function FolderPane({
   const system = folders.filter((f) => SYSTEM.includes(f.kind));
   const labels = folders.filter((f) => f.kind === "label");
   const paths = labelPaths(labels);
+  for (const f of labels) if (f.path) paths.set(f.id, f.path);
   const custom = folders.filter((f) => f.kind === "folder" || f.kind === "archive");
 
   return (
@@ -286,7 +302,12 @@ export function FolderPane({
       {labels.length > 0 && !collapsed && (
         <div className={styles.sectionRow}>
           <span className={styles.section}>라벨</span>
-          <button type="button" className={`ib ${styles.addLabel}`} aria-label="라벨 추가">
+          <button
+            type="button"
+            className={`ib ${styles.addLabel}`}
+            aria-label="라벨 추가"
+            onClick={() => onLabelsChanged && setManage({ kind: "create" })}
+          >
             <Plus size={14} strokeWidth={2} aria-hidden />
           </button>
         </div>
@@ -299,6 +320,14 @@ export function FolderPane({
         onToggle={toggle}
         paths={paths}
         onSelect={(id) => onSelect(id, account.id)}
+        onContextMenu={
+          onLabelsChanged
+            ? (folder, e) => {
+                e.preventDefault();
+                setMenu({ folder, x: e.clientX, y: e.clientY });
+              }
+            : undefined
+        }
       />
       <FolderTree
         items={custom}
@@ -308,6 +337,36 @@ export function FolderPane({
         onToggle={toggle}
         onSelect={(id) => onSelect(id, account.id)}
       />
+      {menu && (
+        <LabelContextMenu
+          x={menu.x}
+          y={menu.y}
+          onClose={() => setMenu(null)}
+          onRename={() =>
+            setManage({
+              kind: "rename",
+              folder: menu.folder,
+              path: paths.get(menu.folder.id) ?? menu.folder.name,
+            })
+          }
+          onDelete={() =>
+            setManage({
+              kind: "delete",
+              folder: menu.folder,
+              path: paths.get(menu.folder.id) ?? menu.folder.name,
+            })
+          }
+        />
+      )}
+      {manage && (
+        <LabelManage
+          accountId={account.id}
+          target={manage}
+          onClose={() => setManage(null)}
+          onDone={() => onLabelsChanged?.()}
+          onError={(m) => onError?.(m)}
+        />
+      )}
     </aside>
   );
 }

@@ -64,6 +64,8 @@ impl FolderKind {
 pub struct RemoteFolder {
     pub key: String,
     pub name: String,
+    /// 계층을 모두 포함한 이름(`부모/자식`). 메일에 붙은 라벨 이름과 같은 꼴이라 서로 맞춰 본다.
+    pub path: String,
     pub kind: FolderKind,
     pub color_index: Option<u8>,
     pub depth: u8,
@@ -240,6 +242,41 @@ pub trait MailProvider: Send + Sync {
         _ids: &[String],
     ) -> Result<Vec<RemoteLabels>, ProviderError> {
         unsupported("라벨 읽기")
+    }
+
+    /// 메일에 라벨을 붙인다. `label`은 `부모/자식` 꼴의 전체 이름이다. 라벨이 없는 서비스는 `Unsupported`다.
+    async fn add_label(
+        &self,
+        _folder_key: &str,
+        _remote_id: &str,
+        _label: &str,
+    ) -> Result<(), ProviderError> {
+        unsupported("라벨 붙이기")
+    }
+
+    /// 메일에서 라벨을 뗀다(메일은 남는다).
+    async fn remove_label(
+        &self,
+        _folder_key: &str,
+        _remote_id: &str,
+        _label: &str,
+    ) -> Result<(), ProviderError> {
+        unsupported("라벨 떼기")
+    }
+
+    /// 라벨을 만든다. 이미 있으면 그대로 둔다.
+    async fn create_label(&self, _name: &str) -> Result<(), ProviderError> {
+        unsupported("라벨 만들기")
+    }
+
+    /// 라벨 이름을 바꾼다. 하위 라벨도 함께 바뀐다.
+    async fn rename_label(&self, _old: &str, _new: &str) -> Result<(), ProviderError> {
+        unsupported("라벨 이름 바꾸기")
+    }
+
+    /// 라벨을 지운다. 메일은 지워지지 않고 라벨만 사라진다.
+    async fn delete_label(&self, _name: &str) -> Result<(), ProviderError> {
+        unsupported("라벨 삭제")
     }
 
     async fn set_seen(

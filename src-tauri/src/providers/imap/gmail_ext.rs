@@ -166,6 +166,40 @@ pub fn fetch_attrs<S: Read + Write>(
     Ok(attrs)
 }
 
+/// 메일 한 통에 라벨을 붙이거나 뗀다(`UID STORE ± X-GM-LABELS`). 응답에 X-GM-* 속성이 섞여 와서
+/// `imap` 크레이트 파서가 실패하므로 `fetch_attrs`처럼 직접 명령을 보낸다.
+pub fn change_label<S: Read + Write>(
+    stream: S,
+    email: &str,
+    password: &str,
+    folder: &str,
+    uid: u32,
+    label: &str,
+    add: bool,
+) -> Result<(), RawError> {
+    let mut conn = RawConn {
+        reader: BufReader::new(stream),
+        next_tag: 0,
+    };
+    let mut greeting = Vec::new();
+    conn.reader.read_until(b'\n', &mut greeting)?;
+    conn.command(&format!("LOGIN {} {}", quote(email), quote(password)))
+        .map_err(|e| match e {
+            RawError::Failed(m) if m.starts_with("NO") || m.starts_with("BAD") => {
+                RawError::LoginRejected
+            }
+            other => other,
+        })?;
+    conn.command(&format!("SELECT {}", quote(folder)))?;
+    let sign = if add { '+' } else { '-' };
+    conn.command(&format!(
+        "UID STORE {uid} {sign}X-GM-LABELS ({})",
+        quote(&utf7::encode(label))
+    ))?;
+    let _ = conn.command("LOGOUT");
+    Ok(())
+}
+
 struct RawConn<S: Read + Write> {
     reader: BufReader<S>,
     next_tag: u32,
@@ -290,6 +324,34 @@ X-GM-LABELS (\\Inbox \\Important Work \"Project X\") UID 42)\r\nA1 OK done\r\n";
         assert!(sent.contains("g1 LOGIN \"me@gmail.com\" \"pa\\\"ss\"\r\n"));
         assert!(sent.contains("g2 EXAMINE \"INBOX\"\r\n"));
         assert!(sent.contains("g3 UID FETCH 7 (UID X-GM-MSGID X-GM-THRID X-GM-LABELS)\r\n"));
+    }
+
+    #[test]
+    fn 라벨을_붙이고_뗀다() {
+        let (m, sent) = mock(
+            "* OK ready\r\ng1 OK in\r\ng2 OK [READ-WRITE] done\r\n\
+* 1 FETCH (X-GM-LABELS (Work) UID 7)\r\ng3 OK done\r\ng4 OK bye\r\n",
+        );
+        change_label(m, "a", "b", "INBOX", 7, "Work/Sub", true).unwrap();
+        let sent = String::from_utf8(sent.borrow().clone()).unwrap();
+        assert!(sent.contains("g2 SELECT \"INBOX\"\r\n"));
+        assert!(sent.contains("g3 UID STORE 7 +X-GM-LABELS (\"Work/Sub\")\r\n"));
+        let (m, sent) = mock("* OK ready\r\ng1 OK in\r\ng2 OK done\r\ng3 OK done\r\ng4 OK bye\r\n");
+        change_label(m, "a", "b", "INBOX", 7, "여행", false).unwrap();
+        let sent = String::from_utf8(sent.borrow().clone()).unwrap();
+        assert!(
+            sent.contains("g3 UID STORE 7 -X-GM-LABELS (\"&xezViQ-\")\r\n"),
+            "{sent}"
+        );
+    }
+
+    #[test]
+    fn 서버가_거절하면_실패한다() {
+        let (m, _) = mock("* OK ready\r\ng1 OK in\r\ng2 NO [NONEXISTENT] no such folder\r\n");
+        assert!(matches!(
+            change_label(m, "a", "b", "X", 1, "Work", true),
+            Err(RawError::Failed(msg)) if msg.starts_with("NO")
+        ));
     }
 
     #[test]
