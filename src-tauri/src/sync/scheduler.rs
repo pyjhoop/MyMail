@@ -109,6 +109,7 @@ impl AccountSync {
                 cache: Some(&mut state.statuses),
                 skip_unchanged,
                 first: open.as_deref(),
+                refresh_labels: all,
             },
             report,
         )
@@ -161,6 +162,7 @@ impl AccountSync {
                 cache: Some(&mut state.statuses),
                 skip_unchanged: true,
                 first: open.as_deref(),
+                refresh_labels: false,
             },
             report,
         )

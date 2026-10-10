@@ -46,6 +46,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/0009_notify.sql"),
     include_str!("migrations/0010_labels.sql"),
     include_str!("migrations/0011_search.sql"),
+    include_str!("migrations/0012_labels_resync.sql"),
 ];
 
 const PREVIEW_CHARS: usize = 80;

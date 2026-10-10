@@ -15,7 +15,8 @@ use native_tls::{TlsConnector, TlsStream};
 
 use super::{
     AttachmentData, AttachmentTarget, FolderKind, FolderSnapshot, FolderStatus, MailProvider,
-    OutgoingMail, ProviderError, RemoteFlags, RemoteFolder, RemoteMessage, WakeReason,
+    OutgoingMail, ProviderError, RemoteFlags, RemoteFolder, RemoteLabels, RemoteMessage,
+    WakeReason,
 };
 use gmail_ext::GmailAttrs;
 use parse::{extract_attachments, parse_message, FetchedMessage};
@@ -256,6 +257,25 @@ impl ImapProvider {
         }
         messages.sort_by_key(|m| std::cmp::Reverse(m.received_at));
         Ok(messages)
+    }
+
+    fn fetch_labels_blocking(
+        &self,
+        folder_key: &str,
+        ids: &[String],
+    ) -> Result<Vec<RemoteLabels>, ProviderError> {
+        let uids = parse_uids(ids)?;
+        if uids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let attrs = self.fetch_gmail_attrs(folder_key, &uids)?;
+        Ok(attrs
+            .into_iter()
+            .map(|(uid, a)| RemoteLabels {
+                remote_id: uid.to_string(),
+                labels: a.labels,
+            })
+            .collect())
     }
 
     fn snapshot_blocking(&self, folder_key: &str) -> Result<FolderSnapshot, ProviderError> {
@@ -534,6 +554,21 @@ impl MailProvider for ImapProvider {
     ) -> Result<Vec<RemoteMessage>, ProviderError> {
         let key = folder_key.to_string();
         self.blocking(move |this| this.fetch_blocking(&key, limit))
+            .await
+    }
+
+    fn supports_labels(&self) -> bool {
+        self.config.gmail_extensions
+    }
+
+    async fn fetch_labels(
+        &self,
+        folder_key: &str,
+        ids: &[String],
+    ) -> Result<Vec<RemoteLabels>, ProviderError> {
+        let key = folder_key.to_string();
+        let ids = ids.to_vec();
+        self.blocking(move |this| this.fetch_labels_blocking(&key, &ids))
             .await
     }
 

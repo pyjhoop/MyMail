@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::{params, Connection, OptionalExtension};
 
 use super::{Store, StoreError};
-use crate::providers::RemoteFlags;
+use crate::providers::{RemoteFlags, RemoteLabels};
 
 /// 서버에 아직 보내지 못한 조작
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -103,6 +103,69 @@ impl Store {
         )?;
         let rows = stmt.query_map([folder_id], |r| Ok((r.get(0)?, (r.get(1)?, r.get(2)?))))?;
         Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// 저장된 메일의 라벨. 키는 서버 UID. `labels`가 없는 옛 행은 `label_name`(첫 라벨)으로 대신한다.
+    pub fn local_labels(
+        &self,
+        folder_id: &str,
+    ) -> Result<HashMap<String, Vec<String>>, StoreError> {
+        let conn = self.lock()?;
+        let mut stmt = conn.prepare(
+            "SELECT substr(id, length(folder_id) + 2), labels, label_name
+             FROM messages WHERE folder_id = ?1",
+        )?;
+        let rows = stmt.query_map([folder_id], |r| {
+            let json: Option<String> = r.get(1)?;
+            let first: Option<String> = r.get(2)?;
+            let labels = json
+                .and_then(|j| serde_json::from_str::<Vec<String>>(&j).ok())
+                .unwrap_or_else(|| first.into_iter().collect());
+            Ok((r.get(0)?, labels))
+        })?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// 서버에서 바뀐 라벨을 반영한다. 호출한 쪽이 바뀐 메일만 넘긴다.
+    pub fn apply_labels(&self, folder_id: &str, labels: &[RemoteLabels]) -> Result<(), StoreError> {
+        let mut conn = self.lock()?;
+        let tx = conn.transaction()?;
+        {
+            let mut update = tx
+                .prepare_cached("UPDATE messages SET labels = ?2, label_name = ?3 WHERE id = ?1")?;
+            for l in labels {
+                update.execute(params![
+                    format!("{folder_id}-{}", l.remote_id),
+                    (!l.labels.is_empty())
+                        .then(|| serde_json::to_string(&l.labels).unwrap_or_default()),
+                    l.labels.first(),
+                ])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// 계정의 기존 메일 라벨을 한 번 전체 재동기화했는지
+    pub fn labels_synced(&self, account_id: &str) -> Result<bool, StoreError> {
+        let conn = self.lock()?;
+        Ok(conn
+            .query_row(
+                "SELECT labels_synced FROM accounts WHERE id = ?1",
+                [account_id],
+                |r| r.get::<_, i64>(0),
+            )
+            .optional()?
+            .is_some_and(|v| v != 0))
+    }
+
+    pub fn set_labels_synced(&self, account_id: &str) -> Result<(), StoreError> {
+        let conn = self.lock()?;
+        conn.execute(
+            "UPDATE accounts SET labels_synced = 1 WHERE id = ?1",
+            [account_id],
+        )?;
+        Ok(())
     }
 
     /// 서버에서 바뀐 읽음·별표를 반영한다.

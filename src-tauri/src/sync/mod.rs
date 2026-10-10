@@ -45,6 +45,8 @@ const FIRST_LOGIN_FETCH_LIMIT: usize = 30;
 const FIRST_PASS_PER_FOLDER: usize = 100;
 /// 한 번의 서버 요청으로 받는 메일 수. 연결을 새로 맺는 횟수와 메모리 사용의 균형이다.
 const FETCH_BATCH: usize = 100;
+/// 라벨 재동기화에서 한 번에 다시 읽는 메일 수. 큰 메일함에서 연결 하나를 오래 점유하지 않게 나눈다.
+const LABEL_CHUNK: usize = 500;
 
 /// 동기화 진행 상황. UI가 진행률 막대로 보여 준다. `done`/`total`은 받을 메일 수다.
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
@@ -255,6 +257,9 @@ pub struct SyncOptions<'a> {
     pub skip_unchanged: bool,
     /// 이 서버 key의 폴더를 가장 먼저, 건너뛰지 않고 맞춘다(지금 사용자가 보는 폴더).
     pub first: Option<&'a str>,
+    /// 맞춘 폴더의 라벨도 서버 값으로 다시 읽는다(다른 기기에서 바꾼 라벨 반영). 라벨 없는 서비스는 무시한다.
+    /// 계정에서 한 번도 라벨을 훑지 않았다면 이 값과 상관없이 모든 폴더를 한 번 훑는다.
+    pub refresh_labels: bool,
 }
 
 /// 서버와 로컬을 맞춘다. 먼저 보내지 못한 조작을 보내고, 폴더마다 UID를 대조해 새 메일은 받고 사라진 메일은 지운다.
@@ -344,6 +349,7 @@ async fn run_sync<F: Fn(Progress)>(
 
     let mut plans = Vec::new();
     let mut synced = Vec::new();
+    let mut compared: Vec<(String, String)> = Vec::new();
     for (folder_id, key) in &targets {
         let status = statuses.get(key);
         let unchanged = options.skip_unchanged
@@ -355,6 +361,7 @@ async fn run_sync<F: Fn(Progress)>(
         }
         let plan = plan_folder(store, provider, account_id, folder_id).await?;
         plans.push(plan);
+        compared.push((folder_id.clone(), key.clone()));
         if let Some(status) = status {
             synced.push((key.clone(), status.clone()));
         }
@@ -376,9 +383,60 @@ async fn run_sync<F: Fn(Progress)>(
     for (key, ids) in rest {
         download(store, provider, account_id, &key, &ids, tracker).await?;
     }
+    resync_labels(
+        store, provider, account_id, scope, &options, &targets, &compared,
+    )
+    .await?;
     // 끝까지 맞춘 폴더만 기록한다. 중간에 실패하면 다음 번에 그 폴더를 다시 맞춘다.
     if let Some(cache) = options.cache.as_mut() {
         cache.extend(synced);
+    }
+    Ok(())
+}
+
+/// 이미 받은 메일의 라벨을 서버 값으로 맞춘다(본문은 다시 받지 않는다). 라벨 없는 서비스는 건너뛴다.
+/// 라벨 도입 전에 받은 메일을 위해 계정당 한 번은 모든 폴더를 훑고(DB에 기록), 그 뒤에는
+/// `refresh_labels`가 켜진 동기화에서 이번에 대조한 폴더만 훑어 다른 기기의 변경을 반영한다.
+/// 바뀐 메일만 쓴다.
+async fn resync_labels(
+    store: &Store,
+    provider: &dyn MailProvider,
+    account_id: &str,
+    scope: Scope<'_>,
+    options: &SyncOptions<'_>,
+    targets: &[(String, String)],
+    compared: &[(String, String)],
+) -> Result<(), SyncError> {
+    if !provider.supports_labels() {
+        return Ok(());
+    }
+    let first_pass = !store.labels_synced(account_id)?;
+    let folders = if first_pass {
+        targets
+    } else if options.refresh_labels {
+        compared
+    } else {
+        return Ok(());
+    };
+    for (folder_id, key) in folders {
+        let local = store.local_labels(folder_id)?;
+        let mut ids: Vec<&String> = local.keys().collect();
+        ids.sort_by_key(|id| Reverse(id.parse::<u64>().unwrap_or(0)));
+        for chunk in ids.chunks(LABEL_CHUNK) {
+            let chunk: Vec<String> = chunk.iter().map(|id| (*id).clone()).collect();
+            let remote = provider.fetch_labels(key, &chunk).await?;
+            let changed: Vec<_> = remote
+                .into_iter()
+                .filter(|r| local.get(&r.remote_id).is_some_and(|l| *l != r.labels))
+                .collect();
+            if !changed.is_empty() {
+                store.apply_labels(folder_id, &changed)?;
+            }
+        }
+    }
+    // 모든 폴더를 훑은 경우에만 끝난 것으로 기록한다(일부 폴더만 맞춘 동기화는 다음에 다시 한다).
+    if first_pass && matches!(scope, Scope::All) {
+        store.set_labels_synced(account_id)?;
     }
     Ok(())
 }

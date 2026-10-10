@@ -138,6 +138,13 @@ pub struct RemoteFlags {
     pub starred: bool,
 }
 
+/// 서버에 있는 메일 한 통의 라벨(시스템 라벨 제외). 본문 없이 라벨만 다시 읽는 데 쓴다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoteLabels {
+    pub remote_id: String,
+    pub labels: Vec<String>,
+}
+
 /// 폴더 전체의 UID·플래그 목록과 UID가 유효한지 판단하는 값.
 #[derive(Debug, Clone, Default)]
 pub struct FolderSnapshot {
@@ -218,6 +225,21 @@ pub trait MailProvider: Send + Sync {
         _ids: &[String],
     ) -> Result<Vec<RemoteMessage>, ProviderError> {
         unsupported("메일 받기")
+    }
+
+    /// 이 서비스가 메일에 라벨을 붙이는지(Gmail). 아니면 라벨 재동기화를 건너뛴다.
+    fn supports_labels(&self) -> bool {
+        false
+    }
+
+    /// 지정한 서버 식별자 메일의 라벨만 가볍게 다시 읽는다(본문은 받지 않는다).
+    /// 서버에서 사라진 메일은 결과에서 빠진다.
+    async fn fetch_labels(
+        &self,
+        _folder_key: &str,
+        _ids: &[String],
+    ) -> Result<Vec<RemoteLabels>, ProviderError> {
+        unsupported("라벨 읽기")
     }
 
     async fn set_seen(
