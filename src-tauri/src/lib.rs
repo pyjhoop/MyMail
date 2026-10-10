@@ -86,6 +86,7 @@ pub fn run() {
             commands::set_signature,
             commands::set_sign_replies,
             commands::update_account,
+            commands::set_notify_settings,
             commands::reorder_accounts,
             commands::remove_account,
             commands::save_attachment,

@@ -8,6 +8,8 @@ import { isOpenableLink } from "./mailHtml";
 
 export type Provider = "gmail" | "naver";
 
+export type NotifyScope = "inbox" | "all" | "starred";
+
 export interface Account {
   id: string;
   name: string;
@@ -22,6 +24,13 @@ export interface Account {
   signature: string;
   /** 답장·전달에도 서명을 넣을지 */
   signReplies: boolean;
+  /** 새 메일 알림 켜기 */
+  notifyEnabled: boolean;
+  /** 알림 대상 */
+  notifyScope: NotifyScope;
+  notifySound: boolean;
+  /** 작업 표시줄·트레이에 안 읽은 수 표시 */
+  notifyBadge: boolean;
 }
 
 export type FolderKind =
@@ -394,6 +403,20 @@ export function setSignReplies(accountId: string, on: boolean): Promise<void> {
 /** 표시 이름과 계정 색(1~8)을 바꾼다 */
 export function updateAccount(accountId: string, name: string, colorIndex: number): Promise<void> {
   return call("update_account", { accountId, name, colorIndex });
+}
+
+/** 계정별 알림 설정을 저장한다 */
+export function setNotifySettings(
+  accountId: string,
+  settings: Pick<Account, "notifyEnabled" | "notifyScope" | "notifySound" | "notifyBadge">,
+): Promise<void> {
+  return call("set_notify_settings", {
+    accountId,
+    enabled: settings.notifyEnabled,
+    scope: settings.notifyScope,
+    sound: settings.notifySound,
+    badge: settings.notifyBadge,
+  });
 }
 
 /** 계정 레일 순서를 저장한다 */

@@ -13,7 +13,7 @@ use super::scheduler::{open_folder_key, AccountSync};
 use super::{sync_account, Progress, Scope, SyncError};
 use crate::auth::CredentialStore;
 use crate::providers::{self, MailProvider, ProviderError, WakeReason};
-use crate::store::{NewMail, Store};
+use crate::store::{NewMail, NotifySettings, Store};
 
 /// 받은편지함 변화를 기다리는 최대 시간. IDLE이 조용히 끊겨도 이 시간 안에 한 번 다시 확인하는 안전망이기도 하다.
 const IDLE_TIMEOUT: Duration = Duration::from_secs(90);
@@ -74,7 +74,11 @@ impl SyncManager {
                     |p| {
                         let _ = app.emit("sync-progress", p);
                     },
-                    |mails| notify_new(&app, &id, &mails),
+                    |mails, settings| notify_new(&app, &id, &settings, &mails),
+                    || {
+                        crate::tray::mark_synced();
+                        crate::tray::refresh(&app);
+                    },
                 )
                 .await;
             })
@@ -162,6 +166,8 @@ impl SyncManager {
     /// 로컬에 반영한 사용자 조작을 서버에 보낸다. 연달아 부르면 0.3초 모아 계정마다 한 번에 하나씩 보내고,
     /// 이동한 메일은 대상 폴더를 바로 맞춘다. 연결이 없어 실패하면 큐에 남고, 짧게 다시 시도한 뒤 다음 동기화 때 보낸다.
     pub fn kick(&self, app: &AppHandle, account_id: &str) {
+        // 읽음·삭제 같은 조작이 로컬에 반영됐으니 트레이의 안 읽은 수도 바로 맞춘다.
+        crate::tray::refresh(app);
         let Some((provider, outbox)) = self.entries.lock().ok().and_then(|e| {
             e.get(account_id)
                 .map(|entry| (entry.provider.clone(), entry.outbox.clone()))
@@ -197,12 +203,16 @@ fn retry_delay(failures: u32) -> Duration {
         .min(RETRY_MAX)
 }
 
-/// 새 메일을 Windows 알림으로 알린다. 사용자가 앱을 보고 있으면 알리지 않는다.
-fn notify_new(app: &AppHandle, account_id: &str, mails: &[NewMail]) {
+/// 새 메일을 Windows 알림으로 알린다. 사용자가 앱을 보고 있거나 알림이 일시 중지 중이면 알리지 않는다.
+fn notify_new(app: &AppHandle, account_id: &str, settings: &NotifySettings, mails: &[NewMail]) {
     let focused = app
         .get_webview_window("main")
         .is_some_and(|w| w.is_focused().unwrap_or(false));
     if focused {
+        return;
+    }
+    let paused = app.state::<Store>().notify_paused_until().ok().flatten();
+    if !crate::notify::should_notify(settings, paused, crate::notify::now_secs()) {
         return;
     }
     let name = app
@@ -211,7 +221,7 @@ fn notify_new(app: &AppHandle, account_id: &str, mails: &[NewMail]) {
         .ok()
         .and_then(|accounts| accounts.into_iter().find(|a| a.id == account_id))
         .map_or_else(String::new, |a| a.name);
-    crate::notify::show(app, &name, mails);
+    crate::notify::show(app, &name, settings, mails);
 }
 
 /// 대기를 마치거나, `sync_now`가 깨우면 곧바로 돌아온다.
@@ -231,7 +241,8 @@ async fn watch(
     sync: &AccountSync,
     account_id: &str,
     report: impl Fn(Progress),
-    on_new: impl Fn(Vec<NewMail>),
+    on_new: impl Fn(Vec<NewMail>, NotifySettings),
+    on_synced: impl Fn(),
 ) {
     let mut first = true;
     let mut failures = 0u32;
@@ -251,12 +262,17 @@ async fn watch(
                 failures = 0;
                 first = false;
                 if let Some(mark) = watermark {
-                    if let Ok(mails) = store.new_unread_inbox(account_id, mark) {
-                        if !mails.is_empty() {
-                            on_new(mails);
+                    // 알림 대상은 계정 설정을 따른다(설정은 매번 읽어 바꾸면 바로 반영된다).
+                    let settings = store.notify_settings(account_id).unwrap_or_default();
+                    if settings.enabled {
+                        if let Ok(mails) = store.new_unread(account_id, mark, &settings.scope) {
+                            if !mails.is_empty() {
+                                on_new(mails, settings);
+                            }
                         }
                     }
                 }
+                on_synced();
             }
             Err(_) => {
                 failures += 1;

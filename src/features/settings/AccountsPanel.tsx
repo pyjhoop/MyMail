@@ -3,15 +3,23 @@ import { ChevronDown, ChevronUp, GripVertical, Plus } from "lucide-react";
 import {
   removeAccount,
   reorderAccounts,
+  setNotifySettings,
   setSignature,
   setSignReplies,
   toLoadError,
   updateAccount,
   type Account,
+  type NotifyScope,
 } from "../../lib/ipc";
 import styles from "./AccountsPanel.module.css";
 
 const COLOR_NAMES = ["파랑", "초록", "주황", "보라", "분홍", "청록", "황토", "빨강"];
+
+const NOTIFY_SCOPES: [NotifyScope, string][] = [
+  ["inbox", "받은편지함만"],
+  ["all", "모든 폴더"],
+  ["starred", "별표한 보낸사람만"],
+];
 
 export interface AccountsPanelProps {
   accounts: Account[];
@@ -196,6 +204,20 @@ function AccountCard({
       onPatch({ signReplies: on });
     });
 
+  const saveNotify = (
+    patch: Partial<Pick<Account, "notifyEnabled" | "notifyScope" | "notifySound" | "notifyBadge">>,
+  ) =>
+    run(async () => {
+      await setNotifySettings(account.id, {
+        notifyEnabled: account.notifyEnabled,
+        notifyScope: account.notifyScope,
+        notifySound: account.notifySound,
+        notifyBadge: account.notifyBadge,
+        ...patch,
+      });
+      onPatch(patch);
+    });
+
   const remove = async () => {
     setBusy(true);
     await run(async () => {
@@ -321,9 +343,58 @@ function AccountCard({
               </label>
             </div>
 
-            <span className={styles.label}>알림</span>
-            {/* 알림 설정(켜기/끄기·대상·소리·안 읽은 수)은 "알림·트레이" 작업에서 채운다. */}
-            <p className={styles.hint}>알림 설정은 곧 지원돼요.</p>
+            <span className={styles.label} id={`notify-${account.id}`}>
+              알림
+            </span>
+            <div className={styles.sigBox} role="group" aria-labelledby={`notify-${account.id}`}>
+              <label className={styles.check}>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={account.notifyEnabled}
+                  onChange={(e) => void saveNotify({ notifyEnabled: e.target.checked })}
+                />
+                새 메일 알림
+              </label>
+              <div
+                className={styles.radios}
+                role="radiogroup"
+                aria-label="알림 대상"
+                aria-disabled={!account.notifyEnabled}
+              >
+                {NOTIFY_SCOPES.map(([scope, text]) => (
+                  <label key={scope} className={styles.check}>
+                    <input
+                      type="radio"
+                      name={`notify-scope-${account.id}`}
+                      checked={account.notifyScope === scope}
+                      disabled={!account.notifyEnabled}
+                      onChange={() => void saveNotify({ notifyScope: scope })}
+                    />
+                    {text}
+                  </label>
+                ))}
+              </div>
+              <label className={styles.check}>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={account.notifySound}
+                  disabled={!account.notifyEnabled}
+                  onChange={(e) => void saveNotify({ notifySound: e.target.checked })}
+                />
+                알림 소리
+              </label>
+              <label className={styles.check}>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={account.notifyBadge}
+                  onChange={(e) => void saveNotify({ notifyBadge: e.target.checked })}
+                />
+                작업 표시줄 아이콘에 안 읽은 수 표시
+              </label>
+            </div>
           </div>
           <div className={styles.foot}>
             {confirming ? (

@@ -24,6 +24,13 @@ pub struct Account {
     pub signature: String,
     /// 답장·전달에도 서명을 넣을지
     pub sign_replies: bool,
+    /// 새 메일 알림 켜기
+    pub notify_enabled: bool,
+    /// 알림 대상: `inbox` | `all` | `starred`
+    pub notify_scope: String,
+    pub notify_sound: bool,
+    /// 작업 표시줄·트레이에 안 읽은 수 표시
+    pub notify_badge: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]

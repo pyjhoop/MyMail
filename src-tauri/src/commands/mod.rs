@@ -433,6 +433,33 @@ pub async fn update_account(
     Ok(())
 }
 
+/// 계정별 알림 설정을 저장한다. `scope`는 inbox | all | starred.
+#[tauri::command]
+pub async fn set_notify_settings(
+    app: AppHandle,
+    store: State<'_, Store>,
+    account_id: String,
+    enabled: bool,
+    scope: String,
+    sound: bool,
+    badge: bool,
+) -> CommandResult<()> {
+    if !["inbox", "all", "starred"].contains(&scope.as_str()) {
+        return Err(invalid("알림 대상을 확인해 주세요."));
+    }
+    store.set_notify_settings(
+        &account_id,
+        &crate::store::NotifySettings {
+            enabled,
+            scope,
+            sound,
+            badge,
+        },
+    )?;
+    crate::tray::refresh(&app);
+    Ok(())
+}
+
 /// 계정 레일 순서를 저장한다.
 #[tauri::command]
 pub async fn reorder_accounts(store: State<'_, Store>, ids: Vec<String>) -> CommandResult<()> {
