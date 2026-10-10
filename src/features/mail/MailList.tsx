@@ -32,6 +32,8 @@ interface Props {
   checkedIds: ReadonlySet<string>;
   onCheckedChange: (ids: Set<string>) => void;
   onDelete: () => void;
+  /** 선택한 메일이 있을 때 삭제 버튼 앞에 놓는 버튼들(라벨 등) */
+  selectionActions?: ReactNode;
   deleting?: boolean;
   /** 삭제 결과 등 목록 위에 보여줄 안내 */
   notice?: string;
@@ -78,6 +80,7 @@ export function MailList({
   checkedIds,
   onCheckedChange,
   onDelete,
+  selectionActions,
   deleting = false,
   notice,
   topBar,
@@ -188,6 +191,7 @@ export function MailList({
           {checkedIds.size > 0 && (
             <span className={styles.checkedCount}>선택 {checkedIds.size}개</span>
           )}
+          {checkedIds.size > 0 && selectionActions}
           <button
             type="button"
             className={`ib ${styles.delete}`}

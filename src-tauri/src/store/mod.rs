@@ -2,6 +2,7 @@
 
 mod attachments;
 mod compose;
+mod labels;
 mod models;
 mod notify;
 pub mod search;
@@ -23,7 +24,7 @@ pub use models::{
 };
 pub use notify::{NewMail, NotifySettings};
 pub use search::{ParsedQuery, SearchPage, SearchRequest, SenderSuggestion};
-pub use sync_state::{folder_key, OpKind};
+pub use sync_state::{folder_key, OpKind, PendingOp};
 
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
@@ -47,6 +48,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/0010_labels.sql"),
     include_str!("migrations/0011_search.sql"),
     include_str!("migrations/0012_labels_resync.sql"),
+    include_str!("migrations/0015_label_ops.sql"),
 ];
 
 const PREVIEW_CHARS: usize = 80;
@@ -161,10 +163,10 @@ impl Store {
         let tx = conn.transaction()?;
         for (position, f) in folders.iter().enumerate() {
             tx.execute(
-                "INSERT INTO folders (id, account_id, name, kind, color_index, depth, expandable, position)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                "INSERT INTO folders (id, account_id, name, kind, color_index, depth, expandable, position, path)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
                  ON CONFLICT(id) DO UPDATE SET name = ?3, kind = ?4, color_index = ?5,
-                     depth = ?6, expandable = ?7, position = ?8",
+                     depth = ?6, expandable = ?7, position = ?8, path = ?9",
                 params![
                     folder_id(account_id, &f.key),
                     account_id,
@@ -173,7 +175,8 @@ impl Store {
                     f.color_index,
                     f.depth,
                     f.expandable,
-                    position as i64
+                    position as i64,
+                    f.path
                 ],
             )?;
         }
@@ -315,9 +318,16 @@ impl Store {
     pub fn list_folders(&self, account_id: &str) -> Result<Vec<Folder>, StoreError> {
         let conn = self.lock()?;
         let mut stmt = conn.prepare(
-            "SELECT f.id, f.account_id, f.name, f.kind, f.color_index, f.depth, f.expandable,
-                    (SELECT COUNT(*) FROM messages m WHERE m.folder_id = f.id AND m.unread = 1)
+            &format!(
+                "SELECT f.id, f.account_id, f.name, f.kind, f.color_index, f.depth, f.expandable,
+                    CASE WHEN f.kind = 'label'
+                         THEN (SELECT COUNT(*) FROM messages m WHERE m.unread = 1 AND {member})
+                         ELSE (SELECT COUNT(*) FROM messages m WHERE m.folder_id = f.id AND m.unread = 1)
+                    END,
+                    COALESCE(f.path, f.name)
              FROM folders f WHERE f.account_id = ?1 ORDER BY f.position",
+                member = labels::LABEL_MEMBER_SQL
+            ),
         )?;
         let rows = stmt.query_map([account_id], |r| {
             Ok(Folder {
@@ -329,6 +339,7 @@ impl Store {
                 depth: r.get(5)?,
                 expandable: r.get(6)?,
                 unread: r.get(7)?,
+                path: r.get(8)?,
             })
         })?;
         Ok(rows.collect::<Result<_, _>>()?)
@@ -352,9 +363,15 @@ impl Store {
         sort: MailSort,
     ) -> Result<Vec<MailSummary>, StoreError> {
         let conn = self.lock()?;
-        let (filter, args): (&str, Vec<&str>) = match account_id {
-            Some(_) => ("m.folder_id = ?1", vec![folder_id]),
-            None => ("f.kind = 'inbox'", Vec::new()),
+        let label_path = match account_id {
+            Some(_) => labels::label_path(&conn, folder_id)?,
+            None => None,
+        };
+        let (filter, args): (&str, Vec<&str>) = match (account_id, &label_path) {
+            // 라벨은 메일이 저장된 폴더가 아니라 붙은 라벨로 모아 보인다.
+            (Some(_), Some(path)) => (labels::LABEL_VIEW_SQL, vec![folder_id, path.as_str()]),
+            (Some(_), None) => ("m.folder_id = ?1", vec![folder_id]),
+            (None, _) => ("f.kind = 'inbox'", Vec::new()),
         };
         let sql = format!(
             "SELECT m.id, m.account_id, m.folder_id, m.sender, m.sender_email, m.subject, m.preview,

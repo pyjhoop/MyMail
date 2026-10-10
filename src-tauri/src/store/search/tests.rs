@@ -110,6 +110,7 @@ fn store_with_mail() -> Store {
         .map(|(k, kind)| RemoteFolder {
             key: k.into(),
             name: k.into(),
+            path: k.into(),
             kind,
             color_index: None,
             depth: 0,

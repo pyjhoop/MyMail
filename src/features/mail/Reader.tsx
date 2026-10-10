@@ -8,9 +8,10 @@ import {
   Star,
   Trash2,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import { NoMailSelected, ReaderSkeleton } from "../../components/StateView";
 import type { MailDetail } from "../../lib/ipc";
-import { labelColorVar } from "../../lib/labels";
+import { LabelChips } from "../labels/LabelChips";
 import { AttachmentList } from "./AttachmentList";
 import { HtmlBody } from "./HtmlBody";
 import { MoreMenu, type MoreMenuProps } from "./MoreMenu";
@@ -22,6 +23,10 @@ export interface ReaderActions {
   onArchive: () => void;
   /** 있으면 보관 버튼을 막고 이 문구를 툴팁으로 보여 준다 */
   archiveBlockedReason?: string;
+  /** 라벨 버튼(라벨을 지원하는 계정에서만 그려진다). 팝오버 동작은 `features/labels`가 맡는다 */
+  labelButton?: ReactNode;
+  /** 헤더의 라벨 칩 ×를 눌렀을 때. 없으면 × 없이 칩만 보인다 */
+  onRemoveLabel?: (name: string) => void;
   more: Omit<MoreMenuProps, "disabled" | "unread" | "starred">;
 }
 
@@ -88,6 +93,7 @@ export function Reader({ mail, loading, position, onPrev, onNext, onCompose, act
         >
           <Trash2 size={20} strokeWidth={1.75} aria-hidden />
         </button>
+        {actions?.labelButton}
         <MoreMenu
           disabled={!ready}
           unread={mail?.unread ?? false}
@@ -136,12 +142,7 @@ export function Reader({ mail, loading, position, onPrev, onNext, onCompose, act
                   aria-label="별표 표시됨"
                 />
               )}
-              {mail.labels.map((l) => (
-                <span key={l.name} className={styles.chip}>
-                  <span className={styles.chipDot} style={{ background: labelColorVar(l.name) }} />
-                  {l.name}
-                </span>
-              ))}
+              <LabelChips labels={mail.labels} onRemove={actions?.onRemoveLabel} />
             </div>
 
             {mail.earlier.map((e) => (

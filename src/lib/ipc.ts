@@ -48,6 +48,8 @@ export interface Folder {
   depth?: number;
   /** 하위 폴더를 가진 폴더 */
   expandable?: boolean;
+  /** 계층을 포함한 전체 이름("부모/자식"). 라벨 조작이 쓰는 이름이다 */
+  path?: string;
 }
 
 export interface MailSummary {
@@ -296,6 +298,36 @@ export function emptyFolder(accountId: string, folderId: string): Promise<void> 
  */
 export function archiveMail(id: string): Promise<void> {
   return call("archive_mail", { id });
+}
+
+/** 이 계정이 메일에 라벨을 붙일 수 있는지(Gmail). 아니면 라벨 메뉴를 숨긴다. */
+export function supportsLabels(accountId: string): Promise<boolean> {
+  return call("supports_labels", { accountId });
+}
+
+/** 메일들에 라벨을 붙인다. label은 "부모/자식" 꼴의 전체 이름이고, 같은 계정의 메일이어야 한다. */
+export function addLabel(ids: string[], label: string): Promise<void> {
+  return call("add_label", { ids, label });
+}
+
+/** 메일들에서 라벨을 뗀다(메일은 남는다). */
+export function removeLabel(ids: string[], label: string): Promise<void> {
+  return call("remove_label", { ids, label });
+}
+
+/** 라벨을 서버에 만들고 그 라벨(폴더)을 돌려준다. 이름이 올바르지 않으면 한국어 안내와 함께 던진다. */
+export function createLabel(accountId: string, name: string): Promise<Folder> {
+  return call("create_label", { accountId, name });
+}
+
+/** 라벨 이름을 바꾼다(하위 라벨 포함). */
+export function renameLabel(accountId: string, folderId: string, name: string): Promise<void> {
+  return call("rename_label", { accountId, folderId, name });
+}
+
+/** 라벨을 지운다. 메일은 지워지지 않고 라벨만 사라진다. */
+export function deleteLabel(accountId: string, folderId: string): Promise<void> {
+  return call("delete_label", { accountId, folderId });
 }
 
 /** 링크를 기본 브라우저(메일 주소는 기본 메일 앱)로 연다. 앱 창 안에서는 이동하지 않는다. */

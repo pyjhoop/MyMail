@@ -65,6 +65,10 @@ struct FakeServer {
     extra_folders: Vec<RemoteFolder>,
     /// true면 라벨 재동기화를 지원하지 않는 서비스처럼 동작한다.
     no_labels: bool,
+    /// 이름이 바뀐 라벨 폴더의 새 경로(key는 그대로)
+    label_paths: HashMap<String, String>,
+    /// 지워진 라벨 폴더의 key
+    deleted_keys: Vec<String>,
 }
 
 /// 메모리 안의 가짜 서버. 처음 상태는 항상 같고, 조작(읽음·이동·삭제)이 상태에 반영된다.
@@ -255,14 +259,30 @@ impl FakeProvider {
                 ..Self::folder("f-contract", "계약·서류", FolderKind::Folder)
             });
         }
-        folders.extend(self.server().extra_folders.clone());
+        let server = self.server();
+        folders.extend(server.extra_folders.clone());
+        folders.retain(|f| !server.deleted_keys.contains(&f.key));
+        for f in &mut folders {
+            if let Some(path) = server.label_paths.get(&f.key) {
+                f.name = path.rsplit('/').next().unwrap_or(path).to_string();
+                f.path = path.clone();
+            }
+        }
         folders
+    }
+
+    fn require_labels(&self) -> Result<(), ProviderError> {
+        if self.server().no_labels {
+            return Err(ProviderError::Unsupported("라벨".into()));
+        }
+        Ok(())
     }
 
     fn folder(key: &str, name: &str, kind: FolderKind) -> RemoteFolder {
         RemoteFolder {
             key: key.into(),
             name: name.into(),
+            path: name.into(),
             kind,
             color_index: None,
             depth: 0,
@@ -500,6 +520,153 @@ impl MailProvider for FakeProvider {
         message.remote_id = dest.next_uid.to_string();
         dest.next_uid += 1;
         dest.messages.push(message);
+        Ok(())
+    }
+
+    async fn add_label(
+        &self,
+        folder_key: &str,
+        remote_id: &str,
+        label: &str,
+    ) -> Result<(), ProviderError> {
+        self.require_labels()?;
+        self.with_folder(
+            folder_key,
+            format!("add_label:{folder_key}:{remote_id}:{label}"),
+            |f| {
+                let m = f
+                    .messages
+                    .iter_mut()
+                    .find(|m| m.remote_id == remote_id)
+                    .ok_or_else(|| ProviderError::NotFound(remote_id.into()))?;
+                if !m.labels.iter().any(|l| l == label) {
+                    m.labels.push(label.into());
+                }
+                Ok(())
+            },
+        )
+    }
+
+    async fn remove_label(
+        &self,
+        folder_key: &str,
+        remote_id: &str,
+        label: &str,
+    ) -> Result<(), ProviderError> {
+        self.require_labels()?;
+        self.with_folder(
+            folder_key,
+            format!("remove_label:{folder_key}:{remote_id}:{label}"),
+            |f| {
+                let m = f
+                    .messages
+                    .iter_mut()
+                    .find(|m| m.remote_id == remote_id)
+                    .ok_or_else(|| ProviderError::NotFound(remote_id.into()))?;
+                m.labels.retain(|l| l != label);
+                Ok(())
+            },
+        )
+    }
+
+    async fn create_label(&self, name: &str) -> Result<(), ProviderError> {
+        self.require_labels()?;
+        self.check_online()?;
+        self.server().ops.push(format!("create_label:{name}"));
+        if self.folder_list().iter().any(|f| f.path == name) {
+            return Ok(());
+        }
+        let mut server = self.server();
+        server.folders.insert(
+            name.into(),
+            FakeFolder {
+                uid_validity: 1,
+                next_uid: 0,
+                messages: Vec::new(),
+            },
+        );
+        let (parent, leaf) = name.rsplit_once('/').unwrap_or(("", name));
+        server.extra_folders.push(RemoteFolder {
+            path: name.into(),
+            depth: if parent.is_empty() {
+                0
+            } else {
+                parent.matches('/').count() as u8 + 1
+            },
+            ..Self::folder(name, leaf, FolderKind::Label)
+        });
+        Ok(())
+    }
+
+    /// 키는 그대로 두고 경로만 바꾼다(실제 서버는 key도 바뀌지만, 로컬은 폴더 목록을 다시 받아 맞춘다).
+    async fn rename_label(&self, old: &str, new: &str) -> Result<(), ProviderError> {
+        self.require_labels()?;
+        self.check_online()?;
+        self.server().ops.push(format!("rename_label:{old}:{new}"));
+        let list = self.folder_list();
+        if list.iter().any(|f| f.path == new) {
+            return Err(ProviderError::Rejected("이미 있는 라벨이에요".into()));
+        }
+        let rebase = |path: &str| -> Option<String> {
+            if path == old {
+                Some(new.to_string())
+            } else {
+                path.strip_prefix(&format!("{old}/"))
+                    .map(|rest| format!("{new}/{rest}"))
+            }
+        };
+        let mut server = self.server();
+        let mut found = false;
+        for f in list.iter().filter(|f| f.kind == FolderKind::Label) {
+            if let Some(p) = rebase(&f.path) {
+                server.label_paths.insert(f.key.clone(), p);
+                found = true;
+            }
+        }
+        if !found {
+            return Err(ProviderError::NotFound(old.into()));
+        }
+        for folder in server.folders.values_mut() {
+            for m in &mut folder.messages {
+                for l in &mut m.labels {
+                    if let Some(p) = rebase(l) {
+                        *l = p;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// 라벨만 사라지고 메일은 받은편지함에 남는다(실제 Gmail에서는 전체보관함에 남는다).
+    async fn delete_label(&self, name: &str) -> Result<(), ProviderError> {
+        self.require_labels()?;
+        self.check_online()?;
+        self.server().ops.push(format!("delete_label:{name}"));
+        let Some(target) = self
+            .folder_list()
+            .into_iter()
+            .find(|f| f.kind == FolderKind::Label && f.path == name)
+        else {
+            return Err(ProviderError::NotFound(name.into()));
+        };
+        let mut server = self.server();
+        let removed = server.folders.remove(&target.key);
+        server.deleted_keys.push(target.key.clone());
+        server.extra_folders.retain(|f| f.key != target.key);
+        for folder in server.folders.values_mut() {
+            for m in &mut folder.messages {
+                m.labels.retain(|l| l != name);
+            }
+        }
+        if let (Some(removed), Some(inbox)) = (removed, server.folders.get_mut("inbox")) {
+            for mut m in removed.messages {
+                m.labels.retain(|l| l != name);
+                m.remote_id = inbox.next_uid.to_string();
+                inbox.next_uid += 1;
+                inbox.messages.push(m);
+            }
+        }
         Ok(())
     }
 

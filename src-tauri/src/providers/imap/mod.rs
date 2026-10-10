@@ -72,6 +72,35 @@ impl ImapProvider {
         }
     }
 
+    fn require_labels(&self, what: &str) -> Result<(), ProviderError> {
+        if self.config.gmail_extensions {
+            Ok(())
+        } else {
+            Err(ProviderError::Unsupported(what.into()))
+        }
+    }
+
+    async fn label_op(
+        &self,
+        folder_key: &str,
+        remote_id: &str,
+        label: &str,
+        add: bool,
+    ) -> Result<(), ProviderError> {
+        self.require_labels(if add {
+            "라벨 붙이기"
+        } else {
+            "라벨 떼기"
+        })?;
+        let (key, id, label) = (
+            folder_key.to_string(),
+            remote_id.to_string(),
+            label.to_string(),
+        );
+        self.blocking(move |this| this.change_label_blocking(&key, &id, &label, add))
+            .await
+    }
+
     async fn blocking<T, F>(&self, work: F) -> Result<T, ProviderError>
     where
         T: Send + 'static,
@@ -401,6 +430,43 @@ impl ImapProvider {
         result
     }
 
+    /// 새 연결로 `work`를 실행한다(폴더를 열지 않는 조작: 이름 바꾸기·삭제 등).
+    fn with_session<T>(
+        &self,
+        work: impl FnOnce(&mut Session) -> Result<T, imap::Error>,
+    ) -> Result<T, ProviderError> {
+        let mut session = self.connect()?;
+        let result = work(&mut session).map_err(map_op_error);
+        let _ = session.logout();
+        result
+    }
+
+    fn change_label_blocking(
+        &self,
+        folder_key: &str,
+        remote_id: &str,
+        label: &str,
+        add: bool,
+    ) -> Result<(), ProviderError> {
+        let uid = parse_uid(remote_id)?;
+        gmail_ext::change_label(
+            self.open_tls()?,
+            &self.email,
+            &self.password,
+            folder_key,
+            uid,
+            label,
+            add,
+        )
+        .map_err(|e| match e {
+            gmail_ext::RawError::LoginRejected => ProviderError::Auth(self.config.auth_hint.into()),
+            gmail_ext::RawError::Failed(m) if m.starts_with("NO") || m.starts_with("BAD") => {
+                ProviderError::Rejected(m)
+            }
+            gmail_ext::RawError::Failed(m) => ProviderError::Network(m),
+        })
+    }
+
     fn delete_blocking(&self, folder_key: &str, remote_id: &str) -> Result<(), ProviderError> {
         let uid = parse_uid(remote_id)?.to_string();
         self.with_folder(folder_key, |s| expunge_uid(s, &uid))
@@ -665,6 +731,47 @@ impl MailProvider for ImapProvider {
         Ok(key)
     }
 
+    async fn add_label(
+        &self,
+        folder_key: &str,
+        remote_id: &str,
+        label: &str,
+    ) -> Result<(), ProviderError> {
+        self.label_op(folder_key, remote_id, label, true).await
+    }
+
+    async fn remove_label(
+        &self,
+        folder_key: &str,
+        remote_id: &str,
+        label: &str,
+    ) -> Result<(), ProviderError> {
+        self.label_op(folder_key, remote_id, label, false).await
+    }
+
+    /// Gmail에서는 같은 이름의 메일함을 만드는 것이 곧 라벨을 만드는 것이다.
+    async fn create_label(&self, name: &str) -> Result<(), ProviderError> {
+        self.require_labels("라벨 만들기")?;
+        let key = utf7::encode(name);
+        self.blocking(move |this| this.create_folder_blocking(&key))
+            .await
+    }
+
+    async fn rename_label(&self, old: &str, new: &str) -> Result<(), ProviderError> {
+        self.require_labels("라벨 이름 바꾸기")?;
+        let (old, new) = (utf7::encode(old), utf7::encode(new));
+        self.blocking(move |this| this.with_session(|s| s.rename(&old, &new)))
+            .await
+    }
+
+    /// 라벨 메일함만 지워지고 메일은 전체보관함 등에 남는다.
+    async fn delete_label(&self, name: &str) -> Result<(), ProviderError> {
+        self.require_labels("라벨 삭제")?;
+        let key = utf7::encode(name);
+        self.blocking(move |this| this.with_session(|s| s.delete(&key)))
+            .await
+    }
+
     async fn delete_message(&self, folder_key: &str, remote_id: &str) -> Result<(), ProviderError> {
         let (key, id) = (folder_key.to_string(), remote_id.to_string());
         self.blocking(move |this| this.delete_blocking(&key, &id))
@@ -749,6 +856,7 @@ fn build_folders(raw: Vec<RawFolder>) -> Vec<RemoteFolder> {
             RemoteFolder {
                 key: key.clone(),
                 name: name.to_string(),
+                path: decoded.clone(),
                 kind: *kind,
                 color_index: None,
                 depth: depth.min(u8::MAX as usize) as u8,
