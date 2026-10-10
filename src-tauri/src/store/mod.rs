@@ -41,6 +41,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("migrations/0006_compose_quote.sql"),
     include_str!("migrations/0007_attachment_part.sql"),
     include_str!("migrations/0008_account_settings.sql"),
+    include_str!("migrations/0009_labels.sql"),
 ];
 
 const PREVIEW_CHARS: usize = 80;
@@ -172,10 +173,10 @@ impl Store {
             let mut insert = tx.prepare_cached(
                 "INSERT INTO messages (id, account_id, folder_id, thread_id, sender, sender_email,
                      recipients, subject, preview, body, received_at, unread, starred,
-                     has_attachment, label_name, label_color, html, dedupe_key)
+                     has_attachment, label_name, labels, html, dedupe_key)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
                  ON CONFLICT(id) DO UPDATE SET unread = ?12, starred = ?13,
-                     label_name = ?15, label_color = ?16,
+                     label_name = ?15, labels = ?16,
                      preview = ?9, body = ?10, html = ?17, has_attachment = ?14, dedupe_key = ?18",
             )?;
             let mut delete_inline =
@@ -221,8 +222,9 @@ impl Store {
                     m.unread,
                     m.starred,
                     !m.attachments.is_empty(),
-                    m.label.as_ref().map(|l| l.0.as_str()),
-                    m.label.as_ref().map(|l| l.1),
+                    m.labels.first(),
+                    (!m.labels.is_empty())
+                        .then(|| serde_json::to_string(&m.labels).unwrap_or_default()),
                     m.html,
                     m.dedupe_key,
                 ])?;
@@ -317,7 +319,7 @@ impl Store {
         };
         let sql = format!(
             "SELECT m.id, m.account_id, m.folder_id, m.sender, m.sender_email, m.subject, m.preview,
-                    m.received_at, m.unread, m.starred, m.has_attachment, m.label_name, m.label_color,
+                    m.received_at, m.unread, m.starred, m.has_attachment, m.labels, m.label_name,
                     CASE WHEN m.thread_id IS NULL THEN 0
                          ELSE (SELECT COUNT(*) FROM messages t WHERE t.thread_id = m.thread_id) END
              FROM messages m JOIN folders f ON f.id = m.folder_id
@@ -352,7 +354,7 @@ impl Store {
             .query_row(
                 "SELECT m.id, m.account_id, m.folder_id, m.sender, m.sender_email, m.subject,
                         m.preview, m.received_at, m.unread, m.starred, m.has_attachment,
-                        m.label_name, m.label_color,
+                        m.labels, m.label_name,
                         CASE WHEN m.thread_id IS NULL THEN 0
                              ELSE (SELECT COUNT(*) FROM messages t WHERE t.thread_id = m.thread_id) END,
                         m.recipients, m.body, m.thread_id, m.html
@@ -453,7 +455,7 @@ impl Store {
         let conn = self.lock()?;
         let sql = format!(
             "SELECT m.id, m.account_id, m.folder_id, m.sender, m.sender_email, m.subject, m.preview,
-                    m.received_at, m.unread, m.starred, m.has_attachment, m.label_name, m.label_color,
+                    m.received_at, m.unread, m.starred, m.has_attachment, m.labels, m.label_name,
                     CASE WHEN m.thread_id IS NULL THEN 0
                          ELSE (SELECT COUNT(*) FROM messages t WHERE t.thread_id = m.thread_id) END
              FROM messages_fts JOIN messages m ON m.rowid = messages_fts.rowid
@@ -483,8 +485,12 @@ fn migrate(conn: &mut Connection) -> Result<(), StoreError> {
 }
 
 fn summary_from_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<MailSummary> {
-    let label_name: Option<String> = r.get(11)?;
-    let label_color: Option<u8> = r.get(12)?;
+    let labels_json: Option<String> = r.get(11)?;
+    let first_label: Option<String> = r.get(12)?;
+    // 새 행은 JSON 배열, 예전 행은 첫 라벨 이름만 있다.
+    let names: Vec<String> = labels_json
+        .and_then(|j| serde_json::from_str(&j).ok())
+        .unwrap_or_else(|| first_label.into_iter().collect());
     let thread_count: u32 = r.get(13)?;
     Ok(MailSummary {
         id: r.get(0)?,
@@ -499,9 +505,7 @@ fn summary_from_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<MailSummary> {
         starred: r.get(9)?,
         has_attachment: r.get(10)?,
         thread_count: (thread_count >= 2).then_some(thread_count),
-        label: label_name
-            .zip(label_color)
-            .map(|(name, color_index)| LabelTag { name, color_index }),
+        labels: names.into_iter().map(LabelTag::new).collect(),
     })
 }
 

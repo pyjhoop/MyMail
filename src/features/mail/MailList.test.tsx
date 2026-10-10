@@ -72,6 +72,7 @@ const MAILS: MailSummary[] = Array.from({ length: 5 }, (_, i) => ({
   unread: false,
   starred: false,
   hasAttachment: false,
+  labels: [],
 }));
 
 function Harness({ onSelect, onDelete }: { onSelect: (id: string) => void; onDelete: () => void }) {
@@ -157,5 +158,69 @@ describe("MailList 다중 선택", () => {
 
     expect(onSelect).toHaveBeenCalledWith("m4");
     expect(screen.queryByText(/^선택 \d+개$/)).not.toBeInTheDocument();
+  });
+});
+
+describe("MailList 계정 색 막대", () => {
+  const renderWith = (showAccount: boolean, mails: MailSummary[]) =>
+    render(
+      <MailList
+        title="받은편지함"
+        status="ready"
+        mails={mails}
+        accounts={FAKE_ACCOUNTS}
+        showAccount={showAccount}
+        selectedId={null}
+        onSelect={vi.fn()}
+        checkedIds={new Set()}
+        onCheckedChange={vi.fn()}
+        onDelete={vi.fn()}
+        onRefresh={vi.fn()}
+        sort="newest"
+        onSortChange={vi.fn()}
+      />,
+    );
+  const two = [
+    { ...MAILS[0], id: "x1", accountId: FAKE_ACCOUNTS[0].id },
+    { ...MAILS[1], id: "x2", accountId: FAKE_ACCOUNTS[1].id },
+  ];
+
+  it("통합 보기에서는 계정 색 세로 막대가 행마다 붙는다", () => {
+    renderWith(true, two);
+    for (const a of FAKE_ACCOUNTS.slice(0, 2)) {
+      const bar = screen.getByRole("img", { name: a.name });
+      expect(bar.style.background).toContain(`--account-${a.colorIndex}`);
+    }
+  });
+
+  it("라벨 칩 색은 라벨 이름으로 정한 색 변수를 쓴다", () => {
+    renderWith(false, [{ ...MAILS[0], labels: [{ name: "Work", colorIndex: 5 }] }]);
+    const dot = screen.getByText("Work").parentElement!.querySelector("span") as HTMLElement;
+    expect(dot.style.background).toBe("var(--account-2)");
+  });
+
+  it("라벨이 없는 메일 행에는 칩이 없다", () => {
+    renderWith(false, [MAILS[0]]);
+    expect(screen.queryByText(/^\+\d+$/)).not.toBeInTheDocument();
+    expect(document.querySelector("[title='Work']")).toBeNull();
+  });
+
+  it("라벨이 여러 개면 최대 2개까지 칩으로 보이고 나머지는 +N이다", () => {
+    const labels = ["가족", "여행", "금융", "쇼핑"].map((name) => ({ name, colorIndex: 1 }));
+    renderWith(false, [{ ...MAILS[0], labels }]);
+    expect(screen.getByText("가족")).toBeInTheDocument();
+    expect(screen.getByText("여행")).toBeInTheDocument();
+    expect(screen.queryByText("금융")).not.toBeInTheDocument();
+    expect(screen.getByText("+2")).toHaveAttribute("title", "금융, 쇼핑");
+  });
+
+  it("하위 라벨은 마지막 이름만 칩에 쓰고 전체 이름은 툴팁이다", () => {
+    renderWith(false, [{ ...MAILS[0], labels: [{ name: "여행/제주", colorIndex: 1 }] }]);
+    expect(screen.getByText("제주").closest("[title]")).toHaveAttribute("title", "여행/제주");
+  });
+
+  it("개별 계정·폴더 보기에서는 막대가 없다", () => {
+    renderWith(false, two);
+    expect(screen.queryByRole("img", { name: FAKE_ACCOUNTS[0].name })).not.toBeInTheDocument();
   });
 });

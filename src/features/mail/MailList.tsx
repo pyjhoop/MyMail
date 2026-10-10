@@ -10,6 +10,7 @@ import {
   OfflineState,
 } from "../../components/StateView";
 import type { Account, LoadError, MailSort, MailSummary } from "../../lib/ipc";
+import { labelColorVar, labelLeaf, MAX_ROW_LABELS } from "../../lib/labels";
 import styles from "./MailList.module.css";
 import { SORT_OPTIONS, sortLabel } from "./sort";
 
@@ -22,7 +23,7 @@ interface Props {
   error?: LoadError;
   mails: MailSummary[];
   accounts: Account[];
-  /** 통합 보기에서는 행에 계정 색 점을 붙인다 */
+  /** 통합 보기에서는 행 왼쪽에 계정 색 세로 막대를 붙인다 */
   showAccount: boolean;
   selectedId: string | null;
   onSelect: (id: string) => void;
@@ -293,6 +294,15 @@ export function MailList({
                   }`}
                   style={{ transform: `translateY(${v.start}px)` }}
                 >
+                  {account && (
+                    <span
+                      className={styles.accountBar}
+                      role="img"
+                      aria-label={account.name}
+                      title={account.name}
+                      style={{ background: `var(--account-${account.colorIndex})` }}
+                    />
+                  )}
                   <input
                     type="checkbox"
                     className={styles.check}
@@ -313,13 +323,6 @@ export function MailList({
                     <span className={styles.body}>
                       <span className={styles.line}>
                         <span className={`${styles.sender} ${m.unread ? styles.strong : ""}`}>
-                          {account && (
-                            <span
-                              className={styles.accountDot}
-                              style={{ background: `var(--account-${account.colorIndex})` }}
-                              title={account.name}
-                            />
-                          )}
                           {m.sender}
                           {m.threadCount && (
                             <span className={styles.threadCount}>{m.threadCount}</span>
@@ -332,13 +335,24 @@ export function MailList({
                       </span>
                       <span className={styles.line}>
                         <span className={styles.preview}>{m.preview}</span>
-                        {m.label && (
-                          <span className={styles.chip}>
+                        {m.labels.slice(0, MAX_ROW_LABELS).map((l) => (
+                          <span key={l.name} className={styles.chip} title={l.name}>
                             <span
                               className={styles.chipDot}
-                              style={{ background: `var(--account-${m.label.colorIndex})` }}
+                              style={{ background: labelColorVar(l.name) }}
                             />
-                            {m.label.name}
+                            <span className={styles.chipText}>{labelLeaf(l.name)}</span>
+                          </span>
+                        ))}
+                        {m.labels.length > MAX_ROW_LABELS && (
+                          <span
+                            className={styles.chip}
+                            title={m.labels
+                              .slice(MAX_ROW_LABELS)
+                              .map((l) => l.name)
+                              .join(", ")}
+                          >
+                            +{m.labels.length - MAX_ROW_LABELS}
                           </span>
                         )}
                         {m.hasAttachment && (

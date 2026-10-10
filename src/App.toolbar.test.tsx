@@ -65,6 +65,7 @@ const mail = (id: string, subject: string, folderId = "a1-inbox"): MailSummary =
   unread: false,
   starred: false,
   hasAttachment: false,
+  labels: [],
 });
 
 /** 폴더별 메일을 기억하는 백엔드 대역. 지우기·보관·이동이 성공하면 목록에서 빠진다. */

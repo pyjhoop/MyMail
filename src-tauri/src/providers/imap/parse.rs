@@ -63,7 +63,7 @@ pub fn parse_message(fetched: &FetchedMessage) -> RemoteMessage {
             .map_or(fetched.internal_date, |d| d.to_timestamp()),
         unread: fetched.unread,
         starred: fetched.starred,
-        label: None,
+        labels: Vec::new(),
         attachments: parsed
             .as_ref()
             .map(|m| {

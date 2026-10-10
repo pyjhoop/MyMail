@@ -94,7 +94,14 @@
   --toolbar-height: 48px;
   --folder-item-height: 32px;
   --folder-item-height-account: 44px;
+  --folder-indent-parent: 24px;
+  --folder-indent-nested: 38px;
+  --folder-indent-step: 16px;
+  --folder-toggle-size: 20px;
   --mail-row-height: 84px;
+  --chip-max-width: 80px;
+  --mail-row-bar-width: 3px;
+  --mail-row-bar-inset: 10px;
   --icon-size: 20px;
   --icon-size-dense: 16px;
   --icon-stroke: 1.75;

@@ -1,6 +1,7 @@
 use super::*;
 use crate::providers::fake::FakeProvider;
 use crate::providers::MailProvider;
+use crate::store::models::label_color;
 
 async fn seeded() -> Store {
     let store = Store::open_in_memory().unwrap();
@@ -224,7 +225,7 @@ fn html_message(body: &str, html: Option<&str>) -> crate::providers::RemoteMessa
         received_at: 1_760_000_000,
         unread: true,
         starred: false,
-        label: None,
+        labels: Vec::new(),
         attachments: Vec::new(),
         inline_images: vec![RemoteInlineImage {
             content_id: "Logo@Mail".into(),
@@ -421,4 +422,59 @@ async fn 워터마크_이후_새로_저장된_안읽은_받은편지함_메일�
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].subject, "소식");
     assert!(store.new_unread_inbox("other", mark).unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn 라벨_여러_개가_저장되고_예전_행은_첫_라벨로_읽힌다() {
+    let store = seeded().await;
+    let mut mail = html_message("본문", None);
+    mail.labels = vec!["Work".into(), "여행/제주".into()];
+    store.save_messages("a1", "inbox", &[mail]).unwrap();
+
+    let mine = |store: &Store| {
+        store
+            .list_mails(Some("a1"), "a1-inbox")
+            .unwrap()
+            .into_iter()
+            .find(|m| m.id == "a1-inbox-9")
+            .unwrap()
+    };
+    let m = mine(&store);
+    let names: Vec<_> = m.labels.iter().map(|l| l.name.as_str()).collect();
+    assert_eq!(names, ["Work", "여행/제주"]);
+    assert_eq!(m.labels[0].color_index, label_color("Work"));
+
+    // 이 버전 이전에 저장된 행: labels는 비어 있고 label_name만 있다.
+    store
+        .lock()
+        .unwrap()
+        .execute(
+            "UPDATE messages SET labels = NULL, label_name = '옛 라벨' WHERE id = 'a1-inbox-9'",
+            [],
+        )
+        .unwrap();
+    let m = mine(&store);
+    assert_eq!(m.labels.len(), 1);
+    assert_eq!(m.labels[0].name, "옛 라벨");
+
+    // 라벨이 없는 메일은 빈 목록이다.
+    store
+        .lock()
+        .unwrap()
+        .execute(
+            "UPDATE messages SET labels = NULL, label_name = NULL WHERE id = 'a1-inbox-9'",
+            [],
+        )
+        .unwrap();
+    assert!(mine(&store).labels.is_empty());
+}
+
+#[test]
+fn 라벨_색은_이름마다_고정이고_1에서_8_사이다() {
+    assert_eq!(label_color("Work"), label_color("Work"));
+    assert_eq!(label_color("Work"), 2);
+    assert_eq!(label_color("여행"), 8);
+    for name in ["Work", "여행", "a", ""] {
+        assert!((1..=8).contains(&label_color(name)));
+    }
 }

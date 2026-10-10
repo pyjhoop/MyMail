@@ -28,7 +28,6 @@ pub enum ProviderError {
     Rejected(String),
 }
 
-#[allow(dead_code)] // Label은 아직 만드는 곳이 없음
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FolderKind {
     Inbox,
@@ -125,7 +124,8 @@ pub struct RemoteMessage {
     pub received_at: i64,
     pub unread: bool,
     pub starred: bool,
-    pub label: Option<(String, u8)>,
+    /// 붙은 라벨 이름(시스템 라벨 제외). Gmail만 채운다.
+    pub labels: Vec<String>,
     pub attachments: Vec<RemoteAttachment>,
     pub inline_images: Vec<RemoteInlineImage>,
 }

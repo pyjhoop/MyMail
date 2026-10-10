@@ -158,7 +158,7 @@ async fn 임시보관함_목록에_작성_중인_메일이_섞여_나온다() {
     let drafts = store.list_mails(Some("a1"), "a1-drafts").unwrap();
     let mine = drafts.iter().find(|m| m.id == "draft:1").unwrap();
     assert_eq!(mine.sender, "김도윤");
-    assert_eq!(mine.label.as_ref().unwrap().name, "보내지 못함");
+    assert_eq!(mine.labels[0].name, "보내지 못함");
     // 다른 폴더에는 나타나지 않는다.
     let inbox = store.list_mails(Some("a1"), "a1-inbox").unwrap();
     assert!(inbox.iter().all(|m| m.id != "draft:1"));

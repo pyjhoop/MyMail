@@ -202,3 +202,49 @@
   flex-direction: column;
   min-width: 0;
 }
+
+/* 하위 폴더·라벨: 깊이마다 들여쓰고, 자식이 있는 줄에는 접기/펼치기 토글을 둔다 */
+.nested {
+  --indent: calc(var(--folder-indent-nested) + (var(--depth, 1) - 1) * var(--folder-indent-step));
+}
+
+.parent {
+  --indent: var(--folder-indent-parent);
+}
+
+.nested.parent {
+  --indent: calc(var(--folder-indent-nested) + (var(--depth, 1) - 1) * var(--folder-indent-step));
+}
+
+.treeRow {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: none;
+}
+
+.treeRow > .item {
+  flex: 1;
+}
+
+.toggle {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--indent, var(--folder-indent-parent)) - var(--folder-toggle-size));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--folder-toggle-size);
+  height: var(--folder-toggle-size);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  transform: translateY(-50%);
+}
+
+.toggle:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}

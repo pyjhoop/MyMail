@@ -59,6 +59,7 @@ export const FAKE_MAILS: RawMailSummary[] = FAKE_ACCOUNTS.map((a, i) => ({
   unread: true,
   starred: false,
   hasAttachment: false,
+  labels: [],
 }));
 
 export const FAKE_DETAIL = (id: string): RawMailDetail | null => {
