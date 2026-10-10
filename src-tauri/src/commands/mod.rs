@@ -505,6 +505,16 @@ pub async fn archive_mail(
     Ok(())
 }
 
+/// 알림 토스트의 계정 색 링에 쓸 색(`--account-1..8` 토큰 값, `#rrggbb`)을 받는다.
+#[tauri::command]
+pub async fn set_account_palette(colors: Vec<String>) -> CommandResult<()> {
+    if colors.len() > 16 {
+        return Err(invalid("색 목록이 너무 길어요."));
+    }
+    crate::notify::set_palette(colors);
+    Ok(())
+}
+
 /// 정렬 값이 없으면 최신순, 허용되지 않은 값이면 오류.
 fn parse_sort(sort: Option<&str>) -> CommandResult<MailSort> {
     match sort {

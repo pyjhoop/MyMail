@@ -32,7 +32,7 @@ struct TrayState {
     resume: MenuItem<tauri::Wry>,
 }
 
-fn show_main(app: &AppHandle) {
+pub fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window(MAIN) {
         let _ = w.unminimize();
         let _ = w.show();
@@ -72,22 +72,14 @@ pub fn tooltip_text(badge_unread: u32, paused: bool) -> String {
     text
 }
 
-/// 작업 표시줄 아이콘 위에 얹는 빨간 점(16x16 RGBA)
-fn badge_dot() -> Image<'static> {
-    const SIZE: u32 = 16;
-    let mut rgba = Vec::with_capacity((SIZE * SIZE * 4) as usize);
-    for y in 0..SIZE {
-        for x in 0..SIZE {
-            let (dx, dy) = (x as f32 - 7.5, y as f32 - 7.5);
-            let inside = dx * dx + dy * dy <= 7.0 * 7.0;
-            rgba.extend_from_slice(if inside {
-                &[0xE5, 0x39, 0x35, 0xFF]
-            } else {
-                &[0, 0, 0, 0]
-            });
-        }
-    }
-    Image::new_owned(rgba, SIZE, SIZE)
+/// 작업 표시줄 아이콘 위에 얹는 안 읽은 수 배지(빨간 원 + 흰 숫자, 99 넘으면 "99+")
+fn badge_icon(unread: u32) -> Option<Image<'static>> {
+    let text = notify::badge_text(unread)?;
+    Some(Image::new_owned(
+        notify::badge_rgba(&text),
+        notify::BADGE_SIZE,
+        notify::BADGE_SIZE,
+    ))
 }
 
 /// 안 읽은 수·동기화 시각·알림 일시 중지 상태를 트레이(툴팁·상태 줄·메뉴)와 작업 표시줄 배지에 반영한다.
@@ -112,11 +104,7 @@ pub fn refresh(app: &AppHandle) {
     });
     let _ = state.resume.set_enabled(paused);
     if let Some(w) = app.get_webview_window(MAIN) {
-        let _ = w.set_overlay_icon(if badge_unread > 0 {
-            Some(badge_dot())
-        } else {
-            None
-        });
+        let _ = w.set_overlay_icon(badge_icon(badge_unread));
     }
 }
 

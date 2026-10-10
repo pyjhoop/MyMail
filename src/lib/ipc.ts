@@ -351,6 +351,27 @@ export function onTrayCompose(callback: () => void): () => void {
   };
 }
 
+/** 알림 토스트를 눌렀을 때 열 메일 */
+export interface OpenMailTarget {
+  mailId: string;
+  accountId: string;
+  folderId: string;
+}
+
+/** 알림 토스트 클릭("open-mail")을 구독한다. 브라우저(pnpm dev)·테스트에서는 아무 일도 하지 않는다. */
+export function onOpenMail(callback: (target: OpenMailTarget) => void): () => void {
+  if (typeof window === "undefined" || !("__TAURI_INTERNALS__" in window)) return () => undefined;
+  const unlisten = listen<OpenMailTarget>("open-mail", (e) => callback(e.payload));
+  return () => {
+    void unlisten.then((fn) => fn());
+  };
+}
+
+/** 토스트 색 링에 쓸 계정 색(`--account-1..8` 토큰 값)을 백엔드로 넘긴다. */
+export function setAccountPalette(colors: string[]): Promise<void> {
+  return call<void>("set_account_palette", { colors });
+}
+
 /** 받는사람 한 명. 주소 목록은 `이름 <주소>` 또는 `주소` 문자열로 오간다. */
 export interface Recipient {
   name: string;

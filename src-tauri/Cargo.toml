@@ -37,6 +37,20 @@ tauri-plugin-autostart = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-dialog = "2"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+# 토스트 색 링 이미지(PNG) 생성. 이미 tauri 의존성으로 빌드에 들어 있는 크레이트
+png = "0.18"
+
+# Windows 토스트(버튼·클릭 이벤트)를 직접 호출하기 위함 — tauri-plugin-notification은 데스크톱 버튼·클릭 미지원
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+  "Data_Xml_Dom",
+  "Foundation",
+  "UI_Notifications",
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_Registry",
+  "Win32_UI_Shell",
+] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
