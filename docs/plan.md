@@ -416,3 +416,14 @@
   - 테스트: Rust — `FakeProvider`로 붙이기/떼기가 로컬과 큐에 반영됨, 여러 메일 일괄, 시스템 라벨 거절, 이름 검증, 이름 변경이 메일의 라벨에도 반영, 삭제해도 메일은 남음, 네이버형(미지원)은 `Unsupported`를 한국어 오류로, 오프라인 시 큐에 남음. UI — 팝오버 체크/해제가 `addLabel`/`removeLabel` 호출, 일부 붙음 중간 상태, 새 라벨 생성, 칩 ×, 이름 바꾸기·삭제 확인 창, `l` 단축키. 실서버(Gmail) 확인은 사용자가 요청할 때
   - 완료 메모: 마이그레이션 `0015_label_ops.sql`(`folders.path` = 라벨 전체 이름). `MailProvider`에 `add_label`/`remove_label`/`create_label`/`rename_label`/`delete_label`(기본 `Unsupported`)을 추가했고 IMAP은 Gmail일 때만 구현한다(붙이기·떼기는 `gmail_ext::change_label`이 `UID STORE ±X-GM-LABELS`를 직접 전송, 만들기·이름 바꾸기·삭제는 CREATE/RENAME/DELETE). `sync/labels.rs`: 이름 검증(빈 이름·100자 초과·금지 문자·빈 조각·INBOX/`[Gmail]`/시스템 폴더 이름 거절), `change_labels`(로컬 `messages.labels` 먼저 + `pending_ops`, 하나라도 틀리면 전체 무변경), 서버가 거절한 조작은 `flush_pending`에서 로컬 표시를 되돌림, 라벨 재동기화는 보내지 못한 조작이 걸린 메일을 덮어쓰지 않음. 만들기·이름 바꾸기·삭제는 온라인에서 서버에 먼저 하고 폴더 목록을 다시 받아 맞춘다(오프라인이면 실패 안내). 라벨 폴더의 목록·안 읽은 수는 저장된 폴더가 아니라 붙은 라벨 기준으로 바뀌었다. command: `supports_labels`/`add_label`/`remove_label`/`create_label`/`rename_label`/`delete_label`. UI는 `features/labels/`(`LabelButton` 팝오버, `LabelChips` ×, `LabelManage` 이름·삭제 창과 우클릭 메뉴)로 분리했고 `l` 단축키와 토스트 "실행 취소"(반대 조작 재전송)를 붙였다. 네이버는 버튼을 숨기고 기존 "폴더로 이동"을 쓴다(decisions.md). 테스트: Rust(FakeProvider)와 UI 모두 위 항목대로 추가.
   - 한계: 이름 바꾸기·삭제 때 그 라벨 폴더에 저장돼 있던 메일은 로컬에서 지워졌다가 다음 동기화로 다시 받는다(폴더 key가 바뀜). 서버가 거절한 조작의 되돌림은 화면 안내 없이 표시만 원복한다. 실서버(Gmail) 확인과 `l` 단축키의 App 수준 테스트는 하지 않았다.
+
+- [x] 첨부·이미지가 있는 메일에서 "이미지 표시"를 누르면 본문 내용이 여러 번 나온다 / 이미지를 바로 보이게 (사용자 요청)
+  - 원인 조사: 파서(`parse.rs`)가 html + 인라인 이미지 + 첨부가 섞인 메일을 한 번만 내놓는 것은 확인했다(본문 중복 없음). 실메일은 재현하지 못했다. 이미지 표시를 누르면 `srcDoc`이 바뀌어 iframe이 다시 로드되는데, 그때마다 `HtmlBody`의 `ResizeObserver`가 옛 문서 것까지 쌓여 높이를 서로 덮어쓰던 것을 확인했고 고쳤다(이전 관찰자 해제 + 언마운트 때 해제). 이전 메일 목록의 `key`가 날짜라 같은 날짜가 둘이면 중복 키로 항목이 겹쳐 보이던 것도 id 키로 고쳤다. 이래도 같은 증상이 나오면 어떤 메일에서 어떻게 보이는지(스레드 메일인지, 이미지가 본문 안인지 첨부인지) 알려 줘야 한다.
+  - 이미지 바로 표시: 외부 이미지를 기본으로 표시한다(`features/mail/showImagesPref.ts`, localStorage `mymail.showImages`, 기본 켜짐). 설정 > 일반 "메일 속 이미지를 바로 표시"로 끄면 예전처럼 차단 + "이미지 표시" 버튼. `cid:` 인라인 이미지는 원래 바로 표시된다. **CLAUDE.md의 "외부 이미지 기본 차단" 규칙을 사용자 요청으로 바꿨다**(추적 픽셀 위험은 설정으로 끌 수 있음).
+  - 테스트: 기본으로 이미지가 안내 없이 표시됨, 설정을 끄면 차단 + 버튼으로 허용.
+  - 남은 것: 이미지 첨부(`cid` 아닌 첨부 파일)의 미리보기 썸네일은 첨부 본문을 서버에서 받아야 해서 하지 않았다. 필요하면 별도 작업.
+
+- [x] 전달된 메일에서 본문 위의 이전 메일(제목 줄)을 눌러도 열리지 않는다
+  - 원인: `Reader`의 이전 메일 버튼에 클릭 동작이 없었고, 백엔드(`EarlierMail`)도 메일 id를 내려주지 않았다.
+  - 고친 내용: `EarlierMail`/`MailDetail.earlier`에 `id` 추가, 버튼 클릭 시 `onOpenMail`(= App의 `selectMail`)로 그 메일을 연다. 다른 폴더의 같은 스레드 메일도 열린다(목록 선택 표시는 따라가지 않음).
+  - 테스트: Reader에서 이전 메일 클릭이 해당 id로 호출됨(같은 날짜 둘), Rust에서 earlier id가 실제 메일을 가리킴.

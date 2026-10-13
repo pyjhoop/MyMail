@@ -229,6 +229,10 @@ async fn 상세는_본문_첨부_이전메일을_담는다() {
     let detail = store.get_mail("a1-inbox-0").unwrap().unwrap();
     assert!(detail.body.len() > 1);
     assert_eq!(detail.earlier.len(), 2);
+    // 이전 메일을 눌러 열 수 있게 id가 실제 메일을 가리켜야 한다
+    for e in &detail.earlier {
+        assert!(store.get_mail(&e.id).unwrap().is_some());
+    }
     assert_eq!(detail.attachments.len(), 3);
     assert_eq!(detail.attachments[0].ext, "PDF");
     assert!(store.get_mail("없는-id").unwrap().is_none());

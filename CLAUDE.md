@@ -21,7 +21,7 @@ Windows용 개인 메일 클라이언트(Gmail 개인 계정 + 네이버 메일)
 - UI(`src/`)는 Tauri command(`invoke`)로만 백엔드를 호출한다. UI에서 메일 서버·DB 직접 접근 금지.
 - Gmail·네이버 차이는 `src-tauri/src/providers/`의 `MailProvider` trait 구현체 안에서만 처리한다. 상위 계층에 서비스별 분기 금지.
 - 비밀번호·토큰은 keyring(Windows 자격 증명 관리자)에만 저장한다. 로그·DB·파일에 평문 금지.
-- HTML 메일은 샌드박스 iframe + DOMPurify로 표시한다. 스크립트 실행 금지, 외부 이미지 기본 차단.
+- HTML 메일은 샌드박스 iframe + DOMPurify로 표시한다. 스크립트 실행 금지. 외부 이미지는 기본 표시(설정에서 끄면 차단 + "이미지 표시" 버튼).
 - UI 문구는 한국어만.
 - 색·크기·간격은 `src/styles/tokens.css`의 CSS 변수만 쓴다. 하드코딩 금지.
 

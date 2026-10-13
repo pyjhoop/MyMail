@@ -1,5 +1,5 @@
 import { ImageOff } from "lucide-react";
-import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { openExternal } from "../../lib/ipc";
 import {
   buildMailDocument,
@@ -7,6 +7,7 @@ import {
   prepareMailHtml,
   readPaperColors,
 } from "../../lib/mailHtml";
+import { loadShowImages } from "./showImagesPref";
 import styles from "./HtmlBody.module.css";
 
 /** 이 폭까지는 글자를 키우지 않는다. 그보다 넓은 창에서만 MAX_ZOOM까지 확대한다. */
@@ -33,8 +34,9 @@ interface Props {
  * CSP로 외부 이미지를 막는다. 메일을 바꿀 때는 `key`로 다시 마운트해 "이미지 표시"를 초기화한다.
  */
 export function HtmlBody({ html, highlight }: Props) {
-  const [showImages, setShowImages] = useState(false);
+  const [showImages, setShowImages] = useState(loadShowImages);
   const frame = useRef<HTMLIFrameElement>(null);
+  const stopObserving = useRef<(() => void) | undefined>(undefined);
   const theme = useSyncExternalStore(subscribeTheme, getTheme);
 
   // 배열 모양이 매번 바뀌어도 내용이 같으면 다시 정제하지 않는다.
@@ -68,10 +70,13 @@ export function HtmlBody({ html, highlight }: Props) {
     };
     fit();
     // 이미지·글꼴이 늦게 로드되거나 창 크기가 바뀌면 다시 맞춘다.
+    // 문서가 다시 로드되면(이미지 표시 등) 옛 문서를 보던 관찰자는 걷어낸다.
+    stopObserving.current?.();
     if (typeof ResizeObserver === "function") {
       const observer = new ResizeObserver(fit);
       observer.observe(doc.body);
       observer.observe(el);
+      stopObserving.current = () => observer.disconnect();
     }
 
     // 링크는 앱 안에서 이동하지 않고 기본 브라우저로 연다.
@@ -83,6 +88,8 @@ export function HtmlBody({ html, highlight }: Props) {
       if (isOpenableLink(href)) void openExternal(href);
     });
   }, []);
+
+  useEffect(() => () => stopObserving.current?.(), []);
 
   return (
     <div className={styles.wrap}>

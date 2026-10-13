@@ -551,13 +551,14 @@ impl Store {
         let earlier = match thread_id {
             Some(t) => conn
                 .prepare(
-                    "SELECT sender, preview, received_at FROM messages
+                    "SELECT sender, preview, received_at, id FROM messages
                      WHERE thread_id = ?1 AND id != ?2 AND received_at < ?3
                      ORDER BY received_at LIMIT 20",
                 )?
                 .query_map(params![t, id, summary.received_at], |r| {
                     let sender: String = r.get(0)?;
                     Ok(EarlierMail {
+                        id: r.get(3)?,
                         initial: sender.chars().next().map(String::from).unwrap_or_default(),
                         sender,
                         preview: r.get(1)?,

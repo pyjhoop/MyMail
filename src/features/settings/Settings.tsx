@@ -13,6 +13,7 @@ import {
   type SyncProgress,
   type UpdateInfo,
 } from "../../lib/ipc";
+import { loadShowImages, saveShowImages } from "../mail/showImagesPref";
 import type { Density } from "../shell/useDensity";
 import { SHORTCUTS } from "../shell/shortcuts";
 import type { ThemePreference } from "../shell/useSystemTheme";
@@ -140,6 +141,7 @@ export function Settings({
 function General() {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [error, setError] = useState<string>();
+  const [showImages, setShowImages] = useState(loadShowImages);
 
   useEffect(() => {
     let cancelled = false;
@@ -178,6 +180,22 @@ function General() {
         <span>
           Windows 시작 시 실행
           <span className={styles.hint}>켜면 로그인할 때 창 없이 트레이로 시작해요.</span>
+        </span>
+      </label>
+      <label className={styles.row}>
+        <input
+          type="checkbox"
+          checked={showImages}
+          onChange={(e) => {
+            setShowImages(e.target.checked);
+            saveShowImages(e.target.checked);
+          }}
+        />
+        <span>
+          메일 속 이미지를 바로 표시
+          <span className={styles.hint}>
+            끄면 외부 이미지를 막고, 메일마다 "이미지 표시"를 눌러야 보여요.
+          </span>
         </span>
       </label>
       <p className={styles.hint}>창을 닫으면 앱은 종료되지 않고 트레이에 남아요.</p>

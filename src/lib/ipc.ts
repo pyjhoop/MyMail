@@ -87,7 +87,7 @@ export interface MailDetail extends MailSummary {
   html?: string;
   attachments: MailAttachment[];
   /** 본문 위에 접어 두는 이전 메일 */
-  earlier: { sender: string; initial: string; preview: string; date: string }[];
+  earlier: { id: string; sender: string; initial: string; preview: string; date: string }[];
   fullTime: string;
   /** 받은 시각(유닉스 초). 답장 인용 머리말에 쓴다 */
   receivedAt?: number;
@@ -103,7 +103,7 @@ export interface RawMailDetail extends RawMailSummary {
   body: string[];
   html?: string | null;
   attachments: { id: number; name: string; size: number; ext: string }[];
-  earlier: { sender: string; initial: string; preview: string; receivedAt: number }[];
+  earlier: { id: string; sender: string; initial: string; preview: string; receivedAt: number }[];
 }
 
 const toSummary = ({ receivedAt, ...rest }: RawMailSummary): MailSummary => ({
@@ -272,6 +272,7 @@ export async function getMail(id: string): Promise<MailDetail | null> {
     receivedAt: raw.receivedAt,
     attachments: raw.attachments.map((a) => ({ ...a, size: formatSize(a.size) })),
     earlier: raw.earlier.map((e) => ({
+      id: e.id,
       sender: e.sender,
       initial: e.initial,
       preview: e.preview,

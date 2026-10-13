@@ -112,6 +112,7 @@ pub struct Attachment {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EarlierMail {
+    pub id: String,
     pub sender: String,
     pub initial: String,
     pub preview: String,
