@@ -227,3 +227,15 @@
   margin: 0 0 var(--space-3);
   white-space: pre-line;
 }
+
+.earlierBody {
+  margin: var(--space-2) 0 var(--space-3);
+  padding-left: var(--space-2);
+  border-left: 2px solid var(--color-border);
+}
+
+.earlierNote {
+  margin: var(--space-2) 0 var(--space-3) 36px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+}

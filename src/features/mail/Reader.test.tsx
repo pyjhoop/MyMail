@@ -1,8 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
-import type { MailDetail } from "../../lib/ipc";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getMail, type MailDetail } from "../../lib/ipc";
 import { Reader } from "./Reader";
+
+vi.mock("../../lib/ipc", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/ipc")>()),
+  getMail: vi.fn(),
+}));
 
 const mail: MailDetail = {
   id: "m2",
@@ -28,8 +33,17 @@ const mail: MailDetail = {
 };
 
 describe("Reader 이전 메일", () => {
-  it("이전 메일을 누르면 그 메일의 id로 연다 (같은 날짜여도 각각)", async () => {
-    const onOpenMail = vi.fn();
+  beforeEach(() => {
+    vi.mocked(getMail).mockReset();
+    vi.mocked(getMail).mockImplementation(async (id) => ({
+      ...mail,
+      id,
+      earlier: [],
+      body: [`${id} 본문`],
+    }));
+  });
+
+  const setup = () =>
     render(
       <Reader
         mail={mail}
@@ -37,12 +51,38 @@ describe("Reader 이전 메일", () => {
         onPrev={() => undefined}
         onNext={() => undefined}
         onCompose={() => undefined}
-        onOpenMail={onOpenMail}
       />,
     );
-    await userEvent.click(screen.getByText("두 번째"));
-    expect(onOpenMail).toHaveBeenCalledWith("m1");
-    await userEvent.click(screen.getByText("첫 메일"));
-    expect(onOpenMail).toHaveBeenLastCalledWith("m0");
+
+  it("누르면 그 자리에서 본문이 펼쳐지고, 다시 누르면 접힌다", async () => {
+    setup();
+    expect(screen.queryByText("m1 본문")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /이서연/ }));
+    expect(await screen.findByText("m1 본문")).toBeInTheDocument();
+    expect(screen.queryByText("m0 본문")).toBeNull(); // 같은 날짜의 다른 메일은 그대로
+
+    await userEvent.click(screen.getByRole("button", { name: /이서연/ }));
+    expect(screen.queryByText("m1 본문")).toBeNull();
+  });
+
+  it("한 번 불러온 본문은 다시 펼칠 때 다시 받지 않는다", async () => {
+    setup();
+    const button = screen.getByRole("button", { name: /김도윤/ });
+    await userEvent.click(button);
+    await screen.findByText("m0 본문");
+    await userEvent.click(button);
+    await userEvent.click(button);
+    expect(getMail).toHaveBeenCalledTimes(1);
+  });
+
+  it("불러오지 못하면 안내하고, 다시 누르면 재시도한다", async () => {
+    vi.mocked(getMail).mockRejectedValueOnce({ kind: "unknown", message: "실패했어요" });
+    setup();
+    const button = screen.getByRole("button", { name: /김도윤/ });
+    await userEvent.click(button);
+    expect(await screen.findByRole("alert")).toHaveTextContent("실패했어요");
+    await userEvent.click(button);
+    await userEvent.click(button);
+    expect(await screen.findByText("m0 본문")).toBeInTheDocument();
   });
 });

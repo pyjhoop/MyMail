@@ -13,6 +13,7 @@ import { NoMailSelected, ReaderSkeleton } from "../../components/StateView";
 import type { MailDetail } from "../../lib/ipc";
 import { LabelChips } from "../labels/LabelChips";
 import { AttachmentList } from "./AttachmentList";
+import { EarlierItem } from "./EarlierItem";
 import { HtmlBody } from "./HtmlBody";
 import { MoreMenu, type MoreMenuProps } from "./MoreMenu";
 import { Highlight } from "../search/Highlight";
@@ -42,8 +43,6 @@ interface Props {
   onNext: () => void;
   onCompose: (mode: "reply" | "replyAll" | "forward") => void;
   actions?: ReaderActions;
-  /** 본문 위의 이전 메일을 눌렀을 때 그 메일을 연다 */
-  onOpenMail?: (id: string) => void;
   /** 검색 결과에서 연 메일이면: 본문에서 강조할 단어, 검색어 칩, 계정·폴더 표시 */
   search?: {
     terms: readonly string[];
@@ -61,7 +60,6 @@ export function Reader({
   onNext,
   onCompose,
   actions,
-  onOpenMail,
   search,
 }: Props) {
   const terms = search?.terms ?? NO_TERMS;
@@ -187,17 +185,7 @@ export function Reader({
             </div>
 
             {mail.earlier.map((e) => (
-              <button
-                type="button"
-                className={`ib ${styles.earlier}`}
-                key={e.id}
-                onClick={() => onOpenMail?.(e.id)}
-              >
-                <span className={styles.smallAvatar}>{e.initial}</span>
-                <span className={styles.earlierName}>{e.sender}</span>
-                <span className={styles.earlierPreview}>{e.preview}</span>
-                <span className={styles.date}>{e.date}</span>
-              </button>
+              <EarlierItem key={`${mail.id}:${e.id}`} item={e} />
             ))}
             {mail.earlier.length > 0 && <div className={styles.divider} />}
 

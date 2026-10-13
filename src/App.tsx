@@ -1106,7 +1106,6 @@ function App() {
             onNext={() => move(1)}
             onCompose={startCompose}
             actions={readerActions}
-            onOpenMail={selectMail}
             search={readerSearch}
           />
         </div>
